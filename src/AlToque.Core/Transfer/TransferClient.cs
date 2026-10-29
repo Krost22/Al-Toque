@@ -23,6 +23,12 @@ public sealed record PeerTarget
 
     /// <summary>Código de conexión usado; su huella parcial debe coincidir.</summary>
     public ConnectionCode.Parsed? Code { get; init; }
+
+    /// <summary>
+    /// La dirección sale de la caché de otra sesión, no de un anuncio en vivo. Si ahí responde otra clave, lo más
+    /// probable es que la IP se haya reasignado: se informa como "no pude conectar", no como suplantación.
+    /// </summary>
+    public bool FromCache { get; init; }
 }
 
 /// <summary>Lado emisor: oferta, espera la decisión y envía los archivos por 1 a 4 conexiones de datos.</summary>
@@ -204,6 +210,7 @@ public sealed class TransferClient
             {
                 ConnectFailure.Unreachable => ErrorCodes.Unreachable,
                 ConnectFailure.Rejected => ErrorCodes.Policy,
+                ConnectFailure.IdentityMismatch when target.FromCache => ErrorCodes.Unreachable,
                 ConnectFailure.IdentityMismatch => ErrorCodes.IdentityMismatch,
                 _ => ErrorCodes.Protocol,
             }, ex.Message);

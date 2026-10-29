@@ -33,7 +33,7 @@ public static partial class WindowsShell
             {
                 using var verb = classes.CreateSubKey($@"{target}\shell\{VerbName}", writable: true);
                 verb.SetValue("MUIVerb", S.Spanish ? "Enviar con Al Toque" : "Send with Al Toque");
-                verb.SetValue("Icon", $"\"{exePath}\",0");
+                verb.SetValue("Icon", $"{exePath},0");
                 verb.SetValue("ExtendedSubCommandsKey", MenuKey);
                 verb.SetValue("MultiSelectModel", "Player");
             }
@@ -87,7 +87,7 @@ public static partial class WindowsShell
         item.SetValue("MUIVerb", label);
         item.SetValue("MultiSelectModel", "Player");
         if (icon is not null)
-            item.SetValue("Icon", $"\"{icon}\",0");
+            item.SetValue("Icon", $"{icon},0");
         var flags = (separatorBefore ? EcfSeparatorBefore : 0) | (separatorAfter ? EcfSeparatorAfter : 0);
         if (flags != 0)
             item.SetValue("CommandFlags", flags, RegistryValueKind.DWord);

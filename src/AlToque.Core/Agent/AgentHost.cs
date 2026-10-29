@@ -368,13 +368,13 @@ public sealed class AgentHost : IAsyncDisposable
 
     public PeerTarget? TargetForPeer(string deviceId)
     {
-        var ep = Peers.ResolveEndPoint(deviceId);
-        if (ep is null)
+        if (Peers.Resolve(deviceId) is not var (ep, live))
             return null;
         var trusted = Trust.Find(deviceId);
         return new PeerTarget
         {
             EndPoint = ep,
+            FromCache = !live,
             DisplayName = trusted?.DisplayName ?? Peers.Find(deviceId)?.DisplayName ?? IdentityVisuals.ShortCode(deviceId),
             ExpectedDeviceId = deviceId,
             PinnedKey = trusted is null ? null : Convert.FromBase64String(trusted.PublicKey),

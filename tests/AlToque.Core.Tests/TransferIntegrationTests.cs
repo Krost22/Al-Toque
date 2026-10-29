@@ -75,6 +75,8 @@ public class TransferIntegrationTests
         Assert.True(Directory.Exists(Path.Combine(b.Inbox, "Proyecto", "vacía")));
         Assert.Equal(new DateTime(2024, 5, 6, 7, 8, 9, DateTimeKind.Utc), File.GetLastWriteTimeUtc(Path.Combine(b.Inbox, "solo.txt")));
         Assert.Empty(Directory.EnumerateFiles(b.Inbox, "*" + AppInfo.PartExtension, SearchOption.AllDirectories));
+        if (OperatingSystem.IsWindows())
+            Assert.Contains("ZoneId=3", File.ReadAllText(Path.Combine(b.Inbox, "solo.txt") + ":Zone.Identifier"));
 
         // Un segundo envío igual no pisa nada: se renombra el primer nivel.
         var again = a.Host.BeginSend(a.TargetFor(b), [solo]);
@@ -194,6 +196,21 @@ public class TransferIntegrationTests
         await WaitFinished(info2);
         Assert.Equal(ErrorCodes.IdentityMismatch, info2.ErrorCode);
         Assert.Empty(Directory.EnumerateFileSystemEntries(b.Inbox));
+    }
+
+    [Fact]
+    public async Task StaleCachedAddressIsReportedAsUnreachable()
+    {
+        await using var a = TestAgent.Create("Laura");
+        await using var c = TestAgent.Create("Otro equipo");
+        c.Host.SetReceiveMode(ReceiveMode.Everyone);
+        using var andres = DeviceIdentity.CreateNew();
+        // La IP que la caché recordaba para Andrés ahora la tiene otro equipo con Al Toque.
+        var stale = a.TargetFor(c) with { PinnedKey = andres.PublicKey, ExpectedDeviceId = andres.DeviceId, FromCache = true };
+        var info = a.Host.BeginSend(stale, [a.WriteFile("x.txt", 10)]);
+        await WaitFinished(info);
+        Assert.Equal(ErrorCodes.Unreachable, info.ErrorCode);
+        Assert.Empty(Directory.EnumerateFileSystemEntries(c.Inbox));
     }
 
     [Fact]

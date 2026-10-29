@@ -23,8 +23,8 @@ jobs:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
         with:
           global-json-file: global.json
       - name: Pruebas del núcleo
@@ -41,8 +41,8 @@ jobs:
       matrix:
         rid: [win-x64, win-arm64]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
         with:
           global-json-file: global.json
 
@@ -56,6 +56,31 @@ jobs:
       - name: Publicar con NativeAOT
         run: dotnet publish src/AlToque -c Release -r ${{ matrix.rid }} -p:Version=${{ steps.version.outputs.value }} -o publish/${{ matrix.rid }}
 
+      - name: Prueba de humo (agente, menú contextual, "Enviar a", CLI)
+        if: matrix.rid == 'win-x64'
+        shell: pwsh
+        run: |
+          $env:ALTOQUE_HOME = Join-Path $env:RUNNER_TEMP "altoque-humo"
+          $exe = (Resolve-Path "publish/win-x64/AlToque.exe").Path
+          $agent = Start-Process $exe -ArgumentList "--background" -PassThru
+          $log = Join-Path $env:ALTOQUE_HOME "logs/altoque.log"
+          for ($i = 0; $i -lt 40 -and -not ((Test-Path $log) -and (Select-String -Path $log -Pattern "Escuchando" -Quiet)); $i++) { Start-Sleep -Milliseconds 250 }
+          Start-Sleep -Seconds 3
+          Get-Content $log | Write-Host
+          if (-not (Select-String -Path $log -Pattern "Escuchando en el puerto" -Quiet)) { throw "El agente no arrancó" }
+          if (-not (Test-Path -LiteralPath "HKCU:\Software\Classes\*\shell\AlToque")) { throw "Falta el menú contextual para archivos" }
+          if (-not (Test-Path -LiteralPath "HKCU:\Software\Classes\AlToque.Menu\shell\98\command")) { throw "Falta el submenú" }
+          $sendTo = Join-Path $env:APPDATA "Microsoft\Windows\SendTo\Al Toque.lnk"
+          if (-not (Test-Path -LiteralPath $sendTo)) { throw "Falta el acceso directo de Enviar a" }
+          $cli = Start-Process $exe -ArgumentList "send", "--pick", "`"$((Resolve-Path README.md).Path)`"" -Wait -PassThru
+          if ($cli.ExitCode -ne 0) { throw "El CLI no pudo hablar con el agente ($($cli.ExitCode))" }
+          Start-Process $exe -ArgumentList "quit" -Wait | Out-Null
+          if (-not $agent.WaitForExit(10000)) { Stop-Process $agent; throw "El agente no se cerró" }
+          Start-Process $exe -ArgumentList "unintegrate" -Wait | Out-Null
+          if (Test-Path -LiteralPath "HKCU:\Software\Classes\*\shell\AlToque") { throw "unintegrate no quitó el menú" }
+          if (Test-Path -LiteralPath $sendTo) { throw "unintegrate no quitó Enviar a" }
+          Write-Host "Prueba de humo correcta."
+
       - name: Paquete portable (.zip)
         shell: pwsh
         run: |
@@ -67,7 +92,7 @@ jobs:
           New-Item "$stage/portable.flag" -ItemType File | Out-Null
           Compress-Archive -Path "$stage/*" -DestinationPath "AlToque-${{ steps.version.outputs.value }}-${{ matrix.rid }}-portable.zip"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: AlToque-${{ matrix.rid }}-portable
           path: AlToque-*-portable.zip
@@ -79,9 +104,9 @@ jobs:
         run: |
           dotnet tool install -g vpk --version 1.2.161
           vpk pack -u AlToque -v ${{ steps.version.outputs.value }} -p publish/${{ matrix.rid }} -e AlToque.exe `
-            --packTitle "Al Toque" -i src/AlToque/Assets/altoque.ico -o releases/${{ matrix.rid }}
+            -r ${{ matrix.rid }} -c ${{ matrix.rid }} --packTitle "Al Toque" -i src/AlToque/Assets/altoque.ico -o releases/${{ matrix.rid }}
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         if: steps.velopack.outcome == 'success'
         with:
           name: AlToque-${{ matrix.rid }}-instalador

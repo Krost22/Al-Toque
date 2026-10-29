@@ -163,16 +163,19 @@ public sealed class PeerDirectory
     public PeerInfo? Find(string deviceId) => Snapshot(includeOfflineTrusted: true).FirstOrDefault(p => p.DeviceId == deviceId);
 
     /// <summary>Dirección conocida más reciente: anuncio en vivo o caché.</summary>
-    public IPEndPoint? ResolveEndPoint(string deviceId)
+    public IPEndPoint? ResolveEndPoint(string deviceId) => Resolve(deviceId)?.EndPoint;
+
+    /// <summary>Dirección y si viene de un anuncio en vivo (<c>Live</c>) o solo de la caché de otra sesión.</summary>
+    public (IPEndPoint EndPoint, bool Live)? Resolve(string deviceId)
     {
         lock (_lock)
         {
             if (_live.TryGetValue(deviceId, out var live) && live.EndPoint is not null)
-                return live.EndPoint;
+                return (live.EndPoint, true);
         }
         var cached = _cache.Get(deviceId);
         if (cached?.Address is not null && IPAddress.TryParse(cached.Address, out var ip) && cached.Port is > 0 and <= 65535)
-            return new IPEndPoint(ip, cached.Port);
+            return (new IPEndPoint(ip, cached.Port), false);
         return null;
     }
 

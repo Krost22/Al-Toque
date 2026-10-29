@@ -18,6 +18,9 @@ public static class MarkOfTheWeb
             var root = Path.GetPathRoot(Path.GetFullPath(folder));
             if (string.IsNullOrEmpty(root))
                 return false;
+            // Carpeta de red: no se puede saber el sistema de archivos del servidor; se intenta igual.
+            if (root.StartsWith(@"\\", StringComparison.Ordinal))
+                return true;
             var format = new DriveInfo(root).DriveFormat;
             return format.Equals("NTFS", StringComparison.OrdinalIgnoreCase) || format.Equals("ReFS", StringComparison.OrdinalIgnoreCase);
         }

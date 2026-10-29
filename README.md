@@ -63,7 +63,7 @@ milisegundos; si el agente no está corriendo, lo inicia.
 Requisitos: [.NET 10 SDK](https://dotnet.microsoft.com/download).
 
 ```bash
-dotnet test tests/AlToque.Core.Tests          # 81 pruebas, incluidas dos instancias reales hablando por TLS
+dotnet test tests/AlToque.Core.Tests          # 85 pruebas, incluidas dos instancias reales hablando por TLS
 dotnet run --project src/AlToque              # ejecutar en modo desarrollo
 ```
 
@@ -75,8 +75,8 @@ New-Item publish/portable.flag   # opcional: modo portable, guarda todo junto al
 ```
 
 El flujo de GitHub Actions ([`.github/workflows/build.yml`](.github/workflows/build.yml)) corre las pruebas en Linux y
-Windows, publica `win-x64` y `win-arm64` con NativeAOT y sube como artefactos el `.zip` portable y el instalador de
-Velopack. Al publicar una etiqueta `v*` crea la versión en GitHub, desde donde la app se actualiza sola.
+Windows, publica `win-x64` y `win-arm64` con NativeAOT, hace una prueba de humo del `.exe` en Windows (agente, menú
+contextual, "Enviar a" y CLI) y sube como artefactos el `.zip` portable y el instalador de Velopack. Al publicar una etiqueta `v*` crea la versión en GitHub, desde donde la app se actualiza sola.
 
 Para desarrollar con dos instancias en el mismo equipo, cada una con sus propios datos:
 

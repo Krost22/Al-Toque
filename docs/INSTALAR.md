@@ -58,7 +58,10 @@ Desde ese momento ya son compañeros de confianza.
 
 - **Clic derecho** sobre archivos o carpetas → **Mostrar más opciones** (en Windows 11) → **Enviar con Al Toque**
   → elige a tu compañero.
-- O **arrastra** los archivos al panel de la bandeja, sobre el avatar de tu compañero.
+- O **arrastra**: abre el panel (clic en el ícono de Al Toque junto al reloj). El panel se queda abierto aunque
+  hagas clic en el Explorador; arrastra los archivos **sobre el avatar** de tu compañero para enviarlos directo, o a la
+  zona "Suelta archivos aquí" para elegir después a quién. El panel se cierra con la **X**, con **Esc** o con otro
+  clic en el ícono.
 - O clic derecho → **Enviar a → Al Toque** para elegir el destino.
 
 Tu compañero ve una tarjeta con lo que llega y pulsa **Aceptar**. Los archivos se guardan en

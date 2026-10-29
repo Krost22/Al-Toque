@@ -156,10 +156,34 @@ internal sealed class IncomingFile : IAsyncDisposable
         }
         if (!NameSanitizer.IsInside(_root, final))
             throw new TransferException(ErrorCodes.Io, "Ruta fuera del destino.");
-        File.Move(PartPath, final, overwrite: _policy == ConflictPolicy.Replace);
+        await MoveWithRetryAsync(PartPath, final, _policy == ConflictPolicy.Replace).ConfigureAwait(false);
         _finished = true;
         ApplyTimestamps(final);
         return final;
+    }
+
+    /// <summary>
+    /// En Windows el antivirus suele abrir el archivo recién cerrado para analizarlo; mientras tanto el renombrado
+    /// falla con "archivo en uso". Se reintenta unas veces antes de darlo por perdido.
+    /// </summary>
+    private static async Task MoveWithRetryAsync(string from, string to, bool overwrite)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                File.Move(from, to, overwrite);
+                return;
+            }
+            catch (IOException) when (attempt < 6 && !File.Exists(to))
+            {
+                await Task.Delay(150 * attempt).ConfigureAwait(false);
+            }
+            catch (UnauthorizedAccessException) when (attempt < 6)
+            {
+                await Task.Delay(150 * attempt).ConfigureAwait(false);
+            }
+        }
     }
 
     private void ApplyTimestamps(string path)

@@ -253,8 +253,8 @@ public sealed class AppController
     {
         if (_panelWindow is { IsVisible: true })
             HidePanel();
-        else if (_panelWindow is null || Environment.TickCount64 - _panelWindow.LastAutoHide > 400)
-            ShowPanel(); // Si se acaba de ocultar por el mismo clic en la bandeja, el clic era para cerrarlo.
+        else
+            ShowPanel();
     }
 
     public void ShowPanel(IReadOnlyList<string>? pendingPaths = null)
@@ -262,6 +262,7 @@ public sealed class AppController
         if (_panelWindow is null)
         {
             _panelWindow = new QuickPanelWindow { DataContext = Panel };
+            _panelWindow.HideRequested += HidePanel;
             _panelWindow.SizeChanged += (_, _) =>
             {
                 _panelWindow.PlaceNearTray();
@@ -514,6 +515,9 @@ public sealed class AppController
             _pairingWindow.Closed += (_, _) =>
             {
                 _pairingWindow = null;
+                // Si quedaba un código sin responder, se rechaza ya: el otro equipo no se queda esperando.
+                if (Pairing.Prompt is { Outcome: null } pending)
+                    pending.Confirm(false);
                 Agent.Pairing.CloseWindow();
             };
             Pairing.Reset();

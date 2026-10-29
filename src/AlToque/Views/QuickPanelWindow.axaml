@@ -34,6 +34,7 @@
             <TextBlock Text="{Binding PendingTitle}" FontWeight="SemiBold" TextWrapping="Wrap" VerticalAlignment="Center" />
             <Button Grid.Column="1" Classes="link" Content="{x:Static l:S.Cancel}" Command="{Binding ClearPending}" />
           </Grid>
+          <Button Classes="link" Content="{x:Static l:S.SendByCode}" Command="{Binding Connect}" />
           <TextBox Text="{Binding Message}" PlaceholderText="{x:Static l:S.MessagePlaceholder}" MaxLength="500" />
         </StackPanel>
       </Border>

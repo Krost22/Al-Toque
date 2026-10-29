@@ -114,33 +114,15 @@ public sealed class QuickPanelViewModel : ViewModelBase
     public void SetPending(IReadOnlyList<string>? paths)
     {
         _pending = paths is { Count: > 0 } ? paths : null;
-        if (_pending is not null)
+        if (_pending is { } pending)
         {
-            long size = 0;
-            var count = 0;
-            foreach (var p in _pending)
+            // El tamaño se calcula en segundo plano: una carpeta con miles de archivos no congela el panel.
+            PendingTitle = S.PickTitle(pending.Count, "…");
+            _ = Task.Run(() => Measure(pending)).ContinueWith(t =>
             {
-                try
-                {
-                    if (File.Exists(p))
-                    {
-                        size += new FileInfo(p).Length;
-                        count++;
-                    }
-                    else if (Directory.Exists(p))
-                    {
-                        foreach (var f in new DirectoryInfo(p).EnumerateFiles("*", new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true }).Take(20_000))
-                        {
-                            size += f.Length;
-                            count++;
-                        }
-                    }
-                }
-                catch (IOException)
-                {
-                }
-            }
-            PendingTitle = S.PickTitle(Math.Max(count, _pending.Count), Format.Bytes(size));
+                if (ReferenceEquals(_pending, pending) && t.IsCompletedSuccessfully)
+                    PendingTitle = S.PickTitle(Math.Max(t.Result.Count, pending.Count), Format.Bytes(t.Result.Size));
+            }, TaskScheduler.FromCurrentSynchronizationContext());
         }
         else
         {
@@ -148,6 +130,37 @@ public sealed class QuickPanelViewModel : ViewModelBase
         }
         Raise(nameof(PendingPaths));
         Raise(nameof(HasPending));
+    }
+
+    private static (int Count, long Size) Measure(IReadOnlyList<string> paths)
+    {
+        long size = 0;
+        var count = 0;
+        var options = new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true };
+        foreach (var p in paths)
+        {
+            try
+            {
+                if (File.Exists(p))
+                {
+                    size += new FileInfo(p).Length;
+                    count++;
+                }
+                else if (Directory.Exists(p))
+                {
+                    foreach (var f in new DirectoryInfo(p).EnumerateFiles("*", options).Take(100_000))
+                    {
+                        size += f.Length;
+                        count++;
+                    }
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+            {
+                // Sin permiso para leer algo: se informa al enviar, no aquí.
+            }
+        }
+        return (count, size);
     }
 
     // ── Sincronización con el agente ─────────────────────────────────────────────

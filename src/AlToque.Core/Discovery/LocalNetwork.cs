@@ -58,6 +58,10 @@ public static class LocalNetwork
             return true;
         var desc = nic.Description.ToLowerInvariant();
         var name = nic.Name.ToLowerInvariant();
+        // Con un conmutador externo de Hyper-V la red real de la PC pasa por "vEthernet (…)": si tiene puerta de
+        // enlace, es la red de verdad y no un adaptador interno (WSL, Docker, "Default Switch").
+        if ((name.StartsWith("vethernet", StringComparison.Ordinal) || desc.Contains("hyper-v", StringComparison.Ordinal)) && HasIPv4Gateway(nic))
+            return false;
         if (VirtualDescriptionHints.Any(h => desc.Contains(h, StringComparison.Ordinal) || name.Contains(h, StringComparison.Ordinal)))
             return true;
         return !OperatingSystem.IsWindows() && VirtualNamePrefixes.Any(p => name.StartsWith(p, StringComparison.Ordinal));
@@ -84,6 +88,19 @@ public static class LocalNetwork
     {
         lock (CacheLock)
             _cache = null;
+    }
+
+    private static bool HasIPv4Gateway(NetworkInterface nic)
+    {
+        try
+        {
+            return nic.GetIPProperties().GatewayAddresses.Any(g =>
+                g.Address.AddressFamily == AddressFamily.InterNetwork && !g.Address.Equals(IPAddress.Any));
+        }
+        catch (NetworkInformationException)
+        {
+            return false;
+        }
     }
 
     public static IReadOnlyList<LocalInterface> GetIPv4Interfaces(bool excludeVirtual)

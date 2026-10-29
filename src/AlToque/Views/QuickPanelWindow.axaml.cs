@@ -21,26 +21,17 @@ public partial class QuickPanelWindow : Window
         root.AddHandler(DragDrop.DragOverEvent, OnDragOver);
         root.AddHandler(DragDrop.DragLeaveEvent, OnDragLeave);
         root.AddHandler(DragDrop.DropEvent, OnDrop);
-        Deactivated += (_, _) =>
-        {
-            if (!SuppressAutoHide && IsVisible)
-            {
-                LastAutoHide = Environment.TickCount64;
-                Hide();
-            }
-        };
+        // El panel no se oculta al perder el foco: hay que poder hacer clic en el Explorador y arrastrar
+        // archivos hasta aquí. Se cierra con la X, con Esc o con el ícono de la bandeja.
         KeyDown += (_, e) =>
         {
             if (e.Key == Key.Escape)
-                Hide();
+                HideRequested?.Invoke();
         };
     }
 
-    /// <summary>Momento en que se ocultó solo al perder el foco (por ejemplo, al hacer clic en la bandeja).</summary>
-    public long LastAutoHide { get; private set; }
-
-    /// <summary>Mientras hay un diálogo abierto (elegir archivos) el panel no se oculta al perder el foco.</summary>
-    public bool SuppressAutoHide { get; set; }
+    /// <summary>El usuario pidió cerrar el panel (Esc o Alt+F4): el controlador lo oculta y limpia lo pendiente.</summary>
+    public event Action? HideRequested;
 
     private QuickPanelViewModel? Vm => DataContext as QuickPanelViewModel;
 
@@ -88,16 +79,8 @@ public partial class QuickPanelWindow : Window
 
     public async Task<IReadOnlyList<string>> PickFilesAsync()
     {
-        SuppressAutoHide = true;
-        try
-        {
-            var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions { AllowMultiple = true, Title = "Al Toque" });
-            return files.Select(f => f.TryGetLocalPath()).OfType<string>().ToList();
-        }
-        finally
-        {
-            SuppressAutoHide = false;
-        }
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions { AllowMultiple = true, Title = "Al Toque" });
+        return files.Select(f => f.TryGetLocalPath()).OfType<string>().ToList();
     }
 
     protected override void OnOpened(EventArgs e)
@@ -112,7 +95,7 @@ public partial class QuickPanelWindow : Window
         if (!AppController.IsQuitting)
         {
             e.Cancel = true;
-            Hide();
+            HideRequested?.Invoke();
         }
         base.OnClosing(e);
     }

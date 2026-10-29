@@ -75,6 +75,7 @@ public static class S
     public static string Recent => T("Recientes", "Recent");
     public static string NoRecent => T("Todavía no hay envíos.", "Nothing sent yet.");
     public static string ConnectByCode => T("Conectar por código", "Connect by code");
+    public static string SendByCode => T("¿No aparece? Enviar por código o IP…", "Not listed? Send by code or IP…");
     public static string UseIp => T("Usar IP", "Use IP");
     public static string PairButton => T("Emparejar", "Pair");
     public static string MyCode => T("Mi código", "My code");
@@ -253,7 +254,9 @@ public static class S
     public static string WelcomeStart => T("Empezar", "Get started");
 
     // ── Formatos ─────────────────────────────────────────────────────────────────
-    public static string Items(int n) => Spanish ? (n == 1 ? "1 archivo" : $"{n:N0} archivos") : (n == 1 ? "1 file" : $"{n:N0} files");
+    public static string Items(int n) => Spanish
+        ? (n == 1 ? "1 archivo" : n.ToString("N0", Culture) + " archivos")
+        : (n == 1 ? "1 file" : n.ToString("N0", Culture) + " files");
     public static string Sent => T("Enviado", "Sent");
     public static string Received => T("Recibido", "Received");
     public static string Yesterday => T("ayer", "yesterday");

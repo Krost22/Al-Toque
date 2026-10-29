@@ -35,6 +35,11 @@ Pendiente para próximas versiones (ver la hoja de ruta de la especificación): 
 envío a varios destinatarios y grupos, notificaciones nativas del Windows App SDK, animaciones Lottie de Chasqui,
 inglés revisado, macOS e integración con gestores de archivos de Linux, IPv6 en el descubrimiento.
 
+## Instalar
+
+Descarga el instalador o la versión portable desde **Actions → Compilar y probar → Artifacts** (o desde
+*Releases*). Las instrucciones paso a paso están en [`docs/INSTALAR.md`](docs/INSTALAR.md).
+
 ## Uso
 
 1. Abre Al Toque en las dos PC. Elige cómo te verán tus compañeros.
@@ -132,4 +137,4 @@ repositorio.
 
 ## Licencia
 
-Por definir.
+Código abierto bajo la [licencia MIT](LICENSE).

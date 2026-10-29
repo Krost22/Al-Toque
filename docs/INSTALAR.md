@@ -67,11 +67,22 @@ Tu compañero ve una tarjeta con lo que llega y pulsa **Aceptar**. Los archivos 
 **Para alguien que todavía no es de confianza:** quien recibe elige *Recibir de: Todos (10 min)* en el panel. La
 solicitud llega marcada como **No verificado**.
 
-## Si no se ven las PC
+## Si no se ven las PC o no pasa nada
 
-- Comprueben que están en la misma red y que es **privada** (paso 3).
-- En Wi-Fi de invitados o redes de empresa que aíslan los equipos: panel → ícono de código → **Mi código** en una PC,
-  y en la otra **Conectar por código** (también acepta la dirección IP).
+1. **¿La red es pública?** Es la causa más común. Por seguridad, en redes públicas Al Toque **no recibe ni acepta
+   emparejamientos**, y el panel lo avisa con un recuadro amarillo. Tienes dos opciones, y hay que hacerlo **en las
+   dos PC**:
+   - **Mejor:** marca la red como privada en Windows (*Configuración → Red e Internet → Wi-Fi/Ethernet → Tipo de
+     perfil de red → Privada*).
+   - **Si confías en esa red:** en el aviso del panel pulsa **Recibir igual en esta red** y acepta el permiso de
+     administrador para el firewall (solo la primera vez). Para hacerlo siempre: *Ajustes → Recibir también en redes
+     públicas*.
+2. Comprueben que las dos PC están en la **misma red** y con Al Toque abierto (ícono en la bandeja).
+3. **Firewall:** *Ajustes → Permitir en el firewall*. Si usas otro antivirus con firewall, permite `AlToque.exe`.
+4. **Sin descubrimiento automático:** panel → ícono de código → **Mi código** en una PC, y en la otra **Conectar
+   por código** (también acepta la dirección IP).
+5. **Wi-Fi de cafeterías, hoteles o invitados:** muchas aíslan los equipos entre sí y ninguna app de red local puede
+   funcionar ahí. Conecten las dos PC al **punto de acceso del celular** o a otra red.
 
 ## Desinstalar
 

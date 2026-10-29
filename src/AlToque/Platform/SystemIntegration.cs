@@ -105,21 +105,21 @@ public static class Opener
 }
 
 /// <summary>
-/// Regla de firewall solo para redes privadas y de dominio (nunca públicas). Pide elevación una vez y ejecuta
+/// Regla de firewall para redes privadas y de dominio; las públicas solo si el usuario lo pide. Pide elevación una vez y ejecuta
 /// <c>AlToque.exe firewall-setup</c>, que llama a <c>netsh</c>.
 /// </summary>
 public static class Firewall
 {
     public const string SetupCommand = "firewall-setup";
 
-    public static bool RequestRule(int tcpPort)
+    public static bool RequestRule(int tcpPort, bool includePublic = false)
     {
         var exe = Environment.ProcessPath;
         if (!OperatingSystem.IsWindows() || exe is null)
             return false;
         try
         {
-            using var p = Process.Start(new ProcessStartInfo(exe, $"{SetupCommand} {tcpPort}")
+            using var p = Process.Start(new ProcessStartInfo(exe, $"{SetupCommand} {tcpPort}{(includePublic ? " public" : "")}")
             {
                 UseShellExecute = true,
                 Verb = "runas",
@@ -135,15 +135,16 @@ public static class Firewall
     }
 
     /// <summary>Se ejecuta ya elevado.</summary>
-    public static int Apply(int tcpPort)
+    public static int Apply(int tcpPort, bool includePublic = false)
     {
         var exe = Environment.ProcessPath!;
+        var profiles = includePublic ? "private,domain,public" : "private,domain";
         var commands = new[]
         {
             "advfirewall firewall delete rule name=\"Al Toque (TCP)\"",
             "advfirewall firewall delete rule name=\"Al Toque (UDP)\"",
-            $"advfirewall firewall add rule name=\"Al Toque (TCP)\" dir=in action=allow program=\"{exe}\" enable=yes profile=private,domain protocol=TCP localport={tcpPort}",
-            $"advfirewall firewall add rule name=\"Al Toque (UDP)\" dir=in action=allow program=\"{exe}\" enable=yes profile=private,domain protocol=UDP localport={AppInfo.DiscoveryPort}",
+            $"advfirewall firewall add rule name=\"Al Toque (TCP)\" dir=in action=allow program=\"{exe}\" enable=yes profile={profiles} protocol=TCP localport={tcpPort}",
+            $"advfirewall firewall add rule name=\"Al Toque (UDP)\" dir=in action=allow program=\"{exe}\" enable=yes profile={profiles} protocol=UDP localport={AppInfo.DiscoveryPort}",
         };
         var result = 0;
         foreach (var args in commands)

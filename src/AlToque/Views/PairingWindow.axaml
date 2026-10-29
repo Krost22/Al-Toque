@@ -29,6 +29,13 @@
       </StackPanel>
     </Border>
 
+    <Border Classes="banner warning" IsVisible="{Binding NetworkPaused}">
+      <StackPanel Spacing="8">
+        <TextBlock Text="{x:Static l:S.PairPublicNetwork}" TextWrapping="Wrap" Foreground="{DynamicResource WarningTextBrush}" />
+        <Button Classes="accent" Content="{x:Static l:S.AllowPublicNetwork}" Command="{Binding AllowPublicNetwork}" />
+      </StackPanel>
+    </Border>
+
     <!-- Elegir con quién -->
     <StackPanel Spacing="10" IsVisible="{Binding ShowChooser}">
       <TextBlock Text="{x:Static l:S.PairWaiting}" TextWrapping="Wrap" />

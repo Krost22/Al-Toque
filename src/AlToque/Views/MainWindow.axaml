@@ -127,6 +127,8 @@
               <ToggleSwitch IsChecked="{Binding ShellIntegration}" IsVisible="{Binding IsWindows}"
                             OnContent="{x:Static l:S.SettingShell}" OffContent="{x:Static l:S.SettingShell}" />
               <TextBlock Text="{x:Static l:S.SettingShellHint}" Classes="caption" IsVisible="{Binding IsWindows}" Margin="0,-2,0,4" TextWrapping="Wrap" />
+              <ToggleSwitch IsChecked="{Binding AllowPublicNetworks}" OnContent="{x:Static l:S.SettingAllowPublic}" OffContent="{x:Static l:S.SettingAllowPublic}" />
+              <TextBlock Text="{x:Static l:S.SettingAllowPublicHint}" Classes="caption" Margin="0,-2,0,4" TextWrapping="Wrap" />
               <ToggleSwitch IsChecked="{Binding ExcludeVirtual}" OnContent="{x:Static l:S.SettingExcludeVirtual}" OffContent="{x:Static l:S.SettingExcludeVirtual}" />
             </StackPanel>
 

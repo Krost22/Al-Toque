@@ -199,6 +199,31 @@ public class TransferIntegrationTests
     }
 
     [Fact]
+    public async Task PublicNetworkPausesReceivingUntilAllowed()
+    {
+        await using var a = TestAgent.Create("Laura");
+        await using var b = TestAgent.Create("Andrés", publicNetwork: true);
+        b.Host.SetReceiveMode(ReceiveMode.Everyone);
+        b.Host.OfferReceived += o => o.Accept();
+        await WaitUntil(() => b.Host.IsReceivingPausedByNetwork && !b.Host.IsListening);
+
+        // En red pública no recibe: el emisor no puede conectar.
+        var port = b.Host.Settings.Current.TcpPort;
+        var target = new PeerTarget { EndPoint = new IPEndPoint(IPAddress.Loopback, port), DisplayName = "Andrés" };
+        var blocked = a.Host.BeginSend(target, [a.WriteFile("x.txt", 10)]);
+        await WaitFinished(blocked);
+        Assert.Equal(ErrorCodes.Unreachable, blocked.ErrorCode);
+
+        // "Recibir igual en esta red".
+        b.Host.AllowPublicNetworkForSession();
+        Assert.False(b.Host.IsReceivingPausedByNetwork);
+        Assert.True(b.Host.IsListening);
+        var info = a.Host.BeginSend(a.TargetFor(b), [a.WriteFile("y.txt", 10)]);
+        await WaitFinished(info);
+        Assert.Equal(TransferState.Completed, info.State);
+    }
+
+    [Fact]
     public async Task StaleCachedAddressIsReportedAsUnreachable()
     {
         await using var a = TestAgent.Create("Laura");
@@ -479,7 +504,7 @@ internal sealed class TestAgent : IAsyncDisposable
     public string Inbox => Path.Combine(_dir.Path, "inbox");
     public IPEndPoint EndPoint => new(IPAddress.Loopback, Host.Server.Port);
 
-    public static TestAgent Create(string alias)
+    public static TestAgent Create(string alias, bool publicNetwork = false)
     {
         LocalNetwork.IncludeLoopback = true;
         var dir = new TempDir();
@@ -491,6 +516,7 @@ internal sealed class TestAgent : IAsyncDisposable
             Protector = new FilePermissionSecretProtector(),
             EnableIpc = false,
             EnableDiscovery = false,
+            IsPublicNetwork = () => publicNetwork,
         });
         host.Settings.Update(s =>
         {

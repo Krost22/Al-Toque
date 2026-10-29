@@ -29,6 +29,7 @@ public sealed class PairingViewModel : ViewModelBase
         MySymbols = IdentityVisuals.SymbolSequence(app.Agent.DeviceId);
         Matches = new RelayCommand(() => Answer(true));
         DoesNotMatch = new RelayCommand(() => Answer(false));
+        AllowPublicNetwork = new RelayCommand(_app.AllowPublicNetwork);
         PairWith = new RelayCommand(async p =>
         {
             if (p is PeerViewModel peer)
@@ -48,6 +49,14 @@ public sealed class PairingViewModel : ViewModelBase
     public RelayCommand Matches { get; }
     public RelayCommand DoesNotMatch { get; }
     public RelayCommand PairWith { get; }
+    public RelayCommand AllowPublicNetwork { get; }
+
+    private bool _networkPaused;
+
+    /// <summary>Red pública sin permiso: este equipo no puede recibir el emparejamiento.</summary>
+    public bool NetworkPaused { get => _networkPaused; private set => Set(ref _networkPaused, value); }
+
+    public void SyncNetwork(bool paused) => NetworkPaused = paused;
 
     public string Status { get => _status; private set => Set(ref _status, value); }
     public string Countdown { get => _countdown; private set => Set(ref _countdown, value); }

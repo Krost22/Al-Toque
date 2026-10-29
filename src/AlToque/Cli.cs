@@ -35,7 +35,7 @@ internal static partial class Cli
                 }
                 return 0;
             case Firewall.SetupCommand:
-                return args.Length > 1 && int.TryParse(args[1], out var port) && port is > 0 and <= 65535 ? Firewall.Apply(port) : 2;
+                return args.Length > 1 && int.TryParse(args[1], out var port) && port is > 0 and <= 65535 ? Firewall.Apply(port, args.Length > 2 && args[2] == "public") : 2;
             case "--version":
                 Print($"{Core.AppInfo.Name} {Core.AppInfo.Version} (protocolo {Core.AppInfo.Alpn})");
                 return 0;

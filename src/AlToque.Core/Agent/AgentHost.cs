@@ -78,7 +78,7 @@ public sealed class AgentHost : IAsyncDisposable
             EffectiveMode = () => EffectiveMode,
             IsBlocked = IsBlocked,
             Block = Block,
-            IsPublicNetwork = () => _isPublicNetwork,
+            IsPublicNetwork = () => IsReceivingPausedByNetwork,
             Log = AgentLog.Write,
         });
         if (options.EnableDiscovery)
@@ -183,6 +183,7 @@ public sealed class AgentHost : IAsyncDisposable
         {
             UpdateListening();
             Discovery?.AnnounceSoon();
+            NetworkStateChanged?.Invoke();
         };
     }
 
@@ -212,6 +213,24 @@ public sealed class AgentHost : IAsyncDisposable
     }
 
     public bool IsPublicNetwork => _isPublicNetwork;
+
+    /// <summary>En red pública solo se recibe si el usuario lo permitió (en ajustes o para esta sesión).</summary>
+    public bool PublicNetworkAllowed => _publicOverride || Settings.Current.AllowPublicNetworks;
+
+    /// <summary>La recepción está en pausa porque la red es pública y no se permitió.</summary>
+    public bool IsReceivingPausedByNetwork => _isPublicNetwork && !PublicNetworkAllowed;
+
+    private bool _publicOverride;
+
+    /// <summary>Permite recibir en la red pública actual hasta cerrar la app.</summary>
+    public void AllowPublicNetworkForSession()
+    {
+        _publicOverride = true;
+        AgentLog.Write("Recepción permitida en red pública durante esta sesión.");
+        UpdateListening();
+        Discovery?.AnnounceSoon();
+        NetworkStateChanged?.Invoke();
+    }
     public bool IsListening => Server.IsListening;
 
     /// <summary>"Todos" dura 10 minutos y vuelve solo al modo anterior.</summary>
@@ -260,7 +279,7 @@ public sealed class AgentHost : IAsyncDisposable
         ReceiveModeChanged?.Invoke();
     }
 
-    private bool ShouldListen => !_isPublicNetwork && (EffectiveMode != ReceiveMode.Nobody || Pairing.IsWindowOpen);
+    private bool ShouldListen => !IsReceivingPausedByNetwork && (EffectiveMode != ReceiveMode.Nobody || Pairing.IsWindowOpen);
 
     private readonly Lock _listenLock = new();
 
@@ -284,7 +303,7 @@ public sealed class AgentHost : IAsyncDisposable
 
     private DiscoveryAdvert? CurrentAdvert()
     {
-        if (!Server.IsListening || _isPublicNetwork)
+        if (!Server.IsListening || IsReceivingPausedByNetwork)
             return null;
         var mode = EffectiveMode;
         var pairing = Pairing.IsWindowOpen;

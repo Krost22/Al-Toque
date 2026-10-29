@@ -35,6 +35,7 @@ public sealed class QuickPanelViewModel : ViewModelBase
         Connect = new RelayCommand(() => _app.ShowConnect(PendingPaths, showMyCode: false));
         ShowMyCode = new RelayCommand(() => _app.ShowConnect(null, showMyCode: true));
         ClearPending = new RelayCommand(() => SetPending(null));
+        AllowPublicNetwork = new RelayCommand(_app.AllowPublicNetwork);
         PeerClicked = new RelayCommand(p =>
         {
             if (p is PeerViewModel peer)
@@ -54,6 +55,7 @@ public sealed class QuickPanelViewModel : ViewModelBase
     public RelayCommand Connect { get; }
     public RelayCommand ShowMyCode { get; }
     public RelayCommand ClearPending { get; }
+    public RelayCommand AllowPublicNetwork { get; }
     public RelayCommand PeerClicked { get; }
 
     public ChasquiState Chasqui { get => _chasqui; set => Set(ref _chasqui, value); }

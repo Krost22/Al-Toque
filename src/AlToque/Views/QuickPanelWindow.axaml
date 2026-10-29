@@ -47,7 +47,10 @@
       </StackPanel>
 
       <Border Classes="banner warning" IsVisible="{Binding NetworkPublic}">
-        <TextBlock Text="{x:Static l:S.NetworkPublicPaused}" TextWrapping="Wrap" Foreground="{DynamicResource WarningTextBrush}" />
+        <StackPanel Spacing="8">
+          <TextBlock Text="{x:Static l:S.NetworkPublicPaused}" TextWrapping="Wrap" Foreground="{DynamicResource WarningTextBrush}" />
+          <Button Classes="accent" Content="{x:Static l:S.AllowPublicNetwork}" Command="{Binding AllowPublicNetwork}" />
+        </StackPanel>
       </Border>
 
       <!-- Radar de compañeros -->

@@ -183,7 +183,7 @@ public sealed class AppController
         if (_tray is null)
             return;
         var mode = Agent.EffectiveMode;
-        var paused = Agent.IsPublicNetwork || (mode == ReceiveMode.Nobody && !Agent.Pairing.IsWindowOpen);
+        var paused = Agent.IsReceivingPausedByNetwork || (mode == ReceiveMode.Nobody && !Agent.Pairing.IsWindowOpen);
         var receiving = Agent.ActiveTransfers.Any(t => t.Direction == TransferDirection.Receive);
         var icon = paused ? "tray-paused" : receiving ? "tray-receiving" : mode == ReceiveMode.Everyone ? "tray-everyone" : "tray";
         if (icon != _trayIconName)
@@ -230,6 +230,21 @@ public sealed class AppController
             }
             StartupRegistration.Set(settings.StartWithSystem);
         });
+    }
+
+    /// <summary>
+    /// Recibir en la red pública actual: lo pide el usuario desde el aviso. En Windows además se pide (una vez)
+    /// permiso de administrador para que el firewall deje pasar las conexiones en redes públicas.
+    /// </summary>
+    public async void AllowPublicNetwork()
+    {
+        Agent.AllowPublicNetworkForSession();
+        RefreshMode();
+        if (!OperatingSystem.IsWindows() || Agent.Settings.Current.PublicFirewallRuleAdded)
+            return;
+        var port = Agent.Server.IsListening ? Agent.Server.Port : Agent.Settings.Current.TcpPort;
+        if (await Task.Run(() => Firewall.RequestRule(port, includePublic: true)))
+            Agent.Settings.Update(s => s.PublicFirewallRuleAdded = true);
     }
 
     // ── Panel rápido ─────────────────────────────────────────────────────────────
@@ -335,7 +350,8 @@ public sealed class AppController
 
     private void RefreshMode()
     {
-        Panel.SyncMode(Agent.EffectiveMode, Agent.EveryoneUntil, Agent.Trust.All.Count == 0, Agent.IsPublicNetwork);
+        Panel.SyncMode(Agent.EffectiveMode, Agent.EveryoneUntil, Agent.Trust.All.Count == 0, Agent.IsReceivingPausedByNetwork);
+        Pairing?.SyncNetwork(Agent.IsReceivingPausedByNetwork);
         UpdateTray();
     }
 
@@ -502,6 +518,7 @@ public sealed class AppController
             };
             Pairing.Reset();
         }
+        Pairing.SyncNetwork(Agent.IsReceivingPausedByNetwork);
         Agent.Pairing.OpenWindow();
         Agent.Discovery?.Query();
         RefreshPeers();

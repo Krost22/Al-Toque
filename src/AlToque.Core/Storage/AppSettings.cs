@@ -49,6 +49,12 @@ public sealed class AppSettings
 
     public bool ExcludeVirtualAdapters { get; set; } = true;
 
+    /// <summary>Recibir también en redes marcadas como públicas (desactivado por defecto, por seguridad).</summary>
+    public bool AllowPublicNetworks { get; set; }
+
+    /// <summary>Ya se pidió al firewall de Windows que permita Al Toque en redes públicas.</summary>
+    public bool PublicFirewallRuleAdded { get; set; }
+
     public bool WelcomeDone { get; set; }
 
     public static string DefaultAlias()

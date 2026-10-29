@@ -85,8 +85,14 @@ public static class S
     public static string WantsToPair => T("quiere emparejar", "wants to pair");
     public static string PickTitle(int count, string size) => T($"Enviar {Items(count)} ({size}) a…", $"Send {Items(count)} ({size}) to…");
     public static string MessagePlaceholder => T("Mensaje opcional (\"Aquí va el render final\")", "Optional message (\"Here's the final render\")");
-    public static string NetworkPublicPaused => T("Esta red está marcada como pública, así que no estoy recibiendo archivos.",
-        "This network is marked as public, so I'm not receiving files.");
+    public static string NetworkPublicPaused => T("Esta red es pública: por seguridad no estoy recibiendo archivos ni emparejamientos. Si confías en esta red, puedes recibir igual.",
+        "This network is public: for safety I'm not receiving files or pairings. If you trust this network, you can receive anyway.");
+    public static string AllowPublicNetwork => T("Recibir igual en esta red", "Receive anyway on this network");
+    public static string PairPublicNetwork => T("Esta PC está en una red pública y no puede recibir el emparejamiento. Las dos PC deben permitirlo.",
+        "This PC is on a public network and can't receive the pairing. Both PCs must allow it.");
+    public static string SettingAllowPublic => T("Recibir también en redes públicas", "Also receive on public networks");
+    public static string SettingAllowPublicHint => T("Úsalo solo en redes de confianza. Mejor aún: marca la red como privada en Windows (Configuración → Red e Internet).",
+        "Only on networks you trust. Better: mark the network as private in Windows (Settings → Network & internet).");
     public static string ModeNobodyHint => T("Estás invisible: nadie puede enviarte archivos.", "You're invisible: no one can send you files.");
     public static string TrustedOnlyHint => T("Solo tus compañeros emparejados pueden enviarte archivos.", "Only paired teammates can send you files.");
     public static string EmptyTrustedHint => T("Empareja a tus compañeros o activa \"Todos (10 min)\" para recibir.",
@@ -124,7 +130,8 @@ public static class S
     {
         "E_DECLINED" => Declined(who),
         "E_ACCEPT_TIMEOUT" => T($"{who} no respondió en 2 minutos. Puedes intentarlo de nuevo.", $"{who} didn't answer within 2 minutes. You can try again."),
-        "E_UNREACHABLE" => T($"No pude conectar con {who}. ¿Está encendida y en la misma red?", $"I couldn't reach {who}. Is it on and on the same network?"),
+        "E_UNREACHABLE" => T($"No pude conectar con {who}. ¿Está encendida y en la misma red? Si la red es pública, en esa PC elige \"Recibir igual en esta red\" y permite el firewall.",
+            $"I couldn't reach {who}. Is it on and on the same network? If the network is public, choose \"Receive anyway on this network\" on that PC and allow the firewall."),
         "E_IDENTITY_MISMATCH" => T($"Cuidado: este \"{who}\" tiene una clave distinta a la que conoces. Por seguridad, no envié nada.",
             $"Careful: this \"{who}\" has a different key than the one you know. For safety, nothing was sent."),
         "E_POLICY" => T($"{who} solo recibe archivos de compañeros de confianza. Pídele que active \"Todos (10 min)\" o emparejen sus equipos.",
@@ -177,7 +184,8 @@ public static class S
         "Your network doesn't let devices find each other (common on guest Wi-Fi). Connect with a code.");
     public static string ConnectProbe => T("Buscar", "Find");
     public static string ConnectFound => T("Encontré a:", "Found:");
-    public static string ConnectNotFound => T("No encontré Al Toque en esa dirección.", "I couldn't find Al Toque at that address.");
+    public static string ConnectNotFound => T("No encontré Al Toque en esa dirección. Revisa que la otra PC tenga la app abierta y, si la red es pública, que haya elegido \"Recibir igual en esta red\". Algunos Wi-Fi públicos aíslan los equipos: ahí usa el punto de acceso del celular.",
+        "I couldn't find Al Toque at that address. Check the other PC has the app open and, on a public network, chose \"Receive anyway on this network\". Some public Wi-Fi isolates devices: use a phone hotspot instead.");
     public static string ConnectInvalid => T("Ese código o dirección no es válido.", "That code or address isn't valid.");
     public static string ConnectWrongCode => T("Ese equipo no corresponde al código. Revisa que esté bien escrito.", "That device doesn't match the code. Check it's typed correctly.");
     public static string ConnectRejected => T("Ese equipo no acepta archivos de desconocidos. Pídele que active \"Todos (10 min)\" o empareja.",

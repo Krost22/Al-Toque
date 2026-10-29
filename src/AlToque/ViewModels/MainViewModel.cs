@@ -166,6 +166,12 @@ public sealed class MainViewModel : ViewModelBase
         set => Update(s => s.ShellIntegration = value);
     }
 
+    public bool AllowPublicNetworks
+    {
+        get => _app.Agent.Settings.Current.AllowPublicNetworks;
+        set => Update(s => s.AllowPublicNetworks = value);
+    }
+
     public bool ExcludeVirtual
     {
         get => _app.Agent.Settings.Current.ExcludeVirtualAdapters;

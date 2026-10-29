@@ -1,0 +1,52 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:AlToque.ViewModels"
+        xmlns:l="using:AlToque.Localization"
+        x:Class="AlToque.Views.ConnectWindow"
+        x:DataType="vm:ConnectViewModel"
+        Title="{x:Static l:S.ConnectTitle}"
+        Icon="avares://AlToque/Assets/altoque.ico"
+        Width="440" SizeToContent="Height"
+        WindowStartupLocation="CenterScreen">
+  <StackPanel Margin="24,20" Spacing="14">
+    <TextBlock Text="{x:Static l:S.ConnectTitle}" Classes="title" />
+    <TextBlock Text="{x:Static l:S.ConnectHint}" TextWrapping="Wrap" Classes="caption" />
+
+    <Grid ColumnDefinitions="*,Auto">
+      <TextBox x:Name="InputBox" Text="{Binding Input}" PlaceholderText="K7Q2-9XM4 · 192.168.1.20" FontSize="15" />
+      <Button Grid.Column="1" Classes="accent" Content="{x:Static l:S.ConnectProbe}" Command="{Binding Find}" Margin="8,0,0,0" IsDefault="True" />
+    </Grid>
+
+    <TextBlock Text="{Binding Status}" IsVisible="{Binding HasStatus}" TextWrapping="Wrap"
+               Foreground="{Binding IsError, Converter={x:Static vm:Converters.ErrorForeground}}" />
+
+    <Border Classes="section" IsVisible="{Binding HasTarget}">
+      <StackPanel Spacing="10">
+        <StackPanel Orientation="Horizontal" Spacing="12">
+          <Border Classes="avatar" Width="40" Height="40" CornerRadius="20" Background="{Binding FoundColor}">
+            <TextBlock Text="{Binding FoundInitial}" FontSize="17" />
+          </Border>
+          <StackPanel VerticalAlignment="Center" Spacing="2">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Text="{Binding FoundName}" FontWeight="SemiBold" FontSize="14" />
+              <TextBlock Text="{Binding FoundVerification}" Classes="caption" VerticalAlignment="Center" />
+            </StackPanel>
+            <TextBlock Text="{Binding FoundSymbols}" Foreground="{Binding FoundColor}" FontSize="15" />
+          </StackPanel>
+        </StackPanel>
+        <Button Classes="accent" Content="{Binding SendLabel}" Command="{Binding Send}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
+      </StackPanel>
+    </Border>
+
+    <Border Height="1" Background="{DynamicResource StrokeBrush}" />
+    <TextBlock Text="{x:Static l:S.ConnectBlocked}" TextWrapping="Wrap" Classes="caption" />
+    <Button Content="{x:Static l:S.ShowMyCode}" Command="{Binding ToggleMyCode}" />
+    <Border Classes="section" IsVisible="{Binding ShowMyCode}">
+      <StackPanel Spacing="6">
+        <TextBlock Text="{x:Static l:S.MyCodeHint}" Classes="caption" />
+        <SelectableTextBlock Text="{Binding MyCode}" Classes="big-code" />
+        <SelectableTextBlock Text="{Binding MyAddresses}" Classes="caption" HorizontalAlignment="Center" />
+      </StackPanel>
+    </Border>
+  </StackPanel>
+</Window>

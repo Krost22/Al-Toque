@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <AssemblyName>AlToque</AssemblyName>
+    <RootNamespace>AlToque</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\altoque.ico</ApplicationIcon>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <BuiltInComInteropSupport>false</BuiltInComInteropSupport>
+    <PublishAot>true</PublishAot>
+    <IsAotCompatible>true</IsAotCompatible>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <StripSymbols>true</StripSymbols>
+    <OptimizationPreference>Speed</OptimizationPreference>
+    <EventSourceSupport>false</EventSourceSupport>
+    <UseSystemResourceKeys>false</UseSystemResourceKeys>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="12.1.4" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.1.4" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.4" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.4" />
+    <PackageReference Include="Velopack" Version="1.2.161" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\AlToque.Core\AlToque.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <AvaloniaResource Include="Assets\**" />
+  </ItemGroup>
+</Project>

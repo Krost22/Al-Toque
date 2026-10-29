@@ -1,0 +1,19 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ch="using:AlToque.Chasqui"
+        xmlns:l="using:AlToque.Localization"
+        x:Class="AlToque.Views.WelcomeWindow"
+        Title="Al Toque"
+        Icon="avares://AlToque/Assets/altoque.ico"
+        Width="420" SizeToContent="Height"
+        WindowStartupLocation="CenterScreen">
+  <StackPanel Margin="28,24" Spacing="14">
+    <ch:ChasquiView x:Name="Chasqui" Width="110" Height="110" HorizontalAlignment="Center" />
+    <TextBlock Text="{x:Static l:S.WelcomeTitle}" Classes="title" HorizontalAlignment="Center" />
+    <TextBlock Text="{x:Static l:S.WelcomeBody}" TextWrapping="Wrap" TextAlignment="Center" />
+    <TextBox x:Name="AliasBox" MaxLength="40" FontSize="15" HorizontalContentAlignment="Center" />
+    <TextBlock Text="{x:Static l:S.SettingAliasHint}" Classes="caption" TextWrapping="Wrap" TextAlignment="Center" />
+    <Button x:Name="StartButton" Classes="accent" Content="{x:Static l:S.WelcomeStart}" HorizontalAlignment="Center"
+            MinWidth="140" HorizontalContentAlignment="Center" IsDefault="True" Click="OnStart" />
+  </StackPanel>
+</Window>

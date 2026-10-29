@@ -1,0 +1,137 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:AlToque.ViewModels"
+        xmlns:ch="using:AlToque.Chasqui"
+        xmlns:l="using:AlToque.Localization"
+        x:Class="AlToque.Views.QuickPanelWindow"
+        x:DataType="vm:QuickPanelViewModel"
+        Title="Al Toque"
+        Width="384" SizeToContent="Height"
+        WindowDecorations="None"
+        ShowInTaskbar="False"
+        Topmost="True"
+        Background="Transparent">
+  <Border x:Name="Root" Classes="card" Padding="16,12,16,14" DragDrop.AllowDrop="True">
+    <StackPanel Spacing="12">
+      <!-- Encabezado -->
+      <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+        <Image Source="avares://AlToque/Assets/altoque-96.png" Width="22" Height="22" VerticalAlignment="Center" />
+        <TextBlock Grid.Column="1" Text="Al Toque" Classes="subtitle" Margin="8,0" VerticalAlignment="Center" />
+        <Button Grid.Column="2" Classes="icon" Command="{Binding OpenSettings}" ToolTip.Tip="{x:Static l:S.Settings}"
+                AutomationProperties.Name="{x:Static l:S.Settings}">
+          <PathIcon Width="16" Height="16" Data="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5ZM6.6 1h2.8l.4 1.9 1.3.7 1.8-.7 1.4 2.4-1.4 1.3v1.5l1.4 1.3-1.4 2.4-1.8-.7-1.3.7-.4 1.9H6.6l-.4-1.9-1.3-.7-1.8.7-1.4-2.4 1.4-1.3V7.3L1.7 6l1.4-2.4 1.8.7 1.3-.7L6.6 1Z" />
+        </Button>
+        <Button Grid.Column="3" Classes="icon" Command="{Binding Close}" ToolTip.Tip="{x:Static l:S.Close}"
+                AutomationProperties.Name="{x:Static l:S.Close}">
+          <PathIcon Width="12" Height="12" Data="M3.5 2.1 8 6.6l4.5-4.5 1.4 1.4L9.4 8l4.5 4.5-1.4 1.4L8 9.4l-4.5 4.5-1.4-1.4L6.6 8 2.1 3.5z" />
+        </Button>
+      </Grid>
+
+      <!-- Destino pendiente ("Elegir destino…" desde el menú contextual) -->
+      <Border Classes="banner" IsVisible="{Binding HasPending}">
+        <StackPanel Spacing="8">
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Text="{Binding PendingTitle}" FontWeight="SemiBold" TextWrapping="Wrap" VerticalAlignment="Center" />
+            <Button Grid.Column="1" Classes="link" Content="{x:Static l:S.Cancel}" Command="{Binding ClearPending}" />
+          </Grid>
+          <TextBox Text="{Binding Message}" PlaceholderText="{x:Static l:S.MessagePlaceholder}" MaxLength="500" />
+        </StackPanel>
+      </Border>
+
+      <!-- Chasqui -->
+      <StackPanel Spacing="4">
+        <ch:ChasquiView Width="96" Height="96" HorizontalAlignment="Center"
+                        State="{Binding Chasqui}" Progress="{Binding ChasquiProgress}" ReduceMotion="{Binding ReduceMotion}" />
+        <TextBlock Text="{Binding Status}" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"
+                   Classes="caption" MaxWidth="320" AutomationProperties.LiveSetting="Polite" />
+      </StackPanel>
+
+      <Border Classes="banner warning" IsVisible="{Binding NetworkPublic}">
+        <TextBlock Text="{x:Static l:S.NetworkPublicPaused}" TextWrapping="Wrap" Foreground="{DynamicResource WarningTextBrush}" />
+      </Border>
+
+      <!-- Radar de compañeros -->
+      <ItemsControl ItemsSource="{Binding Peers}" IsVisible="{Binding HasPeers}" x:Name="PeerList">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <WrapPanel HorizontalAlignment="Center" />
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:PeerViewModel">
+            <Button Classes="peer" Classes.dropover="{Binding IsDropTarget}" Opacity="{Binding Opacity}"
+                    Command="{Binding $parent[ItemsControl].((vm:QuickPanelViewModel)DataContext).PeerClicked}"
+                    CommandParameter="{Binding}"
+                    DragDrop.AllowDrop="True"
+                    AutomationProperties.Name="{Binding AccessibleName}"
+                    ToolTip.Tip="{Binding Symbols}">
+              <StackPanel Spacing="3" HorizontalAlignment="Center">
+                <Panel Width="48" Height="48" HorizontalAlignment="Center">
+                  <Border Classes="avatar" Width="48" Height="48" CornerRadius="24" Background="{Binding Color}">
+                    <TextBlock Text="{Binding Initial}" FontSize="20" />
+                  </Border>
+                  <Border Width="18" Height="18" CornerRadius="9" Background="{DynamicResource SurfaceBrush}"
+                          HorizontalAlignment="Right" VerticalAlignment="Bottom" IsVisible="{Binding IsTrusted}">
+                    <TextBlock Text="✓" FontSize="11" FontWeight="Bold" Foreground="{StaticResource SuccessBrush}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                  </Border>
+                </Panel>
+                <TextBlock Text="{Binding Name}" HorizontalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="96" FontWeight="Medium" />
+                <TextBlock Text="{Binding Status}" HorizontalAlignment="Center" Classes="caption" FontSize="11" TextTrimming="CharacterEllipsis" MaxWidth="96" />
+              </StackPanel>
+            </Button>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+
+      <StackPanel Spacing="8" IsVisible="{Binding ShowNobody}" HorizontalAlignment="Center">
+        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+          <Button Content="{x:Static l:S.ConnectByCode}" Command="{Binding Connect}" />
+          <Button Content="{x:Static l:S.PairButton}" Command="{Binding Pair}" />
+        </StackPanel>
+      </StackPanel>
+
+      <!-- Zona para soltar -->
+      <Border x:Name="DropZone" Classes="dropzone" Classes.over="{Binding DragOver}" Padding="12" IsVisible="{Binding !HasPending}">
+        <TextBlock Text="{x:Static l:S.DropHere}" HorizontalAlignment="Center" Classes="caption" />
+      </Border>
+
+      <!-- Recientes -->
+      <StackPanel Spacing="2" IsVisible="{Binding HasRecent}">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Text="{x:Static l:S.Recent}" Classes="section" />
+          <Button Grid.Column="1" Classes="link" FontSize="12" Content="{x:Static l:S.TabHistory}" Command="{Binding OpenHistory}" />
+        </Grid>
+        <ItemsControl ItemsSource="{Binding Recent}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:HistoryItemViewModel">
+              <Grid ColumnDefinitions="18,*,Auto" Margin="0,2">
+                <TextBlock Text="{Binding ResultText}" Foreground="{Binding ResultBrush}" FontWeight="Bold" />
+                <TextBlock Grid.Column="1" Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+                <TextBlock Grid.Column="2" Text="{Binding Subtitle}" Classes="caption" Margin="8,0,0,0" />
+              </Grid>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+
+      <!-- Modo de recepción -->
+      <Border Height="1" Background="{DynamicResource StrokeBrush}" />
+      <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto">
+        <TextBlock Text="{x:Static l:S.ReceiveFromLabel}" VerticalAlignment="Center" Margin="0,0,8,0" />
+        <ComboBox Grid.Column="1" ItemsSource="{Binding ModeItems}" SelectedIndex="{Binding ModeIndex}" MinWidth="160"
+                  AutomationProperties.Name="{x:Static l:S.TrayReceiveFrom}" />
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2">
+          <Button Classes="icon" Command="{Binding Pair}" ToolTip.Tip="{x:Static l:S.TrayPair}" AutomationProperties.Name="{x:Static l:S.TrayPair}">
+            <PathIcon Width="16" Height="16" Data="M5 7a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm6 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM0 14c0-2.8 2.2-5 5-5 1.2 0 2.3.4 3.1 1.1A5 5 0 0 1 16 14h-1.5a3.5 3.5 0 0 0-5.6-2.8c.4.8.6 1.8.6 2.8H8a3 3 0 0 0-6 0H0Z" />
+          </Button>
+          <Button Classes="icon" Command="{Binding ShowMyCode}" ToolTip.Tip="{x:Static l:S.MyCode}" AutomationProperties.Name="{x:Static l:S.MyCode}">
+            <PathIcon Width="16" Height="16" Data="M1 1h6v6H1V1Zm1.5 1.5v3h3v-3h-3ZM9 1h6v6H9V1Zm1.5 1.5v3h3v-3h-3ZM1 9h6v6H1V9Zm1.5 1.5v3h3v-3h-3ZM9 9h2v2H9V9Zm4 0h2v2h-2V9Zm-2 2h2v2h-2v-2Zm-2 2h2v2H9v-2Zm4 0h2v2h-2v-2Z" />
+          </Button>
+        </StackPanel>
+        <TextBlock Grid.Row="1" Grid.ColumnSpan="3" Text="{Binding ModeHint}" IsVisible="{Binding HasModeHint}"
+                   Classes="caption" TextWrapping="Wrap" Margin="0,6,0,0" />
+      </Grid>
+    </StackPanel>
+  </Border>
+</Window>

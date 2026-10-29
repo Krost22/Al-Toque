@@ -1,0 +1,167 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:AlToque.ViewModels"
+        xmlns:l="using:AlToque.Localization"
+        x:Class="AlToque.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Title="Al Toque"
+        Icon="avares://AlToque/Assets/altoque.ico"
+        Width="680" Height="600" MinWidth="520" MinHeight="420"
+        WindowStartupLocation="CenterScreen">
+  <DockPanel>
+    <Border DockPanel.Dock="Top" Classes="banner warning" Margin="16,12,16,0" IsVisible="{Binding HasNotice}">
+      <TextBlock Text="{Binding Notice}" TextWrapping="Wrap" Foreground="{DynamicResource WarningTextBrush}" />
+    </Border>
+    <TabControl SelectedIndex="{Binding Tab}" Padding="16,8,16,16">
+      <!-- Compañeros -->
+      <TabItem Header="{x:Static l:S.TabPeers}">
+        <DockPanel>
+          <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,4,0,12">
+            <TextBlock Text="{x:Static l:S.TabPeers}" Classes="title" />
+            <Button Grid.Column="1" Classes="accent" Content="{x:Static l:S.PairNew}" Command="{Binding PairNew}" />
+          </Grid>
+          <TextBlock DockPanel.Dock="Top" Text="{x:Static l:S.NoTrustedPeers}" IsVisible="{Binding NoTrustedPeers}" Classes="caption" />
+          <ScrollViewer>
+            <ItemsControl ItemsSource="{Binding TrustedPeers}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <StackPanel Spacing="8" />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:TrustedPeerViewModel">
+                  <Border Classes="section">
+                    <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto">
+                      <Border Classes="avatar" Grid.RowSpan="2" Width="40" Height="40" CornerRadius="20" Background="{Binding Color}" VerticalAlignment="Top">
+                        <TextBlock Text="{Binding Initial}" FontSize="17" />
+                      </Border>
+                      <StackPanel Grid.Column="1" Margin="12,0" Spacing="2">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                          <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="14" />
+                          <TextBlock Text="{Binding Symbols}" Foreground="{Binding Color}" />
+                        </StackPanel>
+                        <TextBlock Text="{Binding Subtitle}" Classes="caption" />
+                      </StackPanel>
+                      <Button Grid.Column="2" Content="{x:Static l:S.Forget}" Command="{Binding Forget}" VerticalAlignment="Top" />
+                      <WrapPanel Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Margin="12,10,0,0">
+                        <TextBox Text="{Binding LocalName, UpdateSourceTrigger=LostFocus}" PlaceholderText="{x:Static l:S.Rename}" Width="190" Margin="0,0,16,6" />
+                        <CheckBox IsChecked="{Binding Favorite}" Content="{x:Static l:S.Favorite}" Margin="0,0,16,6" />
+                        <CheckBox IsChecked="{Binding AutoAccept}" Content="{x:Static l:S.AutoAccept}" Margin="0,0,0,6" />
+                      </WrapPanel>
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </DockPanel>
+      </TabItem>
+
+      <!-- Historial -->
+      <TabItem Header="{x:Static l:S.TabHistory}">
+        <DockPanel>
+          <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,4,0,12">
+            <TextBlock Text="{x:Static l:S.TabHistory}" Classes="title" />
+            <Button Grid.Column="1" Content="{x:Static l:S.ClearHistory}" Command="{Binding ClearHistory}" IsEnabled="{Binding HasHistory}" />
+          </Grid>
+          <TextBlock DockPanel.Dock="Top" Text="{x:Static l:S.HistoryEmpty}" IsVisible="{Binding NoHistory}" Classes="caption" />
+          <ScrollViewer>
+            <ItemsControl ItemsSource="{Binding History}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:HistoryItemViewModel">
+                  <Grid ColumnDefinitions="28,*,Auto,Auto" Margin="0,4">
+                    <Border Width="22" Height="22" CornerRadius="11" Background="{Binding Color}">
+                      <TextBlock Text="{Binding Arrow}" Foreground="White" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <StackPanel Grid.Column="1" Margin="8,0">
+                      <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+                      <TextBlock Text="{Binding Subtitle}" Classes="caption" />
+                    </StackPanel>
+                    <TextBlock Grid.Column="2" Text="{Binding ResultText}" Foreground="{Binding ResultBrush}" FontWeight="Bold" FontSize="15" VerticalAlignment="Center" Margin="8,0" />
+                    <Button Grid.Column="3" Classes="subtle" Content="{x:Static l:S.OpenFolder}" IsVisible="{Binding CanOpen}"
+                            Command="{Binding $parent[TabControl].((vm:MainViewModel)DataContext).OpenHistoryItem}" CommandParameter="{Binding}" />
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </DockPanel>
+      </TabItem>
+
+      <!-- Ajustes -->
+      <TabItem Header="{x:Static l:S.TabSettings}">
+        <ScrollViewer>
+          <StackPanel Spacing="16" Margin="0,4,8,8">
+            <TextBlock Text="{x:Static l:S.TabSettings}" Classes="title" />
+
+            <StackPanel Spacing="6">
+              <TextBlock Text="{x:Static l:S.SettingAlias}" Classes="section" />
+              <TextBox x:Name="AliasBox" Text="{Binding Alias}" MaxLength="40" LostFocus="OnAliasLostFocus" />
+              <TextBlock Text="{x:Static l:S.SettingAliasHint}" Classes="caption" TextWrapping="Wrap" />
+            </StackPanel>
+
+            <StackPanel Spacing="6">
+              <TextBlock Text="{x:Static l:S.SettingFolder}" Classes="section" />
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBox Text="{Binding Folder}" IsReadOnly="True" />
+                <Button Grid.Column="1" Content="{x:Static l:S.Change}" Margin="8,0,0,0" Click="OnChooseFolder" />
+              </Grid>
+            </StackPanel>
+
+            <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="16" RowSpacing="6">
+              <TextBlock Text="{x:Static l:S.SettingConflicts}" Classes="section" />
+              <TextBlock Grid.Column="1" Text="{x:Static l:S.SettingMode}" Classes="section" />
+              <ComboBox Grid.Row="1" ItemsSource="{Binding ConflictItems}" SelectedIndex="{Binding ConflictIndex}" HorizontalAlignment="Stretch" />
+              <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding ModeItems}" SelectedIndex="{Binding ModeIndex}" HorizontalAlignment="Stretch" />
+            </Grid>
+
+            <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="16" RowSpacing="6">
+              <TextBlock Text="{x:Static l:S.SettingLanguage}" Classes="section" />
+              <ComboBox Grid.Row="1" ItemsSource="{Binding LanguageItems}" SelectedIndex="{Binding LanguageIndex}" HorizontalAlignment="Stretch" />
+            </Grid>
+
+            <StackPanel Spacing="4">
+              <ToggleSwitch IsChecked="{Binding ReduceMotion}" OnContent="{x:Static l:S.SettingReduceMotion}" OffContent="{x:Static l:S.SettingReduceMotion}" />
+              <ToggleSwitch IsChecked="{Binding Sounds}" OnContent="{x:Static l:S.SettingSounds}" OffContent="{x:Static l:S.SettingSounds}" />
+              <ToggleSwitch IsChecked="{Binding StartWithSystem}" OnContent="{x:Static l:S.SettingStartup}" OffContent="{x:Static l:S.SettingStartup}" />
+              <ToggleSwitch IsChecked="{Binding ShellIntegration}" IsVisible="{Binding IsWindows}"
+                            OnContent="{x:Static l:S.SettingShell}" OffContent="{x:Static l:S.SettingShell}" />
+              <TextBlock Text="{x:Static l:S.SettingShellHint}" Classes="caption" IsVisible="{Binding IsWindows}" Margin="0,-2,0,4" TextWrapping="Wrap" />
+              <ToggleSwitch IsChecked="{Binding ExcludeVirtual}" OnContent="{x:Static l:S.SettingExcludeVirtual}" OffContent="{x:Static l:S.SettingExcludeVirtual}" />
+            </StackPanel>
+
+            <StackPanel Spacing="6" IsVisible="{Binding IsWindows}">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button Content="{x:Static l:S.SettingFirewall}" Command="{Binding ApplyFirewall}" />
+                <TextBlock Text="{Binding FirewallStatus}" VerticalAlignment="Center" FontWeight="Bold" />
+              </StackPanel>
+              <TextBlock Text="{x:Static l:S.SettingFirewallHint}" Classes="caption" />
+            </StackPanel>
+
+            <Border Classes="section">
+              <StackPanel Spacing="8">
+                <TextBlock Text="{x:Static l:S.SettingIdentity}" Classes="section" />
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                  <Border Classes="avatar" Width="40" Height="40" CornerRadius="20" Background="{Binding MyColor}">
+                    <TextBlock Text="{Binding MyInitial}" FontSize="17" />
+                  </Border>
+                  <StackPanel VerticalAlignment="Center" Spacing="2">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                      <TextBlock Text="{Binding Alias}" FontWeight="SemiBold" />
+                      <TextBlock Text="{Binding MySymbols}" Foreground="{Binding MyColor}" FontSize="15" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding MyShortCode}" Classes="caption" />
+                  </StackPanel>
+                </StackPanel>
+                <TextBlock Text="{x:Static l:S.SettingIdentityHint}" Classes="caption" TextWrapping="Wrap" />
+                <Button Content="{x:Static l:S.ResetIdentity}" Command="{Binding ResetIdentity}" />
+              </StackPanel>
+            </Border>
+
+            <TextBlock Text="{Binding VersionText}" Classes="caption" />
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+    </TabControl>
+  </DockPanel>
+</Window>

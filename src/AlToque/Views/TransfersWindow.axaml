@@ -1,0 +1,54 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:AlToque.ViewModels"
+        xmlns:ch="using:AlToque.Chasqui"
+        xmlns:l="using:AlToque.Localization"
+        x:Class="AlToque.Views.TransfersWindow"
+        x:DataType="vm:TransfersViewModel"
+        Title="Al Toque"
+        Width="400" SizeToContent="Height"
+        WindowDecorations="None"
+        ShowInTaskbar="False"
+        ShowActivated="False"
+        Topmost="True"
+        Background="Transparent">
+  <Border x:Name="Root" Classes="card" Padding="12,10">
+    <ItemsControl ItemsSource="{Binding Items}">
+      <ItemsControl.ItemsPanel>
+        <ItemsPanelTemplate>
+          <StackPanel Spacing="10" />
+        </ItemsPanelTemplate>
+      </ItemsControl.ItemsPanel>
+      <ItemsControl.ItemTemplate>
+        <DataTemplate x:DataType="vm:TransferViewModel">
+          <Grid ColumnDefinitions="56,*,Auto" RowDefinitions="Auto,Auto,Auto,Auto">
+            <ch:ChasquiView Grid.RowSpan="4" Width="48" Height="48" VerticalAlignment="Top"
+                            State="{Binding Chasqui}" Progress="{Binding Progress}"
+                            ReduceMotion="{Binding $parent[ItemsControl].((vm:TransfersViewModel)DataContext).ReduceMotion}" />
+            <TextBlock Grid.Column="1" Text="{Binding Title}" TextWrapping="Wrap" FontWeight="SemiBold"
+                       AutomationProperties.LiveSetting="Polite" />
+            <Button Grid.Column="2" Classes="icon" VerticalAlignment="Top" Margin="4,-4,-4,0"
+                    Command="{Binding Cancel}" IsVisible="{Binding IsActive}"
+                    ToolTip.Tip="{x:Static l:S.Cancel}" AutomationProperties.Name="{x:Static l:S.Cancel}">
+              <PathIcon Width="10" Height="10" Data="M3.5 2.1 8 6.6l4.5-4.5 1.4 1.4L9.4 8l4.5 4.5-1.4 1.4L8 9.4l-4.5 4.5-1.4-1.4L6.6 8 2.1 3.5z" />
+            </Button>
+            <Button Grid.Column="2" Classes="icon" VerticalAlignment="Top" Margin="4,-4,-4,0"
+                    Command="{Binding Dismiss}" IsVisible="{Binding !IsActive}"
+                    ToolTip.Tip="{x:Static l:S.Close}" AutomationProperties.Name="{x:Static l:S.Close}">
+              <PathIcon Width="10" Height="10" Data="M3.5 2.1 8 6.6l4.5-4.5 1.4 1.4L9.4 8l4.5 4.5-1.4 1.4L8 9.4l-4.5 4.5-1.4-1.4L6.6 8 2.1 3.5z" />
+            </Button>
+            <TextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding Detail}" Classes="caption"
+                       TextTrimming="CharacterEllipsis" Margin="0,2,0,0" />
+            <ProgressBar Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,8,0,0"
+                         Minimum="0" Maximum="1" Value="{Binding Progress}" IsVisible="{Binding ShowProgress}" />
+            <StackPanel Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="8" Margin="0,8,0,0"
+                        IsVisible="{Binding CanOpen}">
+              <Button Classes="accent" Content="{x:Static l:S.OpenFolder}" Command="{Binding OpenFolder}" />
+              <Button Content="{x:Static l:S.Open}" Command="{Binding OpenFile}" IsVisible="{Binding CanOpenFile}" />
+            </StackPanel>
+          </Grid>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+  </Border>
+</Window>

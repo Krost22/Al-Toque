@@ -1,0 +1,197 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="AlToque.App"
+             Name="Al Toque"
+             RequestedThemeVariant="Default">
+  <Application.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Light">
+          <SolidColorBrush x:Key="SurfaceBrush" Color="#FFFFFF" />
+          <SolidColorBrush x:Key="SurfaceAltBrush" Color="#F5F5FA" />
+          <SolidColorBrush x:Key="SurfaceSunkenBrush" Color="#EEEEF6" />
+          <SolidColorBrush x:Key="StrokeBrush" Color="#E2E2EC" />
+          <SolidColorBrush x:Key="TextPrimaryBrush" Color="#1B1B24" />
+          <SolidColorBrush x:Key="TextSecondaryBrush" Color="#5C5C6E" />
+          <SolidColorBrush x:Key="AccentSoftBrush" Color="#1A5B5BF0" />
+          <SolidColorBrush x:Key="WarningSoftBrush" Color="#26F5A524" />
+          <SolidColorBrush x:Key="ErrorSoftBrush" Color="#1FE5484D" />
+          <SolidColorBrush x:Key="SuccessSoftBrush" Color="#1F1F9D55" />
+          <SolidColorBrush x:Key="WarningTextBrush" Color="#8A5A00" />
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Dark">
+          <SolidColorBrush x:Key="SurfaceBrush" Color="#202027" />
+          <SolidColorBrush x:Key="SurfaceAltBrush" Color="#292931" />
+          <SolidColorBrush x:Key="SurfaceSunkenBrush" Color="#18181E" />
+          <SolidColorBrush x:Key="StrokeBrush" Color="#393944" />
+          <SolidColorBrush x:Key="TextPrimaryBrush" Color="#F2F2F8" />
+          <SolidColorBrush x:Key="TextSecondaryBrush" Color="#ABABBD" />
+          <SolidColorBrush x:Key="AccentSoftBrush" Color="#337C7CFF" />
+          <SolidColorBrush x:Key="WarningSoftBrush" Color="#33F5A524" />
+          <SolidColorBrush x:Key="ErrorSoftBrush" Color="#33E5484D" />
+          <SolidColorBrush x:Key="SuccessSoftBrush" Color="#331F9D55" />
+          <SolidColorBrush x:Key="WarningTextBrush" Color="#F8C46A" />
+        </ResourceDictionary>
+      </ResourceDictionary.ThemeDictionaries>
+      <SolidColorBrush x:Key="AccentBrush" Color="#5B5BF0" />
+      <SolidColorBrush x:Key="SuccessBrush" Color="#1F9D55" />
+      <SolidColorBrush x:Key="ErrorBrush" Color="#E5484D" />
+      <SolidColorBrush x:Key="WarningBrush" Color="#F5A524" />
+      <SolidColorBrush x:Key="InfoBrush" Color="#3B82F6" />
+      <CornerRadius x:Key="ControlRadius">8</CornerRadius>
+      <CornerRadius x:Key="CardRadius">12</CornerRadius>
+    </ResourceDictionary>
+  </Application.Resources>
+
+  <Application.Styles>
+    <FluentTheme>
+      <FluentTheme.Palettes>
+        <ColorPaletteResources x:Key="Light" Accent="#5B5BF0" RegionColor="#FFFFFF" />
+        <ColorPaletteResources x:Key="Dark" Accent="#7C7CFF" RegionColor="#202027" />
+      </FluentTheme.Palettes>
+    </FluentTheme>
+
+    <Style Selector="Window">
+      <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+      <Setter Property="FontSize" Value="13" />
+    </Style>
+
+    <!-- Tarjeta flotante: esquinas de 12 px y borde suave -->
+    <Style Selector="Border.card">
+      <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource StrokeBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="{StaticResource CardRadius}" />
+    </Style>
+    <Style Selector="Border.section">
+      <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
+      <Setter Property="CornerRadius" Value="{StaticResource CardRadius}" />
+      <Setter Property="Padding" Value="12" />
+    </Style>
+    <Style Selector="Border.banner">
+      <Setter Property="CornerRadius" Value="{StaticResource ControlRadius}" />
+      <Setter Property="Padding" Value="10,8" />
+      <Setter Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+    </Style>
+    <Style Selector="Border.banner.warning">
+      <Setter Property="Background" Value="{DynamicResource WarningSoftBrush}" />
+    </Style>
+    <Style Selector="Border.banner.error">
+      <Setter Property="Background" Value="{DynamicResource ErrorSoftBrush}" />
+    </Style>
+    <Style Selector="Border.dropzone">
+      <Setter Property="BorderBrush" Value="{DynamicResource StrokeBrush}" />
+      <Setter Property="BorderThickness" Value="1.5" />
+      <Setter Property="CornerRadius" Value="{StaticResource CardRadius}" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Background" Duration="0:0:0.167" />
+          <BrushTransition Property="BorderBrush" Duration="0:0:0.167" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Border.dropzone.over">
+      <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+      <Setter Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+    </Style>
+
+    <Style Selector="TextBlock.title">
+      <Setter Property="FontSize" Value="18" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="TextBlock.subtitle">
+      <Setter Property="FontSize" Value="14" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="TextBlock.caption">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+    </Style>
+    <Style Selector="TextBlock.section">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+      <Setter Property="Margin" Value="2,0,0,6" />
+    </Style>
+    <Style Selector="TextBlock.big-code">
+      <Setter Property="FontSize" Value="34" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="HorizontalAlignment" Value="Center" />
+      <Setter Property="LetterSpacing" Value="2" />
+    </Style>
+
+    <Style Selector="Button">
+      <Setter Property="CornerRadius" Value="{StaticResource ControlRadius}" />
+    </Style>
+    <Style Selector="Button.subtle">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="8,5" />
+    </Style>
+    <Style Selector="Button.link">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.icon">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="6" />
+      <Setter Property="MinWidth" Value="30" />
+      <Setter Property="MinHeight" Value="30" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+    </Style>
+
+    <!-- Avatar circular con la inicial y el color de identidad -->
+    <Style Selector="Border.avatar">
+      <Setter Property="ClipToBounds" Value="True" />
+    </Style>
+    <Style Selector="Border.avatar TextBlock">
+      <Setter Property="Foreground" Value="White" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="HorizontalAlignment" Value="Center" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style Selector="Button.peer">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="4,6" />
+      <Setter Property="Width" Value="104" />
+      <Setter Property="CornerRadius" Value="{StaticResource CardRadius}" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="RenderTransform" Value="scale(1)" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.167" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Button.peer:pointerover">
+      <Setter Property="RenderTransform" Value="scale(1.04)" />
+    </Style>
+    <Style Selector="Button.peer.dropover /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+    </Style>
+
+    <Style Selector="ProgressBar">
+      <Setter Property="MinHeight" Value="4" />
+      <Setter Property="CornerRadius" Value="2" />
+    </Style>
+    <Style Selector="ProgressBar.success">
+      <Setter Property="Foreground" Value="{StaticResource SuccessBrush}" />
+    </Style>
+    <Style Selector="ProgressBar.error">
+      <Setter Property="Foreground" Value="{StaticResource ErrorBrush}" />
+    </Style>
+
+    <Style Selector="TabItem">
+      <Setter Property="FontSize" Value="14" />
+      <Setter Property="MinHeight" Value="36" />
+    </Style>
+  </Application.Styles>
+</Application>

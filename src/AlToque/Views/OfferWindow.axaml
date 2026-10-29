@@ -1,0 +1,89 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:AlToque.ViewModels"
+        xmlns:ch="using:AlToque.Chasqui"
+        xmlns:l="using:AlToque.Localization"
+        x:Class="AlToque.Views.OfferWindow"
+        x:DataType="vm:OfferViewModel"
+        Title="Al Toque"
+        Width="400" SizeToContent="Height"
+        WindowDecorations="None"
+        ShowInTaskbar="False"
+        ShowActivated="False"
+        Topmost="True"
+        Background="Transparent">
+  <Border x:Name="Root" Classes="card" Padding="16,14">
+    <StackPanel Spacing="12">
+      <!-- Quién envía -->
+      <Grid ColumnDefinitions="Auto,*,Auto">
+        <Border Classes="avatar" Width="40" Height="40" CornerRadius="20" Background="{Binding PeerColor}">
+          <TextBlock Text="{Binding Initial}" FontSize="17" />
+        </Border>
+        <StackPanel Grid.Column="1" Margin="10,0" VerticalAlignment="Center" Spacing="1">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <TextBlock Text="{Binding PeerName}" FontWeight="SemiBold" FontSize="15" TextTrimming="CharacterEllipsis" MaxWidth="170" />
+            <TextBlock Text="{Binding VerificationText}" Foreground="{Binding VerificationBrush}" FontWeight="SemiBold" VerticalAlignment="Center" />
+          </StackPanel>
+          <TextBlock Text="{Binding Summary}" Classes="caption" />
+        </StackPanel>
+        <ch:ChasquiView Grid.Column="2" Width="44" Height="44" State="Incoming" />
+      </Grid>
+
+      <Border Classes="banner warning" IsVisible="{Binding Unverified}">
+        <StackPanel Spacing="4">
+          <TextBlock Text="{x:Static l:S.UnverifiedWarning}" TextWrapping="Wrap" Foreground="{DynamicResource WarningTextBrush}" />
+          <TextBlock Text="{Binding Symbols}" FontSize="15" Foreground="{Binding PeerColor}" />
+        </StackPanel>
+      </Border>
+
+      <!-- Archivos -->
+      <Border Classes="section" Padding="8">
+        <ScrollViewer MaxHeight="210" HorizontalScrollBarVisibility="Disabled">
+          <StackPanel Spacing="2" Margin="0,0,12,0">
+            <ItemsControl ItemsSource="{Binding Files}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:OfferFileViewModel">
+                  <StackPanel Margin="0,3">
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                      <Border Background="{Binding BadgeBrush}" CornerRadius="4" Padding="5,1" MinWidth="34" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Badge}" Foreground="White" FontSize="10" FontWeight="Bold" HorizontalAlignment="Center" />
+                      </Border>
+                      <TextBlock Grid.Column="1" Text="{Binding Name}" Margin="8,0" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                                 FontWeight="{Binding Dangerous, Converter={x:Static vm:Converters.BoolToSemiBold}}" />
+                      <TextBlock Grid.Column="2" Text="{Binding Size}" Classes="caption" VerticalAlignment="Center" />
+                    </Grid>
+                    <TextBlock Text="{Binding Warning}" IsVisible="{Binding HasWarning}" Foreground="{StaticResource ErrorBrush}"
+                               FontSize="12" TextWrapping="Wrap" Margin="42,2,0,0" />
+                  </StackPanel>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <TextBlock Text="{Binding MoreText}" IsVisible="{Binding HasMore}" Classes="caption" Margin="42,2,0,0" />
+          </StackPanel>
+        </ScrollViewer>
+      </Border>
+
+      <TextBlock Text="{Binding Message}" IsVisible="{Binding HasMessage}" FontStyle="Italic" TextWrapping="Wrap" />
+
+      <Grid ColumnDefinitions="Auto,*,Auto">
+        <TextBlock Text="{x:Static l:S.SaveIn}" Classes="caption" VerticalAlignment="Center" />
+        <TextBlock Grid.Column="1" Text="{Binding FolderDisplay}" Margin="6,0" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                   ToolTip.Tip="{Binding Folder}" />
+        <Button Grid.Column="2" Classes="link" Content="{x:Static l:S.Change}" Click="OnChangeFolder" />
+      </Grid>
+
+      <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+        <SplitButton Content="{x:Static l:S.Decline}" Command="{Binding Decline}">
+          <SplitButton.Flyout>
+            <MenuFlyout Placement="TopEdgeAlignedLeft">
+              <MenuItem Header="{x:Static l:S.DeclineAndBlock}" Command="{Binding DeclineAndBlock}" />
+            </MenuFlyout>
+          </SplitButton.Flyout>
+        </SplitButton>
+        <TextBlock Grid.Column="1" Text="{Binding Countdown}" Classes="caption" VerticalAlignment="Center" HorizontalAlignment="Center" />
+        <Button Grid.Column="3" Classes="accent" Content="{x:Static l:S.Accept}" Command="{Binding Accept}" MinWidth="110"
+                HorizontalContentAlignment="Center" IsDefault="True" />
+      </Grid>
+    </StackPanel>
+  </Border>
+</Window>

@@ -1,0 +1,16 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:l="using:AlToque.Localization"
+        x:Class="AlToque.Views.ConfirmWindow"
+        Title="Al Toque"
+        Width="400" SizeToContent="Height"
+        WindowStartupLocation="CenterScreen"
+        Topmost="True">
+  <StackPanel Margin="24,20" Spacing="18">
+    <TextBlock x:Name="MessageText" TextWrapping="Wrap" FontSize="14" />
+    <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right">
+      <Button Content="{x:Static l:S.No}" Click="OnNo" MinWidth="90" HorizontalContentAlignment="Center" IsCancel="True" />
+      <Button Classes="accent" Content="{x:Static l:S.Yes}" Click="OnYes" MinWidth="90" HorizontalContentAlignment="Center" />
+    </StackPanel>
+  </StackPanel>
+</Window>

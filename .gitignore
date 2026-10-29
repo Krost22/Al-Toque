@@ -1,0 +1,15 @@
+# Compilación
+bin/
+obj/
+artifacts/
+publish/
+*.user
+*.suo
+.vs/
+.idea/
+*.DotSettings.user
+TestResults/
+
+# Datos locales de pruebas
+*.altoque-part
+AlToque.data/

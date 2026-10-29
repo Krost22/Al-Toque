@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AlToque.Core/AlToque.Core.csproj" />
+    <Project Path="src/AlToque/AlToque.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AlToque.Core.Tests/AlToque.Core.Tests.csproj" />
+  </Folder>
+</Solution>

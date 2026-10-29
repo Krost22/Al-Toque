@@ -1,0 +1,95 @@
+name: Compilar y probar
+
+on:
+  push:
+    branches: [main, "claude/**"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  DOTNET_NOLOGO: "1"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+
+jobs:
+  pruebas:
+    name: Pruebas (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Pruebas del núcleo
+        run: dotnet test tests/AlToque.Core.Tests -c Release --logger "console;verbosity=normal"
+      - name: Compilar la app
+        run: dotnet build src/AlToque -c Release
+
+  windows:
+    name: Windows ${{ matrix.rid }} (NativeAOT)
+    needs: pruebas
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        rid: [win-x64, win-arm64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Versión
+        id: version
+        shell: pwsh
+        run: |
+          if ("${{ github.ref_type }}" -eq "tag") { $v = "${{ github.ref_name }}".TrimStart("v") } else { $v = "0.1.${{ github.run_number }}" }
+          "value=$v" >> $env:GITHUB_OUTPUT
+
+      - name: Publicar con NativeAOT
+        run: dotnet publish src/AlToque -c Release -r ${{ matrix.rid }} -p:Version=${{ steps.version.outputs.value }} -o publish/${{ matrix.rid }}
+
+      - name: Paquete portable (.zip)
+        shell: pwsh
+        run: |
+          $dir = "publish/${{ matrix.rid }}"
+          Remove-Item "$dir/*.pdb", "$dir/*.dbg" -ErrorAction SilentlyContinue
+          $stage = "portable/AlToque"
+          New-Item -ItemType Directory -Force $stage | Out-Null
+          Copy-Item "$dir/*" $stage -Recurse
+          New-Item "$stage/portable.flag" -ItemType File | Out-Null
+          Compress-Archive -Path "$stage/*" -DestinationPath "AlToque-${{ steps.version.outputs.value }}-${{ matrix.rid }}-portable.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AlToque-${{ matrix.rid }}-portable
+          path: AlToque-*-portable.zip
+
+      - name: Instalador (Velopack)
+        id: velopack
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          dotnet tool install -g vpk --version 1.2.161
+          vpk pack -u AlToque -v ${{ steps.version.outputs.value }} -p publish/${{ matrix.rid }} -e AlToque.exe `
+            --packTitle "Al Toque" -i src/AlToque/Assets/altoque.ico -o releases/${{ matrix.rid }}
+
+      - uses: actions/upload-artifact@v4
+        if: steps.velopack.outcome == 'success'
+        with:
+          name: AlToque-${{ matrix.rid }}-instalador
+          path: releases/${{ matrix.rid }}
+
+      - name: Publicar versión en GitHub
+        if: github.ref_type == 'tag' && matrix.rid == 'win-x64' && steps.velopack.outcome == 'success'
+        shell: pwsh
+        run: |
+          vpk upload github -o releases/${{ matrix.rid }} --repoUrl https://github.com/${{ github.repository }} `
+            --token ${{ secrets.GITHUB_TOKEN }} --publish --releaseName "Al Toque ${{ steps.version.outputs.value }}" --tag ${{ github.ref_name }}

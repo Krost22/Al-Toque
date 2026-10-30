@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Al Toque para Android: la interfaz móvil (AlToque.Mobile) y lo propio del teléfono (Compartir, Descargas, Wi-Fi). -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-android</TargetFramework>
+    <!-- Android 11: escribir en Descargas sin permisos y TLS con ALPN. -->
+    <SupportedOSPlatformVersion>30</SupportedOSPlatformVersion>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>AlToque.Android</RootNamespace>
+    <ApplicationId>com.krostgames.altoque</ApplicationId>
+    <ApplicationTitle>Al Toque</ApplicationTitle>
+    <ApplicationDisplayVersion>$(Version.Split('-')[0])</ApplicationDisplayVersion>
+    <!-- El CI pasa el número de ejecución: cada APK nuevo se instala encima del anterior. -->
+    <ApplicationVersion Condition="'$(ApplicationVersion)' == ''">1</ApplicationVersion>
+    <AndroidPackageFormat>apk</AndroidPackageFormat>
+    <RuntimeIdentifiers>android-arm64;android-arm;android-x64</RuntimeIdentifiers>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+  <!-- Firma estable si el CI tiene la llave (secreto ANDROID_KEYSTORE); si no, la de depuración. -->
+  <PropertyGroup Condition="'$(AltoqueKeystore)' != ''">
+    <AndroidKeyStore>true</AndroidKeyStore>
+    <AndroidSigningKeyStore>$(AltoqueKeystore)</AndroidSigningKeyStore>
+    <AndroidSigningKeyAlias>$(AltoqueKeyAlias)</AndroidSigningKeyAlias>
+    <AndroidSigningKeyPass>env:ALTOQUE_KEYSTORE_PASSWORD</AndroidSigningKeyPass>
+    <AndroidSigningStorePass>env:ALTOQUE_KEYSTORE_PASSWORD</AndroidSigningStorePass>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Android" Version="12.1.4" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\AlToque.Mobile\AlToque.Mobile.csproj" />
+  </ItemGroup>
+</Project>

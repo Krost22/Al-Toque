@@ -29,10 +29,8 @@ internal static partial class Cli
                 return Deliver(new IpcRequest { Command = "quit" }, startAgent: false);
             case "unintegrate":
                 if (OperatingSystem.IsWindows())
-                {
                     WindowsShell.Uninstall();
-                    StartupRegistration.Set(false);
-                }
+                StartupRegistration.Set(false);
                 return 0;
             case Firewall.SetupCommand:
                 return args.Length > 1 && int.TryParse(args[1], out var port) && port is > 0 and <= 65535 ? Firewall.Apply(port, args.Length > 2 && args[2] == "public") : 2;

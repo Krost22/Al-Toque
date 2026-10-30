@@ -457,7 +457,8 @@ public sealed class AppController
     {
         if (Transfers.Items.Any(t => t.Info == info))
             return;
-        var vm = new TransferViewModel(info, DismissTransfer, Agent.CancelTransfer, RetryTransfer, () => ShowConnect(info.SourcePaths, showMyCode: false));
+        var vm = new TransferViewModel(info, DismissTransfer, Agent.CancelTransfer, RetryTransfer, () => ShowConnect(info.SourcePaths, showMyCode: false),
+            Opener.ShowInFolder);
         vm.OpenFileRequested += t => _ = OpenReceivedFileAsync(t);
         Transfers.Items.Insert(0, vm);
         ShowTransfersWindow();

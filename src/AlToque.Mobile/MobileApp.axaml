@@ -1,0 +1,24 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="AlToque.Mobile.MobileApp"
+             Name="Al Toque"
+             RequestedThemeVariant="Default">
+  <Application.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceInclude Source="avares://AlToque.UI/Theme/Tokens.axaml" />
+      </ResourceDictionary.MergedDictionaries>
+    </ResourceDictionary>
+  </Application.Resources>
+
+  <Application.Styles>
+    <FluentTheme>
+      <FluentTheme.Palettes>
+        <ColorPaletteResources x:Key="Light" Accent="#5B5BF0" RegionColor="#FFFFFF" />
+        <ColorPaletteResources x:Key="Dark" Accent="#5B5BF0" RegionColor="#202028" />
+      </FluentTheme.Palettes>
+    </FluentTheme>
+    <StyleInclude Source="avares://AlToque.UI/Theme/Styles.axaml" />
+    <StyleInclude Source="avares://AlToque.Mobile/Views/MobileStyles.axaml" />
+  </Application.Styles>
+</Application>

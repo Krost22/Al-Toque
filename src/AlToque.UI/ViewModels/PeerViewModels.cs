@@ -143,6 +143,7 @@ public sealed class PeerViewModel : ViewModelBase
             "windows" => "Windows",
             "macos" => "macOS",
             "linux" => "Linux",
+            "android" => "Android",
             _ => "",
         };
         Status = info.Presence switch

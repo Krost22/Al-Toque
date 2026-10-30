@@ -37,5 +37,6 @@ public static class AppInfo
     public static string OsName =>
         OperatingSystem.IsWindows() ? "windows" :
         OperatingSystem.IsMacOS() ? "macos" :
+        OperatingSystem.IsAndroid() ? "android" :
         OperatingSystem.IsLinux() ? "linux" : "other";
 }

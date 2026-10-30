@@ -1,7 +1,10 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/AlToque.Core/AlToque.Core.csproj" />
+    <Project Path="src/AlToque.UI/AlToque.UI.csproj" />
     <Project Path="src/AlToque/AlToque.csproj" />
+    <Project Path="src/AlToque.Mobile/AlToque.Mobile.csproj" />
+    <Project Path="src/AlToque.Android/AlToque.Android.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/AlToque.Core.Tests/AlToque.Core.Tests.csproj" />

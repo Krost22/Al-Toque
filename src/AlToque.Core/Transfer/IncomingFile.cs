@@ -192,7 +192,7 @@ internal sealed class IncomingFile : IAsyncDisposable
         {
             if (_plan.Offer.Modified is { } m && m.Year is >= 1980 and <= 2200)
                 File.SetLastWriteTimeUtc(path, m.UtcDateTime);
-            if (_plan.Offer.Created is { } c && c.Year is >= 1980 and <= 2200 && !OperatingSystem.IsLinux())
+            if (_plan.Offer.Created is { } c && c.Year is >= 1980 and <= 2200 && !OperatingSystem.IsLinux() && !OperatingSystem.IsAndroid())
                 File.SetCreationTimeUtc(path, c.UtcDateTime);
         }
         catch (IOException)

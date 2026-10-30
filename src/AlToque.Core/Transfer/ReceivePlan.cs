@@ -121,7 +121,7 @@ public sealed class ReceivePlan
         }
 
         // Rutas únicas y sin conflictos archivo/carpeta ("a" como archivo y "a/b" a la vez).
-        var comparer = windowsRules || OperatingSystem.IsMacOS() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+        var comparer = windowsRules || OperatingSystem.IsMacOS() || OperatingSystem.IsAndroid() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
         var filePaths = new HashSet<string>(comparer);
         var dirPaths = new HashSet<string>(comparer);
         foreach (var (_, name) in validated)

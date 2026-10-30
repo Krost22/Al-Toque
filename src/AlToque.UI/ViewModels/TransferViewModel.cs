@@ -4,7 +4,6 @@ using AlToque.Controls.Avatars;
 using AlToque.Core.Security;
 using AlToque.Core.Transfer;
 using AlToque.Localization;
-using AlToque.Platform;
 using Avalonia.Media;
 
 namespace AlToque.ViewModels;
@@ -29,7 +28,7 @@ public sealed class TransferViewModel : ViewModelBase
     private readonly Action? _connect;
 
     public TransferViewModel(TransferInfo info, Action<TransferViewModel> dismiss, Action<TransferInfo> cancel,
-        Action<TransferViewModel>? retry = null, Action? connect = null)
+        Action<TransferViewModel>? retry = null, Action? connect = null, Action<string>? showInFolder = null)
     {
         Info = info;
         _retry = retry;
@@ -49,7 +48,7 @@ public sealed class TransferViewModel : ViewModelBase
         {
             var target = Info.CompletedPaths.Count == 1 ? Info.CompletedPaths[0] : Info.DestinationFolder;
             if (target is not null)
-                Opener.ShowInFolder(target);
+                showInFolder?.Invoke(target);
         });
         OpenFile = new RelayCommand(() => OpenFileRequested?.Invoke(this));
         Retry = new RelayCommand(() => _retry?.Invoke(this));

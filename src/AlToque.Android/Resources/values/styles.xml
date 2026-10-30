@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<resources>
+  <style name="AlToque.Theme" parent="@style/Theme.AppCompat.DayNight.NoActionBar">
+    <item name="android:windowActionBar">false</item>
+    <item name="android:windowNoTitle">true</item>
+    <item name="android:windowBackground">@color/altoque_background</item>
+    <item name="android:statusBarColor">@color/altoque_background</item>
+    <item name="android:navigationBarColor">@color/altoque_background</item>
+  </style>
+</resources>

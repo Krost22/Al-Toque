@@ -134,7 +134,7 @@ public static partial class WindowsShell
     private static partial void SHChangeNotify(int wEventId, uint uFlags, nint dwItem1, nint dwItem2);
 }
 
-/// <summary>Arranque con la sesión: clave <c>Run</c> en Windows, <c>autostart</c> en Linux.</summary>
+/// <summary>Arranque con la sesión: clave <c>Run</c> en Windows, <c>autostart</c> en Linux, LaunchAgent en macOS.</summary>
 public static class StartupRegistration
 {
     private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
@@ -161,6 +161,28 @@ public static class StartupRegistration
                 {
                     Directory.CreateDirectory(dir);
                     File.WriteAllText(file, $"[Desktop Entry]\nType=Application\nName=Al Toque\nExec=\"{exe}\" --background\nX-GNOME-Autostart-enabled=true\n");
+                }
+                else if (File.Exists(file))
+                    File.Delete(file);
+            }
+            else if (OperatingSystem.IsMacOS())
+            {
+                var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Library", "LaunchAgents");
+                var file = Path.Combine(dir, "com.krostgames.altoque.plist");
+                if (enabled && exe is not null)
+                {
+                    Directory.CreateDirectory(dir);
+                    File.WriteAllText(file, $"""
+                        <?xml version="1.0" encoding="UTF-8"?>
+                        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+                        <plist version="1.0">
+                        <dict>
+                          <key>Label</key><string>com.krostgames.altoque</string>
+                          <key>ProgramArguments</key><array><string>{System.Security.SecurityElement.Escape(exe)}</string><string>--background</string></array>
+                          <key>RunAtLoad</key><true/>
+                        </dict>
+                        </plist>
+                        """);
                 }
                 else if (File.Exists(file))
                     File.Delete(file);

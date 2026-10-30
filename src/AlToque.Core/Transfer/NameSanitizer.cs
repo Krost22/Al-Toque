@@ -20,7 +20,8 @@ public static class NameSanitizer
         "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9", "LPT¹", "LPT²", "LPT³",
     };
 
-    public static bool UseWindowsRulesByDefault => OperatingSystem.IsWindows();
+    // En Android el almacenamiento compartido tiene las mismas restricciones de nombres que FAT/Windows.
+    public static bool UseWindowsRulesByDefault => OperatingSystem.IsWindows() || OperatingSystem.IsAndroid();
 
     public readonly record struct Result(string[] Components, bool HadHiddenCharacters);
 
@@ -130,7 +131,7 @@ public static class NameSanitizer
 
     public static bool IsInside(string root, string candidate)
     {
-        var comparison = OperatingSystem.IsWindows() || OperatingSystem.IsMacOS() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        var comparison = OperatingSystem.IsWindows() || OperatingSystem.IsMacOS() || OperatingSystem.IsAndroid() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
         var r = Path.TrimEndingDirectorySeparator(Path.GetFullPath(root));
         var c = Path.GetFullPath(candidate);
         return c.Length > r.Length + 1 && c.StartsWith(r, comparison) && c[r.Length] == Path.DirectorySeparatorChar;

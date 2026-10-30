@@ -1,7 +1,8 @@
 # Al Toque
 
-Envía cualquier archivo a otra PC de tu red con un clic derecho. El receptor confirma, la transferencia viaja cifrada
-y **Chasqui**, un avión de papel con ojos, acompaña cada envío.
+Envía cualquier archivo a otra PC o a tu teléfono con un clic derecho. El receptor confirma, la transferencia viaja
+cifrada por tu red local y **Chasqui**, un avión de papel con ojos, acompaña cada envío. Funciona en **Windows**,
+**Linux**, **macOS** y **Android**, y todos se entienden entre sí.
 
 *Clic derecho → nombre de tu compañero → listo.* Sin cuentas, sin internet y sin escribir direcciones IP.
 
@@ -20,12 +21,18 @@ se encoge de hombros si rechazan el envío y se marea si algo falla.
 
 <p><img src="docs/img/chasqui.png" alt="Chasqui en reposo, atento, buscando, enviando, con éxito, rechazado y con error" width="680" /></p>
 
+En el teléfono, la misma app: compañeros, enviar desde la app o desde **Compartir** de cualquier otra, recibir en
+*Descargas › Al Toque*, emparejar con el código de 6 cifras y conectar por código.
+
+<p><img src="docs/img/android.png" alt="Al Toque en Android: bienvenida con selector de avatar, solicitud de un equipo no verificado y archivos recibidos" width="680" /></p>
+
 La especificación completa está en [`docs/especificacion.md`](docs/especificacion.md) (escrita con el nombre de trabajo
 "Pásalo"; el producto se llama **Al Toque**).
 
 ## Estado
 
-Primera versión para **Windows** (el código ya es multiplataforma y corre en Linux; macOS llega en v1).
+Primera versión: **Windows** (x64 y ARM64) como plataforma principal, **Linux** y **macOS** con la misma app de escritorio,
+y **Android** 11 o posterior con una app propia para el teléfono. Todas hablan el mismo protocolo.
 
 | Área | Hecho |
 |---|---|
@@ -41,17 +48,28 @@ Primera versión para **Windows** (el código ya es multiplataforma y corre en L
 | Interfaz | Sistema visual propio con tokens claro/oscuro e íconos de trazo; panel rápido (reposo, arrastrando, "no veo a nadie" con consejos y nombre de la red), tarjetas flotantes por estado con la estela de Chasqui como barra de progreso, solicitud grande o compacta con **aceptación parcial** (los programas llegan desmarcados), emparejamiento en 3 pasos, ajustes por tarjetas, historial con **Reintentar** |
 | Avatares | 24 personajes vectoriales con volumen suave, elegibles en la bienvenida y en Ajustes; parpadean, miran, saltan, celebran y cambian de cara según el momento; viajan dentro del `HELLO` cifrado y, para los compañeros de confianza, solo se aceptan por TLS |
 | Movimiento | Chasqui con expresiones, anticipación, aplastar y estirar, looping, confeti, estrellas, humo y gotas; entradas en cascada y sacudidas; curvas y duraciones del diseño; "Animaciones: como en Windows / completas / reducidas"; nada se anima con la ventana oculta |
-| Distribución | NativeAOT (sin .NET instalado), modo portable (`portable.flag`), instalador y actualizaciones con Velopack, CI en GitHub Actions |
+| Linux | AppImage que se actualiza sola, `.tar.gz` portable, inicio con la sesión (`autostart`), x64 y ARM64 |
+| macOS | App `.app` (Apple Silicon e Intel), instalador `.pkg` que se actualiza solo, ícono en la barra de menús, inicio con la sesión (LaunchAgent) |
+| Android | App para el teléfono con el mismo diseño: compañeros, **Compartir** desde cualquier app, recibir en Descargas › Al Toque (aparece en la galería), emparejar, conectar por código, servicio en primer plano mientras pasan archivos, aviso de versión nueva |
+| Distribución | NativeAOT (sin .NET instalado), modo portable (`portable.flag`), instaladores y actualizaciones con Velopack en Windows, Linux y macOS, APK para Android, CI en GitHub Actions con pruebas en las cuatro plataformas (Android en un emulador) |
 
 Pendiente para próximas versiones (ver la hoja de ruta de la especificación): reanudación tras cortes, pausa manual,
 envío a varios destinatarios y grupos, notificaciones nativas del Windows App SDK, miniaturas en las solicitudes,
-inglés revisado, macOS e integración con gestores de archivos de Linux, IPv6 en el descubrimiento.
+inglés revisado, integración con gestores de archivos de Linux y Finder, firma de código en Windows y macOS, recibir
+en Android con la app cerrada, IPv6 en el descubrimiento.
 
 ## Instalar
 
-Descarga el instalador o la versión portable desde *Releases* (o desde **Actions → Compilar y probar → Artifacts**).
-La versión instalada se actualiza sola desde la app cada vez que se publica una versión nueva. Las instrucciones paso
-a paso están en [`docs/INSTALAR.md`](docs/INSTALAR.md).
+Descarga lo que corresponda desde *Releases* (o desde **Actions → Compilar y probar → Artifacts**):
+
+| Sistema | Archivo | Se actualiza sola |
+|---|---|---|
+| Windows | `AlToque-win-x64-Setup.exe` (o `win-arm64`) · portable: `AlToque-…-win-x64-portable.zip` | Sí (la instalada) |
+| Linux | `AlToque-linux-x64.AppImage` (o `linux-arm64`) · portable: `AlToque-…-linux-x64-portable.tar.gz` | Sí (el AppImage) |
+| macOS | `AlToque-osx-arm64-Setup.pkg` (Apple Silicon) u `osx-x64` (Intel) · app suelta: `AlToque-…-osx-arm64.zip` | Sí (la del `.pkg`) |
+| Android | `AlToque-…-android.apk` (Android 11 o posterior) | Avisa y descarga el APK nuevo |
+
+Las instrucciones paso a paso para cada sistema están en [`docs/INSTALAR.md`](docs/INSTALAR.md).
 
 ## Uso
 
@@ -81,8 +99,18 @@ milisegundos; si el agente no está corriendo, lo inicia.
 Requisitos: [.NET 10 SDK](https://dotnet.microsoft.com/download).
 
 ```bash
-dotnet test tests/AlToque.Core.Tests          # 85 pruebas, incluidas dos instancias reales hablando por TLS
-dotnet run --project src/AlToque              # ejecutar en modo desarrollo
+dotnet test tests/AlToque.Core.Tests                         # 89 pruebas, incluidas dos instancias reales hablando por TLS
+dotnet run --project src/AlToque                             # la app de escritorio en modo desarrollo
+dotnet run --project tools/AlToque.MobilePreview             # la app de Android en una ventana del tamaño de un teléfono
+dotnet run --project tools/AlToque.MobilePreview -- --selftest   # emparejar y enviar entre dos agentes, y salir
+```
+
+La app de Android necesita además la carga de trabajo `android` y el SDK de Android:
+
+```bash
+dotnet workload install android
+dotnet build src/AlToque.Android -t:InstallAndroidDependencies -f net10.0-android -p:AcceptAndroidSDKLicenses=true
+dotnet publish src/AlToque.Android -c Release -f net10.0-android     # → com.krostgames.altoque-Signed.apk
 ```
 
 Publicar para Windows con NativeAOT (en Windows, con las herramientas de C++ de Visual Studio):
@@ -93,23 +121,37 @@ New-Item publish/portable.flag   # opcional: modo portable, guarda todo junto al
 ```
 
 El flujo de GitHub Actions ([`.github/workflows/build.yml`](.github/workflows/build.yml)) corre las pruebas en Linux y
-Windows, publica `win-x64` y `win-arm64` con NativeAOT, hace una prueba de humo del `.exe` en Windows (agente, menú
-contextual, "Enviar a" y CLI) y sube como artefactos el `.zip` portable y el instalador de Velopack.
+Windows, publica con NativeAOT `win-x64`, `win-arm64`, `linux-x64`, `linux-arm64`, `osx-arm64` y `osx-x64`, hace
+pruebas de humo del agente en Windows, Linux y macOS, compila el APK de Android y lo prueba en un emulador (dos agentes
+del teléfono se emparejan y se pasan un archivo por TLS), y sube como artefactos los portables, los instaladores de
+Velopack y el APK.
 
 ### Publicar una versión
 
-Las copias instaladas buscan versiones nuevas en *Releases* y se actualizan solas (Velopack, canales `win-x64` y
-`win-arm64`). Para publicar una:
+Las copias instaladas buscan versiones nuevas en *Releases* y se actualizan solas (Velopack, un canal por sistema y
+arquitectura: `win-x64`, `win-arm64`, `linux-x64`, `linux-arm64`, `osx-arm64`, `osx-x64`); la app de Android avisa y
+descarga el APK. Para publicar una:
 
 1. **Actions → Compilar y probar → Run workflow**, elige la rama y escribe la versión (por ejemplo `0.2.0`), o bien
    sube una etiqueta: `git tag v0.2.0 && git push origin v0.2.0`.
 2. El flujo compila, prueba y crea la versión `v0.2.0` en GitHub con los instaladores, los paquetes de actualización
-   de los dos canales y los `.zip` portables.
+   de todos los canales, los portables y el APK.
 3. En las próximas horas cada Al Toque instalado la descarga y avisa con **Reiniciar y actualizar** (o se instala al
    cerrar la app).
 
 Cada versión debe ser mayor que la anterior. Las compilaciones sin versión usan `0.1.<n.º de ejecución>`, así que
 conviene publicar a partir de `0.2.0`.
+
+**Firma del APK.** Para que cada APK nuevo se instale encima del anterior, todos deben ir firmados con la misma llave.
+Crea una una sola vez y guárdala como secretos del repositorio (*Settings → Secrets and variables → Actions*):
+
+```bash
+keytool -genkeypair -v -keystore altoque.keystore -alias altoque -keyalg RSA -keysize 4096 -validity 10000
+base64 -w0 altoque.keystore   # → secreto ANDROID_KEYSTORE_BASE64
+```
+
+y los secretos `ANDROID_KEYSTORE_PASSWORD` (la contraseña) y `ANDROID_KEY_ALIAS` (`altoque`). Sin ellos el APK sale
+con una firma de depuración distinta en cada compilación.
 
 Para desarrollar con dos instancias en el mismo equipo, cada una con sus propios datos:
 
@@ -130,18 +172,25 @@ src/AlToque.Core      Núcleo sin interfaz (compatible con NativeAOT)
   Pairing/            Emparejamiento con compromiso y código de 6 dígitos
   Ipc/                Tubería local entre el CLI y el agente
   Agent/              AgentHost: orquesta todo lo anterior
-src/AlToque           App de escritorio Avalonia 12
+src/AlToque.UI        Diseño compartido por escritorio y teléfono (Avalonia 12)
   Chasqui/            Chasqui: pintor vectorial con expresiones y control animado por estados
   Controls/           Avatares, íconos, pista de progreso, control segmentado, partículas y animaciones
   Theme/              Tokens de color, tipografía y estilos (claro y oscuro)
+  Localization/       Textos en español e inglés
+  ViewModels/         Compañeros, transferencias, solicitudes e historial
+src/AlToque           App de escritorio (Windows, Linux y macOS)
   Views/, ViewModels/ Panel, tarjetas de solicitud y progreso, ventanas
-  Platform/           Menú contextual, "Enviar a", firewall, red pública, actualizaciones
+  Platform/           Menú contextual, "Enviar a", firewall, red pública, inicio con la sesión, actualizaciones
+src/AlToque.Mobile    App del teléfono, independiente del sistema: pantalla, hojas, preparación de archivos, autoprueba
+src/AlToque.Android   Lo propio de Android: Compartir, Descargas y galería, Wi-Fi, servicio en primer plano
 tests/                xUnit: saneamiento, tramas, códigos, sellado, ataques simulados y envíos reales
 tools/AlToque.Gallery Capturas sin ventana (Avalonia.Headless) de avatares, Chasqui y la pista de progreso
+tools/AlToque.MobilePreview  La app de Android en una ventana de escritorio, con su autoprueba
 ```
 
 Un solo proceso hace de agente y de interfaz; las ventanas se crean la primera vez que hacen falta y luego solo se
-ocultan. Datos locales: `%APPDATA%\AlToque` (o `AlToque.data` junto al ejecutable en modo portable).
+ocultan. Datos locales: `%APPDATA%\AlToque` en Windows, `~/.config/altoque` en Linux, `~/Library/Application Support/AlToque`
+en macOS, la carpeta privada de la app en Android (o `AlToque.data` junto al ejecutable en modo portable).
 
 ### Protocolo en breve
 

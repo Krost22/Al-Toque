@@ -1,5 +1,3 @@
-using System.Net.Http.Headers;
-using System.Text.Json;
 using AlToque.Core;
 using AlToque.Core.Agent;
 using Velopack;
@@ -27,9 +25,8 @@ public enum UpdateStatus
 /// </summary>
 public sealed class Updates : IDisposable
 {
-    public const string RepositoryUrl = "https://github.com/Krost22/Al-Toque";
-    public const string ReleasesUrl = RepositoryUrl + "/releases/latest";
-    private const string LatestApi = "https://api.github.com/repos/Krost22/Al-Toque/releases/latest";
+    public const string RepositoryUrl = ReleaseCheck.RepositoryUrl;
+    public const string ReleasesUrl = ReleaseCheck.ReleasesUrl;
     private static readonly TimeSpan Interval = TimeSpan.FromHours(6);
 
     private readonly Func<bool> _autoDownload;
@@ -110,10 +107,10 @@ public sealed class Updates : IDisposable
             }
             else
             {
-                var latest = await LatestPublishedAsync().ConfigureAwait(false);
-                if (latest is not null && IsNewer(latest, CurrentVersion))
+                var latest = await ReleaseCheck.LatestAsync().ConfigureAwait(false);
+                if (latest is not null && IsNewer(latest.Version, CurrentVersion))
                 {
-                    AvailableVersion = latest;
+                    AvailableVersion = latest.Version;
                     Set(UpdateStatus.Available);
                 }
                 else
@@ -194,24 +191,8 @@ public sealed class Updates : IDisposable
         }
     }
 
-    /// <summary>Última versión publicada en GitHub ("0.2.0"), para las copias portables.</summary>
-    private static async Task<string?> LatestPublishedAsync()
-    {
-        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
-        http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("AlToque", AppInfo.Version));
-        http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
-        using var response = await http.GetAsync(LatestApi).ConfigureAwait(false);
-        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
-            return null; // Aún no hay versiones publicadas.
-        response.EnsureSuccessStatusCode();
-        await using var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
-        using var doc = await JsonDocument.ParseAsync(stream).ConfigureAwait(false);
-        return doc.RootElement.TryGetProperty("tag_name", out var tag) ? tag.GetString()?.TrimStart('v', 'V') : null;
-    }
-
     /// <summary>¿<paramref name="candidate"/> es posterior a <paramref name="current"/>? Ignora sufijos como "-beta".</summary>
-    public static bool IsNewer(string candidate, string current) =>
-        Version.TryParse(candidate.Split('-', '+')[0], out var a) && Version.TryParse(current.Split('-', '+')[0], out var b) && a > b;
+    public static bool IsNewer(string candidate, string current) => ReleaseCheck.IsNewer(candidate, current);
 
     public void Dispose() => _timer.Dispose();
 }

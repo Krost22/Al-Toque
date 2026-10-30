@@ -81,7 +81,11 @@ public static class Opener
             else
             {
                 var dir = Directory.Exists(path) ? path : Path.GetDirectoryName(path)!;
-                Process.Start(new ProcessStartInfo(OperatingSystem.IsMacOS() ? "open" : "xdg-open", $"\"{dir}\"") { UseShellExecute = false })?.Dispose();
+                // En macOS, Finder abre la carpeta con el archivo seleccionado.
+                if (OperatingSystem.IsMacOS())
+                    Process.Start(new ProcessStartInfo("open", File.Exists(path) ? $"-R \"{path}\"" : $"\"{dir}\"") { UseShellExecute = false })?.Dispose();
+                else
+                    Process.Start(new ProcessStartInfo("xdg-open", $"\"{dir}\"") { UseShellExecute = false })?.Dispose();
             }
         }
         catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)

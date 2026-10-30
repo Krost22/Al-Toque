@@ -30,7 +30,7 @@ public static class FloatingWindow
         }
     }
 
-    /// <summary>Esquina inferior derecha del área de trabajo (encima de la barra de tareas), desplazada hacia arriba.</summary>
+    /// <summary>Esquina inferior derecha del área de trabajo (encima de la barra de tareas), desplazada hacia arriba; en macOS, la superior.</summary>
     public static void PlaceBottomRight(Window window, double offsetAboveDip, double offsetLeftDip = 0)
     {
         var screen = window.Screens.ScreenFromWindow(window) ?? window.Screens.Primary;
@@ -46,7 +46,10 @@ public static class FloatingWindow
         var area = screen.WorkingArea;
         var gap = OperatingSystem.IsWindows() ? 0 : (int)(8 * scale);
         var x = area.Right - (int)Math.Ceiling(size.Width * scale) - gap - (int)(offsetLeftDip * scale);
-        var y = area.Bottom - (int)Math.Ceiling(size.Height * scale) - gap - (int)(offsetAboveDip * scale);
+        // En macOS el ícono vive en la barra de menús, arriba: las ventanas bajan desde la esquina superior derecha.
+        var y = OperatingSystem.IsMacOS()
+            ? area.Y + gap + (int)(offsetAboveDip * scale)
+            : area.Bottom - (int)Math.Ceiling(size.Height * scale) - gap - (int)(offsetAboveDip * scale);
         window.Position = new PixelPoint(Math.Max(area.X, x), Math.Max(area.Y, y));
     }
 

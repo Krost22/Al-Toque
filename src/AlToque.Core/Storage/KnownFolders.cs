@@ -7,8 +7,13 @@ public static partial class KnownFolders
 {
     public static string DefaultReceiveFolder() => Path.Combine(Downloads(), AppInfo.Name);
 
+    /// <summary>Carpeta de descargas que impone la plataforma (en Android, la pública del teléfono).</summary>
+    public static string? DownloadsOverride { get; set; }
+
     public static string Downloads()
     {
+        if (DownloadsOverride is { Length: > 0 } fixedDir)
+            return fixedDir;
         if (OperatingSystem.IsWindows())
         {
             var path = WindowsDownloads();

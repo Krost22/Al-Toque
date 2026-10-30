@@ -1,0 +1,573 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:m="using:AlToque.Mobile"
+             xmlns:vm="using:AlToque.ViewModels"
+             xmlns:ch="using:AlToque.Chasqui"
+             xmlns:c="using:AlToque.Controls"
+             xmlns:av="using:AlToque.Controls.Avatars"
+             xmlns:l="using:AlToque.Localization"
+             x:Class="AlToque.Mobile.Views.MobileView"
+             x:DataType="m:MobileViewModel">
+  <Panel x:Name="SafeArea">
+    <ScrollViewer x:Name="Scroller" HorizontalScrollBarVisibility="Disabled">
+      <StackPanel Spacing="18" Margin="16,12,16,32">
+
+        <!-- Encabezado -->
+        <Grid ColumnDefinitions="Auto,*,Auto">
+          <Border Width="34" Height="34" CornerRadius="9" Background="{StaticResource AccentBrush}">
+            <c:IconView Kind="Send" Width="19" Height="19" Foreground="White" />
+          </Border>
+          <TextBlock Grid.Column="1" Text="Al Toque" Classes="subtitle" FontSize="20" Margin="12,0" VerticalAlignment="Center" />
+          <Button Grid.Column="2" Classes="icon" Padding="2" Command="{Binding OpenSettings}"
+                  ToolTip.Tip="{x:Static l:S.Settings}" AutomationProperties.Name="{x:Static l:S.Settings}">
+            <av:AvatarView Width="42" Height="42" AvatarId="{Binding MyAvatarId}" ColorHex="{Binding MyColorHex}" Initial="{Binding MyInitial}" />
+          </Button>
+        </Grid>
+
+        <!-- Versión nueva -->
+        <Border Classes="card" Padding="14,12" Background="{DynamicResource AccentTintBrush}" BorderBrush="{StaticResource AccentBrush}"
+                BorderThickness="1" IsVisible="{Binding ShowUpdate}">
+          <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto">
+            <Border Width="40" Height="40" CornerRadius="20" Background="{StaticResource AccentBrush}" VerticalAlignment="Top">
+              <c:IconView Kind="Download" Width="20" Height="20" Foreground="White" />
+            </Border>
+            <StackPanel Grid.Column="1" Margin="12,0,6,0" VerticalAlignment="Center" Spacing="2">
+              <TextBlock Text="{Binding UpdateTitle}" Classes="strong" TextWrapping="Wrap" />
+              <TextBlock Text="{x:Static l:S.MobileUpdateHint}" Classes="meta" TextWrapping="Wrap" />
+            </StackPanel>
+            <Button Grid.Column="2" Classes="icon small" Command="{Binding DismissUpdate}" VerticalAlignment="Top"
+                    AutomationProperties.Name="{x:Static l:S.UpdateLater}">
+              <c:IconView Kind="Close" />
+            </Button>
+            <Button Grid.Row="1" Grid.ColumnSpan="3" Classes="accent" HorizontalAlignment="Right" Margin="0,10,0,0"
+                    Content="{x:Static l:S.MobileUpdateDownload}" Command="{Binding DownloadUpdate}" />
+          </Grid>
+        </Border>
+
+        <!-- Archivos listos para enviar -->
+        <Border Classes="card" IsVisible="{Binding HasPending}" Background="{DynamicResource AccentTintBrush}"
+                BorderBrush="{StaticResource AccentBrush}" BorderThickness="1.5">
+          <Grid ColumnDefinitions="Auto,*,Auto">
+            <ch:ChasquiView Width="56" Height="56" State="Attentive" ShowRadar="False" />
+            <StackPanel Grid.Column="1" Margin="12,0" VerticalAlignment="Center" Spacing="2">
+              <TextBlock Text="{Binding PendingTitle}" Classes="strong" TextWrapping="Wrap" />
+              <TextBlock Text="{Binding PendingHint}" Classes="body2" TextWrapping="Wrap" />
+              <Button Classes="link" Padding="0,4" HorizontalAlignment="Left" HorizontalContentAlignment="Left" Command="{Binding OpenConnect}">
+                <Grid ColumnDefinitions="Auto,*">
+                  <c:IconView Kind="Hash" Width="14" Height="14" Margin="0,3,6,0" VerticalAlignment="Top" />
+                  <TextBlock Grid.Column="1" Text="{x:Static l:S.SendByCode}" TextWrapping="Wrap" />
+                </Grid>
+              </Button>
+            </StackPanel>
+            <Button Grid.Column="2" Classes="icon small" Command="{Binding ClearPending}" VerticalAlignment="Top"
+                    AutomationProperties.Name="{x:Static l:S.Cancel}">
+              <c:IconView Kind="Close" />
+            </Button>
+          </Grid>
+        </Border>
+
+        <!-- Copiando lo elegido -->
+        <Border Classes="card" IsVisible="{Binding IsPreparing}">
+          <StackPanel Spacing="10">
+            <TextBlock Text="{x:Static l:S.MobilePreparing}" Classes="strong" />
+            <ProgressBar Classes="update" IsIndeterminate="True" />
+          </StackPanel>
+        </Border>
+
+        <!-- Listo -->
+        <Border Classes="card" IsVisible="{Binding ShowReadyCard}" Padding="16">
+          <StackPanel Spacing="14">
+            <Grid ColumnDefinitions="Auto,*">
+              <ch:ChasquiView Width="76" Height="76" State="{Binding Chasqui}" ShowRadar="False" />
+              <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center" Spacing="3">
+                <TextBlock Text="{Binding HeroTitle}" Classes="strong" FontSize="17" TextWrapping="Wrap" />
+                <TextBlock Text="{Binding HeroBody}" Classes="body2" TextWrapping="Wrap" />
+              </StackPanel>
+            </Grid>
+            <Button Classes="accent big" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Command="{Binding SendFiles}" MinHeight="50">
+              <StackPanel Orientation="Horizontal" Spacing="10">
+                <c:IconView Kind="Send" Width="20" Height="20" Foreground="White" />
+                <TextBlock Text="{x:Static l:S.MobileSendFiles}" FontSize="16" />
+              </StackPanel>
+            </Button>
+          </StackPanel>
+        </Border>
+
+        <!-- Transferencias -->
+        <ItemsControl ItemsSource="{Binding Transfers}" IsVisible="{Binding HasTransfers}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <StackPanel Spacing="12" />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:TransferViewModel">
+              <Border Classes="card" Padding="16,14,10,16">
+                <StackPanel Spacing="10">
+                  <Grid ColumnDefinitions="Auto,*,Auto">
+                    <Panel Width="50" Height="50" VerticalAlignment="Top">
+                      <av:AvatarView Width="50" Height="50" AvatarId="{Binding AvatarId}" ColorHex="{Binding ColorHex}" Initial="{Binding Initial}"
+                                     Mood="{Binding PeerMood}" IsVisible="{Binding ShowAvatar}" PopOnLoad="True" />
+                      <ch:ChasquiView Width="46" Height="46" State="{Binding Chasqui}" ShowRadar="False" IsVisible="{Binding ShowChasqui}" />
+                    </Panel>
+                    <StackPanel Grid.Column="1" Margin="12,2,6,0" Spacing="2" VerticalAlignment="Center">
+                      <TextBlock Text="{Binding Title}" Classes="strong" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+                      <TextBlock Text="{Binding Detail}" Classes="body2 num" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <Button Grid.Column="2" Classes="icon small" Command="{Binding Dismiss}" VerticalAlignment="Top"
+                            AutomationProperties.Name="{x:Static l:S.Close}">
+                      <c:IconView Kind="Close" />
+                    </Button>
+                  </Grid>
+                  <c:TransferTrack Mode="{Binding Track}" Progress="{Binding Progress}" EndColor="{Binding ColorHex}" IsVisible="{Binding ShowTrack}"
+                                   Margin="0,0,6,0" />
+                  <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding HasFoot}" Margin="0,0,6,0">
+                    <TextBlock Text="{Binding FootLeft}" Classes="meta num" />
+                    <TextBlock Grid.Column="1" Text="{Binding FootRight}" Classes="meta num" FontWeight="SemiBold" />
+                  </Grid>
+                  <WrapPanel IsVisible="{Binding CanOpen}">
+                    <Button Classes="accent" Content="{Binding OpenFileText}" Command="{Binding OpenFile}" IsVisible="{Binding CanOpenFile}" Margin="0,0,10,0" />
+                    <Button Content="{x:Static l:S.MobileOpenDownloads}" Command="{Binding OpenFolder}" />
+                  </WrapPanel>
+                  <WrapPanel IsVisible="{Binding ShowErrorActions}">
+                    <Button Classes="accent" Command="{Binding Retry}" Margin="0,0,10,0">
+                      <StackPanel Orientation="Horizontal" Spacing="8">
+                        <c:IconView Kind="Retry" Width="18" Height="18" />
+                        <TextBlock Text="{x:Static l:S.Retry}" />
+                      </StackPanel>
+                    </Button>
+                    <Button Content="{x:Static l:S.ConnectByCode}" Command="{Binding ConnectByCode}" />
+                  </WrapPanel>
+                </StackPanel>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <!-- Compañeros -->
+        <StackPanel Spacing="8">
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock VerticalAlignment="Center">
+              <Run Text="{x:Static l:S.PeersHeader}" FontWeight="SemiBold" Foreground="{DynamicResource Text2Brush}" />
+              <Run Text="{Binding PeersCountText}" Foreground="{DynamicResource Text3Brush}" />
+            </TextBlock>
+            <Button Grid.Column="1" Classes="link" Command="{Binding OpenPair}">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <c:IconView Kind="Plus" Width="16" Height="16" />
+                <TextBlock Text="{x:Static l:S.PairShort}" />
+              </StackPanel>
+            </Button>
+          </Grid>
+          <ItemsControl ItemsSource="{Binding Peers}" IsVisible="{Binding HasPeers}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <UniformGrid Columns="2" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:PeerViewModel">
+                <Button Classes="peer" Margin="3" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="6,12"
+                        Command="{Binding $parent[UserControl].((m:MobileViewModel)DataContext).PeerTapped}"
+                        CommandParameter="{Binding}" AutomationProperties.Name="{Binding AccessibleName}">
+                  <StackPanel Spacing="4" HorizontalAlignment="Center">
+                    <av:AvatarView Width="84" Height="84" HorizontalAlignment="Center" AvatarId="{Binding AvatarId}" ColorHex="{Binding ColorHex}"
+                                   Initial="{Binding Initial}" Ring="{Binding Ring}" Dimmed="{Binding Dimmed}" Mood="{Binding Mood}" />
+                    <TextBlock Text="{Binding Name}" HorizontalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="150"
+                               FontWeight="SemiBold" Opacity="{Binding Opacity}" />
+                    <TextBlock Text="{Binding StatusLine}" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" MaxWidth="150"
+                               Classes="meta" />
+                  </StackPanel>
+                </Button>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+
+          <!-- Nadie en la red -->
+          <StackPanel IsVisible="{Binding ShowNobody}" Spacing="12">
+            <ch:ChasquiView Width="132" Height="132" HorizontalAlignment="Center" State="Searching" />
+            <TextBlock Text="{x:Static l:S.NobodyTitle}" Classes="subtitle" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" />
+            <TextBlock Text="{x:Static l:S.MobileNobodyHint}" Classes="body2" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" />
+            <Border Classes="card" Padding="16,14">
+              <StackPanel Spacing="14">
+                <Grid ColumnDefinitions="28,*">
+                  <c:IconView Kind="Alert" Width="20" Height="20" Foreground="{DynamicResource WarningBrush}" VerticalAlignment="Top" />
+                  <StackPanel Grid.Column="1" Spacing="2">
+                    <TextBlock Text="{x:Static l:S.NobodyBlocking}" TextWrapping="Wrap" />
+                    <TextBlock Text="{x:Static l:S.NobodyBlockingHint}" Classes="meta" TextWrapping="Wrap" />
+                  </StackPanel>
+                </Grid>
+                <Grid ColumnDefinitions="28,*">
+                  <c:IconView Kind="Help" Width="20" Height="20" VerticalAlignment="Top" />
+                  <StackPanel Grid.Column="1" Spacing="2">
+                    <TextBlock Text="{x:Static l:S.NobodyOpen}" TextWrapping="Wrap" />
+                    <TextBlock Text="{x:Static l:S.NobodyOpenHint}" Classes="meta" TextWrapping="Wrap" />
+                  </StackPanel>
+                </Grid>
+              </StackPanel>
+            </Border>
+          </StackPanel>
+
+          <Grid ColumnDefinitions="*,10,*" Margin="0,4,0,0">
+            <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="8,0" Command="{Binding OpenConnect}">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <c:IconView Kind="Hash" Width="18" Height="18" />
+                <TextBlock Text="{x:Static l:S.ConnectByCode}" TextTrimming="CharacterEllipsis" />
+              </StackPanel>
+            </Button>
+            <Button Grid.Column="2" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Padding="8,0" Command="{Binding OpenMyCode}">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <c:IconView Kind="Qr" Width="18" Height="18" />
+                <TextBlock Text="{x:Static l:S.MyCode}" TextTrimming="CharacterEllipsis" />
+              </StackPanel>
+            </Button>
+          </Grid>
+        </StackPanel>
+
+        <!-- Recientes -->
+        <StackPanel IsVisible="{Binding HasRecent}" Spacing="4">
+          <TextBlock Text="{x:Static l:S.Recent}" Classes="label" />
+          <ItemsControl ItemsSource="{Binding Recent}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:HistoryItemViewModel">
+                <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,5">
+                  <Border Classes="tile" Classes.error="{Binding IsFailed}">
+                    <c:IconView Kind="{Binding Icon}" />
+                  </Border>
+                  <StackPanel Grid.Column="1" Margin="12,0" VerticalAlignment="Center" Spacing="1">
+                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="{Binding Subtitle}" Classes="meta" Classes.error="{Binding IsFailed}" TextTrimming="CharacterEllipsis" />
+                  </StackPanel>
+                  <Panel Grid.Column="2" VerticalAlignment="Center">
+                    <c:IconView Kind="Check" Width="20" Height="20" Foreground="{DynamicResource SuccessBrush}" IsVisible="{Binding ShowOk}" Margin="0,0,6,0" />
+                    <Button Classes="icon small" Command="{Binding Open}" IsVisible="{Binding CanOpen}" AutomationProperties.Name="{x:Static l:S.Open}">
+                      <c:IconView Kind="External" />
+                    </Button>
+                  </Panel>
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+
+        <!-- Quién puede enviarte -->
+        <StackPanel Spacing="12">
+          <Border Classes="divider" Margin="0,0,0,4" />
+          <TextBlock Text="{x:Static l:S.WhoCanSend}" Classes="label" />
+          <c:Segmented AutomationProperties.Name="{x:Static l:S.TrayReceiveFrom}">
+            <RadioButton Classes="segment" GroupName="mobile-mode" IsChecked="{Binding ModeNobody}">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <c:IconView Kind="EyeOff" />
+                <TextBlock Text="{x:Static l:S.SegNobody}" />
+              </StackPanel>
+            </RadioButton>
+            <RadioButton Classes="segment" GroupName="mobile-mode" IsChecked="{Binding ModeTrusted}">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <c:IconView Kind="ShieldCheck" />
+                <TextBlock Text="{x:Static l:S.SegTrusted}" />
+              </StackPanel>
+            </RadioButton>
+            <RadioButton Classes="segment" GroupName="mobile-mode" IsChecked="{Binding ModeEveryone}">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <c:IconView Kind="Users" />
+                <TextBlock Text="{x:Static l:S.SegEveryone}" />
+              </StackPanel>
+            </RadioButton>
+          </c:Segmented>
+          <TextBlock Text="{Binding ModeHint}" Classes="body2" TextWrapping="Wrap" />
+          <Button Classes="link" HorizontalAlignment="Left" HorizontalContentAlignment="Left" Padding="0,4" Command="{Binding OpenDownloads}">
+            <Grid ColumnDefinitions="Auto,*">
+              <c:IconView Kind="Folder" Width="16" Height="16" Margin="0,2,8,0" VerticalAlignment="Top" />
+              <TextBlock Grid.Column="1" Text="{x:Static l:S.MobileSavedIn}" TextWrapping="Wrap" />
+            </Grid>
+          </Button>
+        </StackPanel>
+      </StackPanel>
+    </ScrollViewer>
+
+    <!-- Aviso breve -->
+    <Border Classes="snackbar" VerticalAlignment="Bottom" Margin="16,0,16,24" IsVisible="{Binding HasFlash}">
+      <TextBlock Text="{Binding Flash}" TextWrapping="Wrap" />
+    </Border>
+
+    <!-- Fondo de las hojas: tocarlo cierra la hoja -->
+    <Border x:Name="Scrim" Classes="scrim" IsVisible="{Binding IsOverlayOpen}" />
+
+    <!-- ═══ Solicitud entrante ═══ -->
+    <Border Classes="sheet" IsVisible="{Binding HasOffer}">
+      <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+        <StackPanel DataContext="{Binding Offer}" x:DataType="vm:OfferViewModel" Margin="20,0,20,20" Spacing="16">
+          <Border Classes="grip" />
+          <ProgressBar Classes="countdown" Minimum="0" Maximum="1" Value="{Binding CountdownFraction, FallbackValue=0}" />
+          <Grid ColumnDefinitions="Auto,*">
+            <Panel>
+              <av:AvatarView Width="72" Height="72" AvatarId="{Binding PeerAvatarId, FallbackValue=''}" ColorHex="{Binding PeerColorHex, FallbackValue='#5B5BF0'}"
+                             Initial="{Binding Initial, FallbackValue=''}" Ring="Unverified" Mood="Surprised" IsVisible="{Binding Unverified, FallbackValue=False}" />
+              <av:AvatarView Width="72" Height="72" AvatarId="{Binding PeerAvatarId, FallbackValue=''}" ColorHex="{Binding PeerColorHex, FallbackValue='#5B5BF0'}"
+                             Initial="{Binding Initial, FallbackValue=''}" Ring="Verified" Mood="Happy" IsVisible="{Binding Trusted, FallbackValue=False}" />
+            </Panel>
+            <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center" Spacing="4">
+              <TextBlock Text="{Binding PeerName, FallbackValue=''}" Classes="strong" FontSize="18" TextWrapping="Wrap" />
+              <TextBlock Text="{Binding Summary, FallbackValue=''}" Classes="body2 num" TextWrapping="Wrap" />
+              <Border Classes="chip warning" HorizontalAlignment="Left" IsVisible="{Binding Unverified, FallbackValue=False}">
+                <StackPanel Orientation="Horizontal" Spacing="5">
+                  <c:IconView Kind="Alert" />
+                  <TextBlock Text="{x:Static l:S.ChipUnverified}" />
+                </StackPanel>
+              </Border>
+              <Border Classes="chip success" HorizontalAlignment="Left" IsVisible="{Binding Trusted, FallbackValue=False}">
+                <StackPanel Orientation="Horizontal" Spacing="5">
+                  <c:IconView Kind="ShieldCheck" />
+                  <TextBlock Text="{x:Static l:S.ChipTrusted}" />
+                </StackPanel>
+              </Border>
+            </StackPanel>
+          </Grid>
+
+          <Border Classes="warnbox" IsVisible="{Binding Unverified, FallbackValue=False}">
+            <StackPanel Spacing="12">
+              <TextBlock Text="{Binding UnverifiedText, FallbackValue=''}" TextWrapping="Wrap" />
+              <ItemsControl ItemsSource="{Binding SymbolItems, FallbackValue={x:Null}}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <StackPanel Orientation="Horizontal" Spacing="8" />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="x:String">
+                    <Border Classes="symbol">
+                      <TextBlock Text="{Binding}" FontSize="24" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                 Foreground="{Binding $parent[ItemsControl].((vm:OfferViewModel)DataContext).PeerColor}" />
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <Button Classes="link" Padding="0,4" HorizontalAlignment="Left" Content="{x:Static l:S.PairInstead}" Command="{Binding PairInstead}" />
+            </StackPanel>
+          </Border>
+
+          <Border Classes="card" Padding="6,4" IsVisible="{Binding IsFull, FallbackValue=False}">
+            <StackPanel>
+              <ItemsControl ItemsSource="{Binding Files, FallbackValue={x:Null}}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:OfferFileViewModel">
+                    <Grid ColumnDefinitions="Auto,Auto,*,Auto" RowDefinitions="Auto,Auto" Margin="4,6">
+                      <CheckBox IsChecked="{Binding IsChecked}" IsEnabled="{Binding CanToggle}" VerticalAlignment="Center" MinWidth="0"
+                                Padding="0" Margin="0,0,4,0" AutomationProperties.Name="{Binding Name}" />
+                      <Border Grid.Column="1" Classes="tile" Classes.error="{Binding IsError}" Classes.plain="{Binding IsPlain}" Width="36" Height="36">
+                        <c:IconView Kind="{Binding Icon}" />
+                      </Border>
+                      <TextBlock Grid.Column="2" Text="{Binding Name}" Margin="12,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                 Classes.strong="{Binding Dangerous}" />
+                      <TextBlock Grid.Column="3" Text="{Binding Size}" Classes="meta num" VerticalAlignment="Center" Margin="0,0,6,0" />
+                      <TextBlock Grid.Row="1" Grid.Column="2" Grid.ColumnSpan="2" Text="{Binding Warning}" Classes="error" TextWrapping="Wrap"
+                                 IsVisible="{Binding HasWarning}" Margin="12,4,6,0" />
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <TextBlock Text="{Binding MoreText, FallbackValue=''}" IsVisible="{Binding HasMore, FallbackValue=False}" Classes="meta" Margin="52,4,0,6" />
+            </StackPanel>
+          </Border>
+
+          <Border Classes="bubble" HorizontalAlignment="Left" IsVisible="{Binding HasMessage, FallbackValue=False}">
+            <TextBlock Text="{Binding Message, FallbackValue=''}" TextWrapping="Wrap" />
+          </Border>
+
+          <TextBlock Text="{x:Static l:S.MobileSavedIn}" Classes="meta" TextWrapping="Wrap" />
+
+          <Grid ColumnDefinitions="*,12,*">
+            <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" MinHeight="50"
+                    Content="{x:Static l:S.Decline}" Command="{Binding Decline}" />
+            <Button Grid.Column="2" Classes="accent" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" MinHeight="50"
+                    Content="{Binding AcceptLabel, FallbackValue=''}" Command="{Binding Accept}" />
+          </Grid>
+          <Grid ColumnDefinitions="*,Auto">
+            <Button Classes="link" Padding="0,4" HorizontalAlignment="Left" Command="{Binding AlwaysAccept}" IsVisible="{Binding Trusted, FallbackValue=False}">
+              <TextBlock Text="{Binding AlwaysAcceptText, FallbackValue=''}" TextTrimming="CharacterEllipsis" />
+            </Button>
+            <Button Classes="link" Padding="0,4" HorizontalAlignment="Left" Content="{x:Static l:S.DeclineAndBlock}" Command="{Binding DeclineAndBlock}"
+                    IsVisible="{Binding Unverified, FallbackValue=False}" />
+            <TextBlock Grid.Column="1" Text="{Binding Countdown, FallbackValue=''}" Classes="meta num" VerticalAlignment="Center" />
+          </Grid>
+        </StackPanel>
+      </ScrollViewer>
+    </Border>
+
+    <!-- ═══ Bienvenida y ajustes ═══ -->
+    <Border Classes="sheet" IsVisible="{Binding IsProfile}">
+      <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="20,0,20,20" Spacing="16">
+          <Border Classes="grip" />
+          <StackPanel Spacing="6" IsVisible="{Binding IsWelcome}">
+            <ch:ChasquiView Width="96" Height="96" HorizontalAlignment="Center" State="Attentive" ShowRadar="False" />
+            <TextBlock Text="{x:Static l:S.WelcomeTitle}" Classes="title" FontSize="24" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" />
+            <TextBlock Text="{x:Static l:S.WelcomeBody}" Classes="body2" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" />
+          </StackPanel>
+          <TextBlock Text="{x:Static l:S.MobileSettingsTitle}" Classes="subtitle" IsVisible="{Binding IsSettings}" />
+
+          <Grid ColumnDefinitions="Auto,*">
+            <av:AvatarView Width="76" Height="76" AvatarId="{Binding MyAvatarId}" ColorHex="{Binding MyColorHex}" Initial="{Binding MyInitial}" VerticalAlignment="Top" />
+            <StackPanel Grid.Column="1" Margin="14,0,0,0" Spacing="6">
+              <TextBlock Text="{x:Static l:S.YourName}" Classes="strong" />
+              <TextBox Text="{Binding EditName}" MaxLength="40" />
+              <TextBlock Text="{x:Static l:S.YourNameHint}" Classes="meta" TextWrapping="Wrap" />
+            </StackPanel>
+          </Grid>
+
+          <TextBlock Text="{x:Static l:S.PickAvatarTitle}" Classes="label" />
+          <ItemsControl ItemsSource="{Binding AvatarChoices}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <UniformGrid Columns="5" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:AvatarChoiceViewModel">
+                <Button Classes="ghost" Padding="2" Margin="2" HorizontalAlignment="Center" Command="{Binding Pick}"
+                        AutomationProperties.Name="{Binding Name}">
+                  <av:AvatarView Width="52" Height="52" AvatarId="{Binding Id}" ColorHex="{Binding ColorHex}" Initial="{Binding Initial}"
+                                 Ring="{Binding Ring}" Live="False" />
+                </Button>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+
+          <Button Classes="accent big" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" MinHeight="50"
+                  Content="{x:Static l:S.WelcomeStart}" Command="{Binding SaveWelcome}" IsVisible="{Binding IsWelcome}" />
+
+          <StackPanel Spacing="16" IsVisible="{Binding IsSettings}">
+            <Border Classes="card" Padding="16,14">
+              <StackPanel Spacing="8">
+                <TextBlock Text="{Binding MyFingerprint}" Classes="meta num" />
+                <TextBlock Text="{Binding MySymbols}" FontSize="22" Foreground="{DynamicResource Text2Brush}" />
+              </StackPanel>
+            </Border>
+            <Border Classes="card" Padding="16,14">
+              <StackPanel Spacing="6">
+                <TextBlock Text="{x:Static l:S.MobileReceiveFolder}" Classes="meta" />
+                <TextBlock Text="{x:Static l:S.MobileDownloadsFolder}" Classes="strong" />
+                <TextBlock Text="{x:Static l:S.MobileKeepOpen}" Classes="body2" TextWrapping="Wrap" />
+                <Button Classes="link" Padding="0,4" HorizontalAlignment="Left" Content="{x:Static l:S.MobileOpenDownloads}" Command="{Binding OpenDownloads}" />
+              </StackPanel>
+            </Border>
+            <Border Classes="card" Padding="16,14">
+              <StackPanel Spacing="6">
+                <TextBlock Text="{Binding VersionText}" Classes="strong" />
+                <TextBlock Text="{Binding UpdateStatus}" Classes="body2" TextWrapping="Wrap" />
+                <WrapPanel>
+                  <Button Content="{x:Static l:S.MobileCheckUpdates}" Command="{Binding CheckUpdates}" Margin="0,0,10,6" />
+                  <Button Classes="accent" Content="{x:Static l:S.MobileUpdateDownload}" Command="{Binding DownloadUpdate}" IsVisible="{Binding ShowUpdate}" />
+                </WrapPanel>
+                <TextBlock Text="{x:Static l:S.Credits}" Classes="meta" Margin="0,6,0,0" TextWrapping="Wrap" />
+              </StackPanel>
+            </Border>
+            <Button Classes="accent big" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Content="{x:Static l:S.Done}" Command="{Binding CloseSheet}" />
+          </StackPanel>
+        </StackPanel>
+      </ScrollViewer>
+    </Border>
+
+    <!-- ═══ Emparejar ═══ -->
+    <Border Classes="sheet" IsVisible="{Binding IsPair}">
+      <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="20,0,20,20" Spacing="14">
+          <Border Classes="grip" />
+          <TextBlock Text="{x:Static l:S.MobilePairTitle}" Classes="subtitle" />
+
+          <StackPanel Spacing="12" IsVisible="{Binding ShowPairChooser}">
+            <TextBlock Text="{x:Static l:S.MobilePairHint}" Classes="body2" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding PairWindowText}" Classes="meta num" />
+            <StackPanel Spacing="8" IsVisible="{Binding NoPairCandidates}">
+              <ch:ChasquiView Width="96" Height="96" HorizontalAlignment="Center" State="Searching" />
+              <TextBlock Text="{x:Static l:S.MobilePairNobody}" Classes="meta" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" />
+            </StackPanel>
+            <ItemsControl ItemsSource="{Binding PairCandidates}" IsVisible="{Binding HasPairCandidates}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:PeerViewModel">
+                  <Button Classes="row" HorizontalAlignment="Stretch" Padding="10,8" Margin="0,2"
+                          Command="{Binding $parent[UserControl].((m:MobileViewModel)DataContext).PairWith}" CommandParameter="{Binding}">
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                      <av:AvatarView Width="48" Height="48" AvatarId="{Binding AvatarId}" ColorHex="{Binding ColorHex}" Initial="{Binding Initial}" Mood="Surprised" />
+                      <StackPanel Grid.Column="1" Margin="12,0" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Name}" Classes="strong" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding Symbols}" Classes="meta" />
+                      </StackPanel>
+                      <c:IconView Grid.Column="2" Kind="ChevronRight" Width="18" Height="18" VerticalAlignment="Center" />
+                    </Grid>
+                  </Button>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+
+          <StackPanel Spacing="14" IsVisible="{Binding ShowPairCode}">
+            <Grid ColumnDefinitions="Auto,*">
+              <av:AvatarView Width="56" Height="56" AvatarId="{Binding PairPeerAvatarId}" ColorHex="{Binding PairPeerColorHex}" Initial="{Binding PairPeerInitial}" />
+              <TextBlock Grid.Column="1" Margin="12,0" Text="{Binding PairQuestion}" TextWrapping="Wrap" VerticalAlignment="Center" Classes="strong" />
+            </Grid>
+            <Border Classes="sunken" Padding="16,18" CornerRadius="14">
+              <TextBlock Text="{Binding PairCode}" Classes="bigcode num" />
+            </Border>
+            <TextBlock Text="{x:Static l:S.ReadItAloud}" Classes="meta" TextWrapping="Wrap" />
+            <Grid ColumnDefinitions="*,12,*" IsVisible="{Binding ShowPairConfirm}">
+              <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" MinHeight="50" Content="{x:Static l:S.NoMatch}" Command="{Binding PairNoMatch}" />
+              <Button Grid.Column="2" Classes="accent" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" MinHeight="50"
+                      Content="{x:Static l:S.YesMatch}" Command="{Binding PairMatches}" />
+            </Grid>
+          </StackPanel>
+
+          <TextBlock Text="{Binding PairStatus}" Classes="body2" TextWrapping="Wrap" IsVisible="{Binding ShowPairStatus}" />
+
+          <StackPanel Spacing="12" IsVisible="{Binding ShowPairResult}">
+            <ch:ChasquiView Width="96" Height="96" HorizontalAlignment="Center" State="Success" ShowRadar="False" IsVisible="{Binding PairResultOk}" />
+            <ch:ChasquiView Width="96" Height="96" HorizontalAlignment="Center" State="Error" ShowRadar="False" IsVisible="{Binding !PairResultOk}" />
+            <TextBlock Text="{Binding PairResult}" Classes="strong" FontSize="17" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" />
+          </StackPanel>
+
+          <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Content="{x:Static l:S.Done}" Command="{Binding CloseSheet}" />
+        </StackPanel>
+      </ScrollViewer>
+    </Border>
+
+    <!-- ═══ Conectar por código ═══ -->
+    <Border Classes="sheet" IsVisible="{Binding IsConnect}">
+      <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="20,0,20,20" Spacing="14">
+          <Border Classes="grip" />
+          <TextBlock Text="{x:Static l:S.MobileCodeTitle}" Classes="subtitle" />
+          <TextBlock Text="{x:Static l:S.MobileCodeHint}" Classes="body2" TextWrapping="Wrap" />
+          <Grid ColumnDefinitions="*,10,Auto">
+            <TextBox Text="{Binding ConnectInput}" PlaceholderText="{x:Static l:S.MobileCodePlaceholder}" MaxLength="64" />
+            <Button Grid.Column="2" Classes="accent" Content="{x:Static l:S.ConnectProbe}" Command="{Binding ConnectFind}" MinHeight="48" />
+          </Grid>
+          <TextBlock Text="{Binding ConnectStatus}" Classes="body2" Classes.error="{Binding ConnectIsError}" TextWrapping="Wrap" />
+          <Border Classes="card" IsVisible="{Binding HasFound}">
+            <StackPanel Spacing="12">
+              <Grid ColumnDefinitions="Auto,*">
+                <av:AvatarView Width="56" Height="56" AvatarId="{Binding FoundAvatarId}" ColorHex="{Binding FoundColorHex}" Initial="{Binding FoundInitial}" />
+                <TextBlock Grid.Column="1" Margin="12,0" Text="{Binding FoundName}" Classes="strong" FontSize="17" VerticalAlignment="Center" TextWrapping="Wrap" />
+              </Grid>
+              <Button Classes="accent" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" MinHeight="48"
+                      Content="{x:Static l:S.MobileSendHere}" Command="{Binding ConnectSend}" />
+            </StackPanel>
+          </Border>
+          <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Content="{x:Static l:S.Close}" Command="{Binding CloseSheet}" />
+        </StackPanel>
+      </ScrollViewer>
+    </Border>
+
+    <!-- ═══ Mi código ═══ -->
+    <Border Classes="sheet" IsVisible="{Binding IsMyCode}">
+      <StackPanel Margin="20,0,20,20" Spacing="14">
+        <Border Classes="grip" />
+        <TextBlock Text="{x:Static l:S.MobileMyCodeTitle}" Classes="subtitle" />
+        <TextBlock Text="{x:Static l:S.MobileMyCodeHint}" Classes="body2" TextWrapping="Wrap" />
+        <Border Classes="sunken" Padding="16,18" CornerRadius="14">
+          <TextBlock Text="{Binding MyCode}" Classes="bigcode num" FontSize="36" />
+        </Border>
+        <TextBlock Text="{Binding MyAddresses}" Classes="meta num" HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" />
+        <Button Classes="accent" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Content="{x:Static l:S.Done}" Command="{Binding CloseSheet}" />
+      </StackPanel>
+    </Border>
+  </Panel>
+</UserControl>

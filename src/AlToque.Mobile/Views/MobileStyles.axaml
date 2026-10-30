@@ -1,0 +1,74 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:v="using:AlToque.Mobile.Views">
+
+  <!-- En el teléfono no hay Window: la vista raíz hace de ventana. -->
+  <Style Selector="v|MobileView">
+    <Setter Property="Background" Value="{DynamicResource WindowBgBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource Text1Brush}" />
+    <Setter Property="FontFamily" Value="{StaticResource AppFont}" />
+    <Setter Property="FontSize" Value="15" />
+  </Style>
+
+  <!-- Dedos, no puntero: blancos de al menos 44 px. -->
+  <Style Selector="v|MobileView Button">
+    <Setter Property="MinHeight" Value="44" />
+  </Style>
+  <Style Selector="v|MobileView Button.icon">
+    <Setter Property="MinHeight" Value="44" />
+    <Setter Property="MinWidth" Value="44" />
+  </Style>
+  <Style Selector="v|MobileView Button.link">
+    <Setter Property="MinHeight" Value="40" />
+  </Style>
+  <Style Selector="v|MobileView TextBox">
+    <Setter Property="MinHeight" Value="48" />
+    <Setter Property="FontSize" Value="16" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+  <Style Selector="v|MobileView RadioButton.segment">
+    <Setter Property="MinHeight" Value="44" />
+  </Style>
+
+  <!-- Hojas que suben desde abajo -->
+  <Style Selector="Border.scrim">
+    <Setter Property="Background" Value="{DynamicResource ScrimBrush}" />
+  </Style>
+  <Style Selector="Border.sheet">
+    <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource StrokeBrush}" />
+    <Setter Property="BorderThickness" Value="0,1,0,0" />
+    <Setter Property="CornerRadius" Value="22,22,0,0" />
+    <Setter Property="VerticalAlignment" Value="Bottom" />
+    <Setter Property="Margin" Value="0,56,0,0" />
+    <Setter Property="BoxShadow" Value="0 -6 28 0 #33000000" />
+  </Style>
+  <Style Selector="Border.grip">
+    <Setter Property="Width" Value="40" />
+    <Setter Property="Height" Value="4" />
+    <Setter Property="CornerRadius" Value="2" />
+    <Setter Property="Background" Value="{DynamicResource StrokeStrongBrush}" />
+    <Setter Property="HorizontalAlignment" Value="Center" />
+    <Setter Property="Margin" Value="0,10,0,4" />
+  </Style>
+
+  <!-- Aviso breve abajo -->
+  <Style Selector="Border.snackbar">
+    <Setter Property="Background" Value="{DynamicResource Text1Brush}" />
+    <Setter Property="CornerRadius" Value="12" />
+    <Setter Property="Padding" Value="16,12" />
+    <Setter Property="BoxShadow" Value="0 6 20 0 #40000000" />
+  </Style>
+  <Style Selector="Border.snackbar TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource WindowBgBrush}" />
+  </Style>
+
+  <!-- El código de emparejamiento, grande y legible en voz alta -->
+  <Style Selector="TextBlock.bigcode">
+    <Setter Property="FontFamily" Value="{StaticResource DisplayFont}" />
+    <Setter Property="FontSize" Value="44" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="LetterSpacing" Value="4" />
+    <Setter Property="HorizontalAlignment" Value="Center" />
+  </Style>
+</Styles>

@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- La app para teléfonos, independiente del sistema: la usan el proyecto de Android y la vista previa de escritorio. -->
+  <PropertyGroup>
+    <RootNamespace>AlToque.Mobile</RootNamespace>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <IsAotCompatible>true</IsAotCompatible>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="12.1.4" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.4" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.4" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\AlToque.Core\AlToque.Core.csproj" />
+    <ProjectReference Include="..\AlToque.UI\AlToque.UI.csproj" />
+  </ItemGroup>
+</Project>

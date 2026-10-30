@@ -9,6 +9,9 @@ public static class AgentLog
     private static readonly Lock Gate = new();
     private static string? _file;
 
+    /// <summary>Copia de cada línea para el registro del sistema (en Android, logcat).</summary>
+    public static Action<string>? Echo { get; set; }
+
     public static void Initialize(AppPaths paths)
     {
         try
@@ -26,6 +29,7 @@ public static class AgentLog
     {
         var line = $"{DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss.fff} {message}{Environment.NewLine}";
         System.Diagnostics.Debug.Write(line);
+        Echo?.Invoke(message);
         var file = _file;
         if (file is null)
             return;

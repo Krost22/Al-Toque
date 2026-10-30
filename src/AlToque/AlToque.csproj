@@ -24,6 +24,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\AlToque.Core\AlToque.Core.csproj" />
+    <ProjectReference Include="..\AlToque.UI\AlToque.UI.csproj" />
   </ItemGroup>
   <ItemGroup>
     <AvaloniaResource Include="Assets\**" />

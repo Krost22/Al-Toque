@@ -20,6 +20,7 @@ permissions:
 env:
   DOTNET_NOLOGO: "1"
   DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+  VERSION_INPUT: ${{ github.event.inputs.version }}
 
 jobs:
   pruebas:
@@ -36,8 +37,10 @@ jobs:
           global-json-file: global.json
       - name: Pruebas del núcleo
         run: dotnet test tests/AlToque.Core.Tests -c Release --logger "console;verbosity=normal"
-      - name: Compilar la app
+      - name: Compilar la app de escritorio
         run: dotnet build src/AlToque -c Release
+      - name: Autoprueba de la app móvil (emparejar y enviar entre dos agentes)
+        run: dotnet run --project tools/AlToque.MobilePreview -c Release -- --selftest
 
   windows:
     name: Windows ${{ matrix.rid }} (NativeAOT)
@@ -57,7 +60,7 @@ jobs:
         id: version
         shell: pwsh
         run: |
-          $manual = "${{ github.event.inputs.version }}".Trim().TrimStart("v")
+          $manual = "$env:VERSION_INPUT".Trim().TrimStart("v")
           if ("${{ github.ref_type }}" -eq "tag") { $v = "${{ github.ref_name }}".TrimStart("v") }
           elseif ($manual) { $v = $manual }
           else { $v = "0.1.${{ github.run_number }}" }
@@ -123,22 +126,274 @@ jobs:
           name: AlToque-${{ matrix.rid }}-instalador
           path: releases/${{ matrix.rid }}
 
-  # Publica la versión en GitHub Releases con los dos canales (x64 y ARM64): es de donde la app se actualiza sola.
+  linux:
+    name: Linux ${{ matrix.rid }} (NativeAOT)
+    needs: pruebas
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: linux-x64
+            runner: ubuntu-latest
+          - rid: linux-arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Versión
+        id: version
+        run: |
+          v="$(echo "${VERSION_INPUT#v}" | xargs)"
+          if [ "${{ github.ref_type }}" = "tag" ]; then v="${GITHUB_REF_NAME#v}"; elif [ -z "$v" ]; then v="0.1.${{ github.run_number }}"; fi
+          [[ "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] || { echo "Versión inválida: $v (usa el formato 1.2.3)"; exit 1; }
+          echo "value=$v" >> "$GITHUB_OUTPUT"
+
+      - name: Herramientas (NativeAOT, AppImage, pantalla virtual)
+        run: sudo apt-get update -q && sudo apt-get install -y -q clang zlib1g-dev squashfs-tools xvfb
+
+      - name: Publicar con NativeAOT
+        run: dotnet publish src/AlToque -c Release -r ${{ matrix.rid }} -p:Version=${{ steps.version.outputs.value }} -o publish/${{ matrix.rid }}
+
+      - name: Prueba de humo (agente y CLI)
+        run: |
+          export ALTOQUE_HOME="$RUNNER_TEMP/altoque-humo"
+          exe="$PWD/publish/${{ matrix.rid }}/AlToque"
+          xvfb-run -a "$exe" --background &
+          agent=$!
+          log="$ALTOQUE_HOME/logs/altoque.log"
+          for _ in $(seq 1 60); do grep -q "Escuchando" "$log" 2>/dev/null && break; sleep 0.5; done
+          sleep 2
+          cat "$log"
+          grep -q "Escuchando en el puerto" "$log" || { echo "El agente no arrancó"; kill $agent; exit 1; }
+          timeout 30 "$exe" quit || { echo "El CLI no pudo hablar con el agente"; kill $agent; exit 1; }
+          for _ in $(seq 1 40); do kill -0 $agent 2>/dev/null || break; sleep 0.5; done
+          if kill -0 $agent 2>/dev/null; then echo "El agente no se cerró"; kill $agent; exit 1; fi
+          echo "Prueba de humo correcta."
+
+      - name: Paquete portable (.tar.gz)
+        run: |
+          dir="publish/${{ matrix.rid }}"
+          rm -f "$dir"/*.pdb "$dir"/*.dbg
+          mkdir -p portable/AlToque
+          cp -a "$dir"/. portable/AlToque/
+          touch portable/AlToque/portable.flag
+          cp src/AlToque/Assets/altoque-256.png portable/AlToque/altoque.png
+          tar -C portable -czf "AlToque-${{ steps.version.outputs.value }}-${{ matrix.rid }}-portable.tar.gz" AlToque
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: AlToque-${{ matrix.rid }}-portable
+          path: AlToque-*-portable.tar.gz
+
+      - name: AppImage (Velopack)
+        id: velopack
+        continue-on-error: true
+        run: |
+          dotnet tool install -g vpk --version 1.2.161
+          vpk pack -u AlToque -v ${{ steps.version.outputs.value }} -p publish/${{ matrix.rid }} -e AlToque -r ${{ matrix.rid }} -c ${{ matrix.rid }} \
+            --packTitle "Al Toque" --packAuthors KrostGames --categories Network -i src/AlToque/Assets/altoque-256.png -o releases/${{ matrix.rid }}
+
+      - uses: actions/upload-artifact@v5
+        if: steps.velopack.outcome == 'success'
+        with:
+          name: AlToque-${{ matrix.rid }}-instalador
+          path: releases/${{ matrix.rid }}
+
+  macos:
+    name: macOS ${{ matrix.rid }} (NativeAOT)
+    needs: pruebas
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        rid: [osx-arm64, osx-x64]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Versión
+        id: version
+        run: |
+          v="$(echo "${VERSION_INPUT#v}" | xargs)"
+          if [ "${{ github.ref_type }}" = "tag" ]; then v="${GITHUB_REF_NAME#v}"; elif [ -z "$v" ]; then v="0.1.${{ github.run_number }}"; fi
+          [[ "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] || { echo "Versión inválida: $v (usa el formato 1.2.3)"; exit 1; }
+          echo "value=$v" >> "$GITHUB_OUTPUT"
+
+      - name: Publicar con NativeAOT
+        run: dotnet publish src/AlToque -c Release -r ${{ matrix.rid }} -p:Version=${{ steps.version.outputs.value }} -o publish/${{ matrix.rid }}
+
+      - name: Prueba de humo (agente y CLI)
+        if: matrix.rid == 'osx-arm64'
+        run: |
+          export ALTOQUE_HOME="$RUNNER_TEMP/altoque-humo"
+          exe="$PWD/publish/${{ matrix.rid }}/AlToque"
+          "$exe" --background &
+          agent=$!
+          log="$ALTOQUE_HOME/logs/altoque.log"
+          for _ in $(seq 1 60); do grep -q "Escuchando" "$log" 2>/dev/null && break; sleep 0.5; done
+          sleep 2
+          cat "$log"
+          grep -q "Escuchando en el puerto" "$log" || { echo "El agente no arrancó"; kill $agent; exit 1; }
+          "$exe" quit || { echo "El CLI no pudo hablar con el agente"; kill $agent; exit 1; }
+          for _ in $(seq 1 40); do kill -0 $agent 2>/dev/null || break; sleep 0.5; done
+          if kill -0 $agent 2>/dev/null; then echo "El agente no se cerró"; kill $agent; exit 1; fi
+          echo "Prueba de humo correcta."
+
+      - name: Ícono (.icns)
+        run: |
+          mkdir -p AlToque.iconset
+          src=src/AlToque/Assets/altoque-256.png
+          for s in 16 32 128 256; do
+            sips -z $s $s "$src" --out "AlToque.iconset/icon_${s}x${s}.png" > /dev/null
+            d=$((s * 2)); sips -z $d $d "$src" --out "AlToque.iconset/icon_${s}x${s}@2x.png" > /dev/null
+          done
+          iconutil -c icns AlToque.iconset -o altoque.icns
+
+      - name: App (.app en .zip)
+        run: |
+          rm -f publish/${{ matrix.rid }}/*.pdb publish/${{ matrix.rid }}/*.dbg
+          rm -rf publish/${{ matrix.rid }}/*.dSYM
+          app="bundle/Al Toque.app"
+          mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
+          cp -a publish/${{ matrix.rid }}/. "$app/Contents/MacOS/"
+          cp altoque.icns "$app/Contents/Resources/"
+          v="${{ steps.version.outputs.value }}"
+          cat > "$app/Contents/Info.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleName</key><string>Al Toque</string>
+            <key>CFBundleDisplayName</key><string>Al Toque</string>
+            <key>CFBundleIdentifier</key><string>com.krostgames.altoque</string>
+            <key>CFBundleExecutable</key><string>AlToque</string>
+            <key>CFBundleIconFile</key><string>altoque</string>
+            <key>CFBundlePackageType</key><string>APPL</string>
+            <key>CFBundleShortVersionString</key><string>${v%%-*}</string>
+            <key>CFBundleVersion</key><string>${v%%-*}</string>
+            <key>LSMinimumSystemVersion</key><string>12.0</string>
+            <key>NSHighResolutionCapable</key><true/>
+            <key>NSHumanReadableCopyright</key><string>© 2026 KrostGames • Eduardo Mogollon Salcedo</string>
+          </dict>
+          </plist>
+          PLIST
+          # Firma ad hoc: macOS la abre con "clic derecho → Abrir" en lugar de decir que está dañada.
+          codesign --force --deep --sign - "$app"
+          ditto -c -k --keepParent "$app" "AlToque-$v-${{ matrix.rid }}.zip"
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: AlToque-${{ matrix.rid }}-portable
+          path: AlToque-*-${{ matrix.rid }}.zip
+
+      - name: Instalador (Velopack)
+        id: velopack
+        continue-on-error: true
+        run: |
+          dotnet tool install -g vpk --version 1.2.161
+          vpk pack -u AlToque -v ${{ steps.version.outputs.value }} -p publish/${{ matrix.rid }} -e AlToque -r ${{ matrix.rid }} -c ${{ matrix.rid }} \
+            --packTitle "Al Toque" --packAuthors KrostGames --bundleId com.krostgames.altoque -i altoque.icns -o releases/${{ matrix.rid }}
+
+      - uses: actions/upload-artifact@v5
+        if: steps.velopack.outcome == 'success'
+        with:
+          name: AlToque-${{ matrix.rid }}-instalador
+          path: releases/${{ matrix.rid }}
+
+  android:
+    name: Android (APK)
+    needs: pruebas
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Versión
+        id: version
+        run: |
+          v="$(echo "${VERSION_INPUT#v}" | xargs)"
+          if [ "${{ github.ref_type }}" = "tag" ]; then v="${GITHUB_REF_NAME#v}"; elif [ -z "$v" ]; then v="0.1.${{ github.run_number }}"; fi
+          [[ "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] || { echo "Versión inválida: $v (usa el formato 1.2.3)"; exit 1; }
+          echo "value=$v" >> "$GITHUB_OUTPUT"
+
+      - name: Herramientas de Android
+        run: |
+          dotnet workload install android
+          dotnet build src/AlToque.Android -t:InstallAndroidDependencies -f net10.0-android \
+            -p:AndroidSdkDirectory="$ANDROID_HOME" -p:JavaSdkDirectory="$JAVA_HOME" -p:AcceptAndroidSDKLicenses=true
+
+      - name: Compilar el APK
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ALTOQUE_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          sign=()
+          # Con el secreto ANDROID_KEYSTORE_BASE64 cada versión se instala encima de la anterior; sin él, firma de depuración.
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/altoque.keystore"
+            sign=(-p:AltoqueKeystore="$RUNNER_TEMP/altoque.keystore" -p:AltoqueKeyAlias="${KEY_ALIAS:-altoque}")
+          fi
+          dotnet publish src/AlToque.Android -c Release -f net10.0-android -p:Version=${{ steps.version.outputs.value }} \
+            -p:ApplicationVersion=${{ github.run_number }} -p:AndroidSdkDirectory="$ANDROID_HOME" -p:JavaSdkDirectory="$JAVA_HOME" \
+            "${sign[@]}" -o publish/android
+          cp publish/android/com.krostgames.altoque-Signed.apk "AlToque-${{ steps.version.outputs.value }}-android.apk"
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: AlToque-android
+          path: AlToque-*-android.apk
+
+      - name: Activar KVM para el emulador
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Autoprueba en un emulador (Android 14)
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
+          script: bash .github/scripts/android-selftest.sh "AlToque-${{ steps.version.outputs.value }}-android.apk" android-pantalla.png
+
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: android-captura
+          path: android-pantalla.png
+          if-no-files-found: ignore
+
+  # Publica la versión en GitHub Releases con todos los canales: es de donde las apps se actualizan solas.
   publicar:
     name: Publicar versión
-    needs: windows
+    needs: [windows, linux, macos, android]
     if: github.ref_type == 'tag' || github.event.inputs.version != ''
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: "10.0.x"
       - name: Versión
         id: version
-        shell: pwsh
         run: |
-          if ("${{ github.ref_type }}" -eq "tag") { $v = "${{ github.ref_name }}".TrimStart("v") } else { $v = "${{ github.event.inputs.version }}".Trim().TrimStart("v") }
-          "value=$v" >> $env:GITHUB_OUTPUT
+          if [ "${{ github.ref_type }}" = "tag" ]; then v="${GITHUB_REF_NAME#v}"; else v="$(echo "${VERSION_INPUT#v}" | xargs)"; fi
+          echo "value=$v" >> "$GITHUB_OUTPUT"
       - uses: actions/download-artifact@v5
         with:
           pattern: AlToque-*-instalador
@@ -148,17 +403,27 @@ jobs:
           pattern: AlToque-*-portable
           path: portable
           merge-multiple: true
+      - uses: actions/download-artifact@v5
+        with:
+          name: AlToque-android
+          path: android
       - name: Subir a GitHub Releases
-        shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          $v = "${{ steps.version.outputs.value }}"
+          v="${{ steps.version.outputs.value }}"
           dotnet tool install -g vpk --version 1.2.161
-          $common = @("--repoUrl", "https://github.com/${{ github.repository }}", "--token", "${{ secrets.GITHUB_TOKEN }}",
-                      "--publish", "--releaseName", "Al Toque $v", "--tag", "v$v", "--targetCommitish", "${{ github.sha }}")
-          vpk upload github -o releases/AlToque-win-x64-instalador -c win-x64 @common
-          if ($LASTEXITCODE -ne 0) { throw "No se pudo publicar el canal win-x64" }
-          vpk upload github -o releases/AlToque-win-arm64-instalador -c win-arm64 --merge @common
-          if ($LASTEXITCODE -ne 0) { throw "No se pudo publicar el canal win-arm64" }
-          gh release upload "v$v" (Get-ChildItem portable/*.zip).FullName --repo "${{ github.repository }}" --clobber
+          export PATH="$PATH:$HOME/.dotnet/tools"
+          common=(--repoUrl "https://github.com/${{ github.repository }}" --token "$GH_TOKEN" --publish
+                  --releaseName "Al Toque $v" --tag "v$v" --targetCommitish "${{ github.sha }}")
+          merge=()
+          for channel in win-x64 win-arm64 linux-x64 linux-arm64 osx-arm64 osx-x64; do
+            dir="releases/AlToque-$channel-instalador"
+            if [ ! -d "$dir" ]; then echo "::warning::Sin instalador para $channel"; continue; fi
+            vpk upload github -o "$dir" -c "$channel" "${merge[@]}" "${common[@]}"
+            merge=(--merge)
+          done
+          if [ ${#merge[@]} -eq 0 ]; then
+            gh release create "v$v" --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "Al Toque $v" --notes ""
+          fi
+          gh release upload "v$v" portable/* android/*.apk --repo "${{ github.repository }}" --clobber

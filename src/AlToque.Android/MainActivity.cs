@@ -30,7 +30,6 @@ public sealed class MainActivity : AvaloniaMainActivity
     {
         base.OnCreate(savedInstanceState);
         _current = new WeakReference<MainActivity>(this);
-        AskForNotifications();
         HandleIntent(Intent);
     }
 
@@ -54,11 +53,22 @@ public sealed class MainActivity : AvaloniaMainActivity
         });
     }
 
-    /// <summary>Android 13+: sin este permiso la notificación de "pasando archivos" queda oculta.</summary>
-    private void AskForNotifications()
+    private static bool _askedForNotifications;
+
+    /// <summary>
+    /// Android 13+: sin este permiso la notificación de "pasando archivos" queda oculta. Se pide al empezar el primer
+    /// envío o recepción, cuando se entiende para qué es, y una sola vez por sesión.
+    /// </summary>
+    public static void AskForNotifications()
     {
-        if (OperatingSystem.IsAndroidVersionAtLeast(33) && CheckSelfPermission(Manifest.Permission.PostNotifications) != Permission.Granted)
-            RequestPermissions([Manifest.Permission.PostNotifications], 1);
+        if (_askedForNotifications || !OperatingSystem.IsAndroidVersionAtLeast(33) || _current?.TryGetTarget(out var activity) != true)
+            return;
+        _askedForNotifications = true;
+        activity!.RunOnUiThread(() =>
+        {
+            if (OperatingSystem.IsAndroidVersionAtLeast(33) && activity.CheckSelfPermission(Manifest.Permission.PostNotifications) != Permission.Granted)
+                activity.RequestPermissions([Manifest.Permission.PostNotifications], 1);
+        });
     }
 
     private void HandleIntent(Intent? intent)

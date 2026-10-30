@@ -125,6 +125,8 @@ public sealed class AndroidPlatform : IMobilePlatform
 
     public void SetBusy(bool busy)
     {
+        if (busy)
+            MainActivity.AskForNotifications();
         MainActivity.KeepScreenOn(busy);
         TransferService.SetRunning(_context, busy);
     }

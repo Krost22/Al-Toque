@@ -6,7 +6,8 @@ apk="$1"
 shot="${2:-android-pantalla.png}"
 pkg=com.krostgames.altoque
 
-adb install -r "$apk" || exit 1
+# -g concede los permisos de antemano: la captura muestra la app y no el diálogo de notificaciones.
+adb install -r -g "$apk" || exit 1
 adb logcat -c
 adb shell am start -W -n "$pkg/$pkg.MainActivity" --ez altoque_selftest true || exit 1
 
@@ -17,6 +18,7 @@ for _ in $(seq 1 120); do
   sleep 2
 done
 
+sleep 4
 adb exec-out screencap -p > "$shot" || true
 echo "── Registro de Al Toque ──"
 adb logcat -d -s AlToque:I | tail -60

@@ -1,11 +1,15 @@
+using System.ComponentModel;
 using AlToque.Chasqui;
+using AlToque.Controls;
+using AlToque.Controls.Avatars;
+using AlToque.ViewModels;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 
 namespace AlToque.Views;
 
-/// <summary>Primera ejecución: Chasqui se presenta y pide el nombre con el que te verán.</summary>
+/// <summary>Primera ejecución: Chasqui se presenta y pide el nombre y el avatar con los que te verán.</summary>
 public partial class WelcomeWindow : Window
 {
     public WelcomeWindow()
@@ -14,16 +18,26 @@ public partial class WelcomeWindow : Window
         Opened += (_, _) =>
         {
             this.FindControl<ChasquiView>("Chasqui")!.State = ChasquiState.Incoming;
+            if (this.FindControl<StackPanel>("Sections") is { } sections)
+                Fx.Stagger(sections.Children, stepMs: 60, dy: 14);
             var box = this.FindControl<TextBox>("AliasBox")!;
             box.Focus();
             box.SelectAll();
         };
+        DataContextChanged += (_, _) =>
+        {
+            if (DataContext is WelcomeViewModel vm)
+                vm.PropertyChanged += OnVmChanged;
+        };
     }
 
-    public string Alias
+    private void OnVmChanged(object? sender, PropertyChangedEventArgs e)
     {
-        get => this.FindControl<TextBox>("AliasBox")!.Text ?? "";
-        set => this.FindControl<TextBox>("AliasBox")!.Text = value;
+        if (e.PropertyName == nameof(WelcomeViewModel.AvatarId))
+        {
+            this.FindControl<AvatarView>("Preview")?.Celebrate();
+            this.FindControl<ChasquiView>("Chasqui")?.Cheer();
+        }
     }
 
     public bool ReduceMotion
@@ -31,11 +45,13 @@ public partial class WelcomeWindow : Window
         set => this.FindControl<ChasquiView>("Chasqui")!.ReduceMotion = value;
     }
 
-    public event Action<string>? Started;
+    /// <summary>Nombre y avatar elegidos.</summary>
+    public event Action<string, string>? Started;
 
     private void OnStart(object? sender, RoutedEventArgs e)
     {
-        Started?.Invoke(Alias);
+        if (DataContext is WelcomeViewModel vm)
+            Started?.Invoke(vm.Alias, vm.AvatarId);
         Close();
     }
 }

@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using AlToque.Controls.Avatars;
 using AlToque.Core.Discovery;
 using AlToque.Core.Pairing;
 using AlToque.Core.Security;
@@ -21,6 +22,9 @@ public sealed class PairingViewModel : ViewModelBase
     private bool _resultOk;
     private bool _connecting;
     private bool _confirmed;
+    private bool _autoAccept;
+    private string? _pairedId;
+    private double _countdownFraction = 1;
 
     public PairingViewModel(AppController app)
     {
@@ -35,6 +39,58 @@ public sealed class PairingViewModel : ViewModelBase
             if (p is PeerViewModel peer)
                 await StartAsync(peer);
         });
+        Finish = new RelayCommand(() => FinishRequested?.Invoke());
+        TryAgain = new RelayCommand(Reset);
+    }
+
+    /// <summary>"Listo": la ventana se cierra.</summary>
+    public event Action? FinishRequested;
+
+    public RelayCommand Finish { get; }
+    public RelayCommand TryAgain { get; }
+
+    // ── Avatares y pasos ─────────────────────────────────────────────────────────
+    public string MyColorHex => IdentityVisuals.ColorHex(_app.Agent.DeviceId);
+    public string MyAvatarId => AvatarCatalog.Resolve(_app.Agent.Settings.Current.Avatar, _app.Agent.DeviceId);
+    public string PeerColorHex => Prompt is null ? "#888888" : Prompt.PeerColor;
+    public string PeerAvatarId => Prompt is null ? AvatarCatalog.InitialId
+        : AvatarCatalog.Resolve(Prompt.PeerAvatar ?? _app.Agent.Peers.Find(Prompt.PeerId)?.Avatar, Prompt.PeerId);
+    public string PairWithTitle => Prompt is null ? S.PairTitle : S.PairWith(PeerName);
+    public string SeesThisCode => S.SeesThisCode(PeerName);
+    private string Digits => new(Code.Where(char.IsAsciiDigit).ToArray());
+    public IReadOnlyList<string> CodeFirst => Digits.Length == 6 ? [.. Digits[..3].Select(c => c.ToString())] : [];
+    public IReadOnlyList<string> CodeLast => Digits.Length == 6 ? [.. Digits[3..].Select(c => c.ToString())] : [];
+    public bool IsDone => HasResult && ResultOk;
+    public bool IsFailed => HasResult && !ResultOk;
+    public string NowTrustedTitle => S.NowTrusted(PeerName);
+
+    public string StepText => IsDone ? S.Step(3, S.StepDone) : HasPrompt ? S.Step(2, S.StepCompare) : S.Step(1, S.StepChoose);
+
+    public double CountdownFraction { get => _countdownFraction; private set => Set(ref _countdownFraction, value); }
+
+    /// <summary>"Aceptar sus envíos sin preguntar", tras emparejar.</summary>
+    public bool AutoAccept
+    {
+        get => _autoAccept;
+        set
+        {
+            if (Set(ref _autoAccept, value) && _pairedId is { } id)
+                _app.Agent.Trust.Update(id, p => p.AutoAccept = value);
+        }
+    }
+
+    private void RaiseSteps()
+    {
+        Raise(nameof(StepText));
+        Raise(nameof(IsDone));
+        Raise(nameof(IsFailed));
+        Raise(nameof(PeerColorHex));
+        Raise(nameof(PeerAvatarId));
+        Raise(nameof(PairWithTitle));
+        Raise(nameof(SeesThisCode));
+        Raise(nameof(CodeFirst));
+        Raise(nameof(CodeLast));
+        Raise(nameof(NowTrustedTitle));
     }
 
     public ObservableCollection<PeerViewModel> Candidates { get; } = [];
@@ -76,6 +132,7 @@ public sealed class PairingViewModel : ViewModelBase
                 Raise(nameof(PeerSymbols));
                 Raise(nameof(PeerInitial));
                 Raise(nameof(Code));
+                RaiseSteps();
             }
         }
     }
@@ -121,6 +178,7 @@ public sealed class PairingViewModel : ViewModelBase
                 Raise(nameof(HasPrompt));
                 Raise(nameof(ShowChooser));
                 Raise(nameof(ShowConfirmButtons));
+                RaiseSteps();
             }
         }
     }
@@ -134,6 +192,9 @@ public sealed class PairingViewModel : ViewModelBase
         Result = null;
         Confirmed = false;
         Connecting = false;
+        _pairedId = null;
+        _autoAccept = false;
+        Raise(nameof(AutoAccept));
         Status = S.PairWaiting;
     }
 
@@ -163,6 +224,7 @@ public sealed class PairingViewModel : ViewModelBase
     {
         var closes = _app.Agent.Pairing.WindowClosesAt;
         Countdown = closes is { } c && Result is null ? $"{(c - DateTimeOffset.UtcNow):m\\:ss}" : "";
+        CountdownFraction = closes is { } d && Result is null ? Math.Clamp((d - DateTimeOffset.UtcNow).TotalSeconds / 120, 0, 1) : 0;
     }
 
     public void ShowPrompt(PairingPrompt prompt)
@@ -177,6 +239,7 @@ public sealed class PairingViewModel : ViewModelBase
     public void ShowOutcome(PairingOutcome outcome, string peerName)
     {
         Connecting = false;
+        _pairedId = outcome == PairingOutcome.Paired ? Prompt?.PeerId : null;
         ResultOk = outcome == PairingOutcome.Paired;
         Result = ResultOk ? S.PairDone(peerName) : S.PairOutcome(outcome.ToString());
     }

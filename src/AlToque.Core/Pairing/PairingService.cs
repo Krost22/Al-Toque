@@ -47,6 +47,10 @@ public sealed class PairingPrompt
     public string Code { get; }
 
     public bool IsInitiator { get; }
+
+    /// <summary>Avatar que mostró el otro equipo en su HELLO (solo decorativo).</summary>
+    public string? PeerAvatar { get; init; }
+
     public string PeerColor => IdentityVisuals.ColorHex(PeerId);
     public string PeerSymbols => IdentityVisuals.SymbolSequence(PeerId);
     public PairingOutcome? Outcome { get; private set; }
@@ -92,6 +96,7 @@ public sealed class PairingService
     private readonly DeviceIdentity _identity;
     private readonly TrustStore _trust;
     private readonly Func<string> _alias;
+    private readonly Func<string?> _avatar;
     private readonly SemaphoreSlim _busy = new(1, 1);
     private readonly Lock _lock = new();
     private DateTimeOffset? _windowUntil;
@@ -99,11 +104,12 @@ public sealed class PairingService
     private int _failures;
     private Timer? _windowTimer;
 
-    public PairingService(DeviceIdentity identity, TrustStore trust, Func<string> alias)
+    public PairingService(DeviceIdentity identity, TrustStore trust, Func<string> alias, Func<string?>? avatar = null)
     {
         _identity = identity;
         _trust = trust;
         _alias = alias;
+        _avatar = avatar ?? (() => null);
     }
 
     /// <summary>Se abrió o cerró la ventana de emparejamiento.</summary>
@@ -207,7 +213,7 @@ public sealed class PairingService
             }
 
             var code = ComputeCode(conn.RemoteFingerprint, _identity.Fingerprint, nA, nB);
-            prompt = new PairingPrompt(conn.RemoteDeviceId, CleanAlias(hello.Alias), code, isInitiator: false);
+            prompt = new PairingPrompt(conn.RemoteDeviceId, CleanAlias(hello.Alias), code, isInitiator: false) { PeerAvatar = Capabilities.AvatarOf(hello.Caps) };
             outcome = await ConfirmAsync(conn, prompt, hello, ct).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is ProtocolException or IOException or TimeoutException or OperationCanceledException or System.Security.Authentication.AuthenticationException)
@@ -278,7 +284,7 @@ public sealed class PairingService
                     ProtocolJsonContext.Default.PairRevealMessage, ct).ConfigureAwait(false);
 
                 var code = ComputeCode(_identity.Fingerprint, conn.RemoteFingerprint, nA, nB);
-                prompt = new PairingPrompt(conn.RemoteDeviceId, CleanAlias(hello.Alias), code, isInitiator: true);
+                prompt = new PairingPrompt(conn.RemoteDeviceId, CleanAlias(hello.Alias), code, isInitiator: true) { PeerAvatar = Capabilities.AvatarOf(hello.Caps) };
                 outcome = await ConfirmAsync(conn, prompt, hello, ct).ConfigureAwait(false);
                 return outcome;
             }
@@ -350,6 +356,7 @@ public sealed class PairingService
             PublicKey = Convert.ToBase64String(conn.RemotePublicKey),
             Alias = CleanAlias(hello.Alias),
             Os = hello.Os is { Length: <= 16 } os ? os : null,
+            Avatar = Capabilities.AvatarOf(hello.Caps),
             PairedAt = DateTimeOffset.UtcNow,
         });
         CloseWindow();
@@ -416,7 +423,7 @@ public sealed class PairingService
         Alias = _alias(),
         Os = AppInfo.OsName,
         AppVersion = AppInfo.Version,
-        Caps = [.. Capabilities.Local],
+        Caps = Capabilities.ForHello(_avatar()),
     };
 
     private static async Task SendErrorAsync(PeerConnection conn, string code, CancellationToken ct)

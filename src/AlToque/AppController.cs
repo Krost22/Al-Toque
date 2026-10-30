@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using AlToque.Chasqui;
+using AlToque.Controls;
 using AlToque.Core.Agent;
 using AlToque.Core.Pairing;
 using AlToque.Core.Storage;
@@ -59,7 +60,13 @@ public sealed class AppController
     public PairingViewModel? Pairing { get; private set; }
     public ConnectViewModel? Connect { get; private set; }
 
-    public bool ReduceMotion => Agent.Settings.Current.ReduceMotion || _systemReduceMotion;
+    /// <summary>Movimiento reducido: por ajuste ("Animaciones") o, en "Como en Windows", por el sistema.</summary>
+    public bool ReduceMotion => Agent.Settings.Current.AnimationMode switch
+    {
+        "full" => false,
+        "reduced" => true,
+        _ => Agent.Settings.Current.ReduceMotion || _systemReduceMotion,
+    };
 
     private static void Post(Action action) => Dispatcher.UIThread.Post(action);
 
@@ -79,6 +86,7 @@ public sealed class AppController
         }
         S.Initialize(Agent.Settings.Current.Language);
         _systemReduceMotion = SystemPrefs.PrefersReducedMotion();
+        MotionPrefs.Reduced = ReduceMotion;
         Panel = new QuickPanelViewModel(this) { ReduceMotion = ReduceMotion };
         Transfers.ReduceMotion = ReduceMotion;
 
@@ -108,7 +116,12 @@ public sealed class AppController
         Agent.TransferStarted += i => Post(() => AddTransfer(i));
         Agent.TransferFinished += i => Post(() => OnTransferFinished(i));
         Agent.ReceiveModeChanged += () => Post(RefreshMode);
-        Agent.NetworkStateChanged += () => Post(RefreshMode);
+        Agent.NetworkStateChanged += () => Post(() =>
+        {
+            RefreshMode();
+            RefreshNetworkName();
+        });
+        RefreshNetworkName();
         Agent.PickRequested += p => Post(() => ShowPanel(p));
         Agent.CodeRequested += p => Post(() => ShowConnect(p, showMyCode: false));
         Agent.ShowRequested += () => Post(() => ShowPanel());
@@ -130,6 +143,7 @@ public sealed class AppController
         });
         Agent.Settings.Changed += _ => Post(() =>
         {
+            MotionPrefs.Reduced = ReduceMotion;
             Panel.ReduceMotion = ReduceMotion;
             Transfers.ReduceMotion = ReduceMotion;
             ApplyIntegration();
@@ -274,9 +288,12 @@ public sealed class AppController
         Panel.BeginSearch();
         Agent.Discovery?.Query();
         DispatcherTimer.RunOnce(() => Panel.EndSearch(), TimeSpan.FromSeconds(2.5));
+        var wasVisible = _panelWindow.IsVisible;
         _panelWindow.Show();
         _panelWindow.PlaceNearTray();
         _panelWindow.Activate();
+        if (!wasVisible)
+            _panelWindow.PlayEntrance();
         LayoutToasts();
     }
 
@@ -323,6 +340,47 @@ public sealed class AppController
         Agent.BeginSend(target, paths, message);
     }
 
+    /// <summary>El nombre de la red tarda unos milisegundos (COM): se pide fuera del hilo de la interfaz.</summary>
+    private void RefreshNetworkName() =>
+        _ = Task.Run(NetworkCategory.CurrentNetworkName).ContinueWith(t =>
+        {
+            if (t.IsCompletedSuccessfully)
+                Panel.SetNetworkName(t.Result);
+        }, TaskScheduler.FromCurrentSynchronizationContext());
+
+    public async Task<IReadOnlyList<string>> PickFilesAsync()
+    {
+        var owner = (Window?)_panelWindow ?? _mainWindow;
+        if (owner is null)
+            return [];
+        var files = await owner.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions { AllowMultiple = true, Title = "Al Toque" });
+        return files.Select(f => f.TryGetLocalPath()).OfType<string>().ToList();
+    }
+
+    /// <summary>"Reintentar" en recientes: mismo destino y mismos archivos (los que sigan existiendo).</summary>
+    public async void Retry(HistoryEntry entry)
+    {
+        var paths = (entry.Paths ?? []).Where(p => File.Exists(p) || Directory.Exists(p)).ToList();
+        if (paths.Count == 0)
+        {
+            Panel.Flash(ChasquiState.Error, S.ErrorText("E_IO", entry.PeerName, null));
+            return;
+        }
+        if (string.IsNullOrEmpty(entry.PeerId) || Agent.Peers.Find(entry.PeerId) is null)
+        {
+            // Sin compañero conocido: los archivos quedan esperando destino en el panel.
+            ShowPanel(paths);
+            return;
+        }
+        await SendToPeerAsync(entry.PeerId, entry.PeerName, paths, null);
+    }
+
+    public void OpenHistoryItem(HistoryEntry entry)
+    {
+        if ((entry.FirstFile ?? entry.Folder) is { } path && (File.Exists(path) || Directory.Exists(path)))
+            Opener.ShowInFolder(path);
+    }
+
     /// <summary>Envío desde "Conectar por IP o código".</summary>
     public async Task SendToTargetAsync(PeerTarget target, IReadOnlyList<string>? paths)
     {
@@ -351,7 +409,8 @@ public sealed class AppController
 
     private void RefreshMode()
     {
-        Panel.SyncMode(Agent.EffectiveMode, Agent.EveryoneUntil, Agent.Trust.All.Count == 0, Agent.IsReceivingPausedByNetwork);
+        Panel.SyncMode(Agent.EffectiveMode, Agent.EveryoneUntil, Agent.Trust.All.Count, Agent.IsReceivingPausedByNetwork);
+        Main?.RefreshMode();
         Pairing?.SyncNetwork(Agent.IsReceivingPausedByNetwork);
         UpdateTray();
     }
@@ -362,7 +421,7 @@ public sealed class AppController
     {
         if (Transfers.Items.Any(t => t.Info == info))
             return;
-        var vm = new TransferViewModel(info, DismissTransfer, Agent.CancelTransfer);
+        var vm = new TransferViewModel(info, DismissTransfer, Agent.CancelTransfer, RetryTransfer, () => ShowConnect(info.SourcePaths, showMyCode: false));
         vm.OpenFileRequested += t => _ = OpenReceivedFileAsync(t);
         Transfers.Items.Insert(0, vm);
         ShowTransfersWindow();
@@ -390,8 +449,20 @@ public sealed class AppController
         UpdateTray();
     }
 
-    private void DismissTransfer(TransferViewModel vm)
+    private async void RetryTransfer(TransferViewModel vm)
     {
+        var info = vm.Info;
+        DismissTransfer(vm);
+        if (info.PeerId is { } id)
+            await SendToPeerAsync(id, info.PeerName, info.SourcePaths, info.OutgoingMessage);
+    }
+
+    private async void DismissTransfer(TransferViewModel vm)
+    {
+        if (!Transfers.Items.Contains(vm))
+            return;
+        if (_transfersWindow is not null)
+            await _transfersWindow.AnimateOutAsync(vm);
         Transfers.Items.Remove(vm);
         if (Transfers.Items.Count == 0)
             _transfersWindow?.Hide();
@@ -438,6 +509,7 @@ public sealed class AppController
 
     private void SlowTick()
     {
+        Panel.Tick();
         foreach (var (_, vm) in _offers)
             vm.Tick();
         Pairing?.Tick();
@@ -460,7 +532,7 @@ public sealed class AppController
     {
         if (offer.Withdrawn.IsCancellationRequested)
             return;
-        var vm = new OfferViewModel(offer);
+        var vm = new OfferViewModel(offer, AlwaysAcceptFrom, PairInsteadOf);
         var window = new OfferWindow { DataContext = vm };
         window.LayoutChanged += LayoutToasts;
         vm.Answered += () => CloseOffer(window);
@@ -471,6 +543,24 @@ public sealed class AppController
         Panel.Flash(ChasquiState.Incoming, offer.PeerName + " " + S.WantsToSend(offer.FileCount));
         if (Agent.Settings.Current.Sounds)
             SystemPrefs.Play(SystemPrefs.Sound.Incoming);
+    }
+
+    private void AlwaysAcceptFrom(IncomingOffer offer)
+    {
+        if (offer.Trusted)
+            Agent.Trust.Update(offer.PeerId, p => p.AutoAccept = true);
+    }
+
+    /// <summary>"Emparejar en su lugar": se rechaza el envío y se abre el emparejamiento con ese equipo.</summary>
+    private void PairInsteadOf(IncomingOffer offer)
+    {
+        ShowPairing();
+        if (Agent.Peers.Find(offer.PeerId) is { } info)
+        {
+            var peer = new PeerViewModel(info.DeviceId);
+            peer.Update(info);
+            Pairing!.PairWith.Execute(peer);
+        }
     }
 
     private void CloseOffer(OfferWindow window)
@@ -508,7 +598,11 @@ public sealed class AppController
 
     public void ShowPairing()
     {
-        Pairing ??= new PairingViewModel(this);
+        if (Pairing is null)
+        {
+            Pairing = new PairingViewModel(this);
+            Pairing.FinishRequested += () => _pairingWindow?.Close();
+        }
         if (_pairingWindow is null)
         {
             _pairingWindow = new PairingWindow { DataContext = Pairing };
@@ -584,10 +678,15 @@ public sealed class AppController
 
     private void ShowWelcome()
     {
-        var window = new WelcomeWindow { Alias = Agent.Settings.Current.Alias, ReduceMotion = ReduceMotion };
-        window.Started += alias => Agent.Settings.Update(s =>
+        var window = new WelcomeWindow
+        {
+            DataContext = new WelcomeViewModel(Agent.DeviceId, Agent.Settings.Current.Alias, Agent.Settings.Current.Avatar),
+            ReduceMotion = ReduceMotion,
+        };
+        window.Started += (alias, avatar) => Agent.Settings.Update(s =>
         {
             s.Alias = TextLimits.CleanAlias(alias) ?? s.Alias;
+            s.Avatar = avatar;
             s.WelcomeDone = true;
         });
         window.Closed += (_, _) =>

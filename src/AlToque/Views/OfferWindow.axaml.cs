@@ -1,3 +1,4 @@
+using AlToque.Controls;
 using AlToque.ViewModels;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
@@ -17,6 +18,14 @@ public partial class OfferWindow : Window
     }
 
     public event Action? LayoutChanged;
+
+    protected override void OnOpened(EventArgs e)
+    {
+        base.OnOpened(e);
+        // La tarjeta entra desde abajo con rebote, para que se note sin robar el foco.
+        if (this.FindControl<Border>("Root") is { } root)
+            _ = Fx.Pop(root, from: 0.85, ms: 400);
+    }
 
     private async void OnChangeFolder(object? sender, RoutedEventArgs e)
     {

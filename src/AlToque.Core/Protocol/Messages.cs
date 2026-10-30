@@ -35,6 +35,25 @@ public static class Capabilities
     public const string Message = "message";
 
     public static readonly List<string> Local = [Burst, Metadata, Message];
+
+    /// <summary>Prefijo con el que el avatar viaja dentro de las capacidades del HELLO.</summary>
+    public const string AvatarPrefix = "av:";
+
+    /// <summary>Capacidades locales más el avatar, si hay uno.</summary>
+    public static List<string> ForHello(string? avatar) =>
+        Storage.TextLimits.CleanAvatar(avatar) is { } a ? [.. Local, AvatarPrefix + a] : [.. Local];
+
+    public static string? AvatarOf(IReadOnlyList<string>? caps)
+    {
+        if (caps is null)
+            return null;
+        foreach (var c in caps)
+        {
+            if (c.StartsWith(AvatarPrefix, StringComparison.Ordinal))
+                return Storage.TextLimits.CleanAvatar(c[AvatarPrefix.Length..]);
+        }
+        return null;
+    }
 }
 
 public static class DecisionResults

@@ -1,6 +1,9 @@
+using AlToque.Controls;
+using AlToque.Controls.Avatars;
 using AlToque.Core.Discovery;
 using AlToque.Core.Security;
 using AlToque.Core.Storage;
+using AlToque.Core.Transfer;
 using AlToque.Localization;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
@@ -32,21 +35,29 @@ public sealed class PeerViewModel : ViewModelBase
     private bool _isOnline;
     private bool _isTrusted;
     private bool _isPairing;
+    private bool _isBusy;
+    private bool _isChecking;
     private bool _isDropTarget;
+    private bool _isDragging;
     private string _os = "";
+    private string _avatarId;
 
     public PeerViewModel(string deviceId)
     {
         DeviceId = deviceId;
-        Color = Brushes2.ForDevice(deviceId);
+        ColorHex = IdentityVisuals.ColorHex(deviceId);
+        Color = Brushes2.FromHex(ColorHex);
         Symbols = IdentityVisuals.SymbolSequence(deviceId);
         ShortCode = IdentityVisuals.ShortCode(deviceId);
+        _avatarId = AvatarCatalog.DefaultFor(deviceId);
     }
 
     public string DeviceId { get; }
+    public string ColorHex { get; }
     public IBrush Color { get; }
     public string Symbols { get; }
     public string ShortCode { get; }
+    public string AvatarId { get => _avatarId; private set => Set(ref _avatarId, value); }
 
     public string Name
     {
@@ -74,10 +85,49 @@ public sealed class PeerViewModel : ViewModelBase
 
     public bool IsTrusted { get => _isTrusted; private set => Set(ref _isTrusted, value); }
     public bool IsPairing { get => _isPairing; private set => Set(ref _isPairing, value); }
-    public bool IsDropTarget { get => _isDropTarget; set => Set(ref _isDropTarget, value); }
-    public double Opacity => IsOnline ? 1 : 0.55;
+
+    public bool IsDropTarget
+    {
+        get => _isDropTarget;
+        set
+        {
+            if (Set(ref _isDropTarget, value))
+                RaiseVisuals();
+        }
+    }
+
+    /// <summary>Se están arrastrando archivos sobre el panel: los destinos posibles muestran un contorno.</summary>
+    public bool IsDragging
+    {
+        get => _isDragging;
+        set
+        {
+            if (Set(ref _isDragging, value))
+                RaiseVisuals();
+        }
+    }
+
+    public bool ShowDashedOutline => IsDragging && !IsDropTarget && IsOnline;
+    public double Opacity => IsOnline ? 1 : 0.6;
+    public bool Dimmed => !IsOnline;
+
+    public AvatarRing Ring => IsDropTarget ? AvatarRing.Drop
+        : _isChecking ? AvatarRing.Checking
+        : IsTrusted ? AvatarRing.Verified
+        : AvatarRing.Unverified;
+
+    public AvatarMood Mood => IsPairing ? AvatarMood.Surprised : _isBusy ? AvatarMood.Focused : AvatarMood.Idle;
+
+    public string StatusLine => IsDropTarget ? S.DropToSend : Status;
 
     public string AccessibleName => $"{Name}, {Status}{(IsTrusted ? ", " + S.Trusted : ", " + S.Unverified)}";
+
+    private void RaiseVisuals()
+    {
+        Raise(nameof(Ring));
+        Raise(nameof(StatusLine));
+        Raise(nameof(ShowDashedOutline));
+    }
 
     public void Update(PeerInfo info)
     {
@@ -85,6 +135,9 @@ public sealed class PeerViewModel : ViewModelBase
         IsOnline = info.Presence == PeerPresence.Online;
         IsTrusted = info.IsTrusted;
         IsPairing = info.Pairing && !info.IsTrusted;
+        _isBusy = info.Busy;
+        _isChecking = info.Presence == PeerPresence.Checking;
+        AvatarId = AvatarCatalog.Resolve(info.Avatar, info.DeviceId);
         Os = info.Os switch
         {
             "windows" => "Windows",
@@ -101,6 +154,9 @@ public sealed class PeerViewModel : ViewModelBase
             _ => Os.Length > 0 ? Os : S.Available,
         };
         Raise(nameof(AccessibleName));
+        Raise(nameof(Dimmed));
+        Raise(nameof(Mood));
+        RaiseVisuals();
     }
 }
 
@@ -120,7 +176,9 @@ public sealed class TrustedPeerViewModel : ViewModelBase
         _localName = peer.LocalName ?? "";
         _favorite = peer.Favorite;
         _autoAccept = peer.AutoAccept;
-        Color = Brushes2.ForDevice(peer.DeviceId);
+        ColorHex = IdentityVisuals.ColorHex(peer.DeviceId);
+        Color = Brushes2.FromHex(ColorHex);
+        AvatarId = AvatarCatalog.Resolve(peer.Avatar, peer.DeviceId);
         Symbols = IdentityVisuals.SymbolSequence(peer.DeviceId);
         Initial = IdentityVisuals.Initial(peer.DisplayName);
         Title = peer.DisplayName;
@@ -130,6 +188,8 @@ public sealed class TrustedPeerViewModel : ViewModelBase
 
     public string DeviceId { get; }
     public string Alias { get; }
+    public string ColorHex { get; }
+    public string AvatarId { get; }
     public IBrush Color { get; }
     public string Symbols { get; }
     public string Initial { get; }
@@ -170,32 +230,63 @@ public sealed class TrustedPeerViewModel : ViewModelBase
 
 public sealed class HistoryItemViewModel
 {
-    public HistoryItemViewModel(HistoryEntry e)
+    public HistoryItemViewModel(HistoryEntry e, Action<HistoryEntry>? retry = null, Action<HistoryEntry>? open = null)
     {
         Entry = e;
         var sent = e.Direction == "sent";
-        Arrow = sent ? "↑" : "↓";
-        var what = e.FileCount == 1 ? e.SampleNames.FirstOrDefault() ?? "" : S.Items(e.FileCount);
-        Title = sent ? $"{what} → {e.PeerName}" : $"{what} ← {e.PeerName}";
-        Subtitle = $"{Format.Bytes(e.TotalBytes)} · {Format.Ago(e.Time)}";
-        (ResultText, ResultBrush) = e.Result switch
+        var first = e.SampleNames.FirstOrDefault() ?? "";
+        Name = e.FileCount <= 1 ? first : $"{first} · {S.Items(e.FileCount)}";
+        IsFailed = e.Result is "failed" or "partial";
+        IsOk = e.Result == "ok";
+        var who = e.PeerName;
+        var when = Format.Ago(e.Time);
+        Subtitle = e.Result switch
         {
-            "ok" => ("✓", Brushes2.FromHex("#1F9D55")),
-            "partial" => ("!", Brushes2.FromHex("#F5A524")),
-            "declined" => ("—", Brushes2.FromHex("#8A8AA0")),
-            "cancelled" => ("—", Brushes2.FromHex("#8A8AA0")),
-            _ => ("✕", Brushes2.FromHex("#E5484D")),
+            "failed" => $"{(sent ? S.RecentFailed(who) : S.FromPeer(who))} · {when}",
+            "partial" => $"{S.RecentPartial} · {when}",
+            "declined" => $"{(sent ? S.RecentDeclined(who) : S.RecentYouDeclined(who))} · {when}",
+            "cancelled" => $"{S.RecentCancelled} · {when}",
+            _ => $"{(sent ? S.ToPeer(who) : S.FromPeer(who))} · {Format.Bytes(e.TotalBytes)} · {when}",
         };
-        Color = Brushes2.ForDevice(string.IsNullOrEmpty(e.PeerId) ? e.PeerName : e.PeerId);
-        CanOpen = !sent && (e.FirstFile ?? e.Folder) is { } p && (File.Exists(p) || Directory.Exists(p));
+        Icon = IsFailed ? Ic.Alert : e.FileCount > 1 ? Ic.Folder : IconFor(first);
+        ColorHex = IdentityVisuals.ColorHex(string.IsNullOrEmpty(e.PeerId) ? e.PeerName : e.PeerId);
+        AvatarId = AvatarCatalog.Resolve(e.Avatar, string.IsNullOrEmpty(e.PeerId) ? e.PeerName : e.PeerId);
+        Initial = IdentityVisuals.Initial(e.PeerName);
+        CanOpen = !sent && e.Result is "ok" or "partial" && (e.FirstFile ?? e.Folder) is { } p && (File.Exists(p) || Directory.Exists(p));
+        CanRetry = sent && e.Result is "failed" or "declined" or "cancelled" or "partial" && e.Paths is { Count: > 0 } && retry is not null;
+        Retry = new RelayCommand(() => retry?.Invoke(e));
+        Open = new RelayCommand(() => open?.Invoke(e));
+
+        // Formato compacto anterior (historial completo).
+        Arrow = sent ? "↑" : "↓";
+        Title = sent ? $"{Name} → {who}" : $"{Name} ← {who}";
     }
 
     public HistoryEntry Entry { get; }
-    public string Arrow { get; }
+    public string Name { get; }
     public string Title { get; }
     public string Subtitle { get; }
-    public string ResultText { get; }
-    public IBrush ResultBrush { get; }
-    public IBrush Color { get; }
+    public string Arrow { get; }
+    public Ic Icon { get; }
+    public bool IsFailed { get; }
+    public bool IsOk { get; }
+    public bool ShowOk => IsOk && !CanOpen;
+    public string ColorHex { get; }
+    public string AvatarId { get; }
+    public string Initial { get; }
     public bool CanOpen { get; }
+    public bool CanRetry { get; }
+    public RelayCommand Retry { get; }
+    public RelayCommand Open { get; }
+
+    public static Ic IconFor(string name) => FileKinds.Categorize(name) switch
+    {
+        FileCategory.Image => Ic.Image,
+        FileCategory.Video => Ic.Video,
+        FileCategory.Audio => Ic.Music,
+        FileCategory.Archive or FileCategory.DiskImage => Ic.Archive,
+        FileCategory.Program or FileCategory.Script or FileCategory.Shortcut => Ic.Program,
+        FileCategory.Document or FileCategory.Text => Ic.FileText,
+        _ => Ic.File,
+    };
 }

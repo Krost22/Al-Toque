@@ -1,19 +1,49 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:AlToque.ViewModels"
         xmlns:ch="using:AlToque.Chasqui"
+        xmlns:av="using:AlToque.Controls.Avatars"
         xmlns:l="using:AlToque.Localization"
         x:Class="AlToque.Views.WelcomeWindow"
+        x:DataType="vm:WelcomeViewModel"
         Title="Al Toque"
         Icon="avares://AlToque/Assets/altoque.ico"
-        Width="420" SizeToContent="Height"
+        Width="560" SizeToContent="Height"
         WindowStartupLocation="CenterScreen">
-  <StackPanel Margin="28,24" Spacing="14">
-    <ch:ChasquiView x:Name="Chasqui" Width="110" Height="110" HorizontalAlignment="Center" />
-    <TextBlock Text="{x:Static l:S.WelcomeTitle}" Classes="title" HorizontalAlignment="Center" />
-    <TextBlock Text="{x:Static l:S.WelcomeBody}" TextWrapping="Wrap" TextAlignment="Center" />
-    <TextBox x:Name="AliasBox" MaxLength="40" FontSize="15" HorizontalContentAlignment="Center" />
-    <TextBlock Text="{x:Static l:S.SettingAliasHint}" Classes="caption" TextWrapping="Wrap" TextAlignment="Center" />
-    <Button x:Name="StartButton" Classes="accent" Content="{x:Static l:S.WelcomeStart}" HorizontalAlignment="Center"
-            MinWidth="140" HorizontalContentAlignment="Center" IsDefault="True" Click="OnStart" />
+  <StackPanel x:Name="Sections" Margin="32,24,32,28" Spacing="16">
+    <ch:ChasquiView x:Name="Chasqui" Width="120" Height="120" HorizontalAlignment="Center" ShowRadar="False" />
+    <StackPanel Spacing="6">
+      <TextBlock Text="{x:Static l:S.WelcomeTitle}" Classes="title" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" />
+      <TextBlock Text="{x:Static l:S.WelcomeBody}" Classes="body2" TextWrapping="Wrap" TextAlignment="Center" />
+    </StackPanel>
+    <Border Classes="card" Padding="20,16">
+      <Grid ColumnDefinitions="Auto,*">
+        <av:AvatarView x:Name="Preview" Width="96" Height="96" AvatarId="{Binding AvatarId}" ColorHex="{Binding ColorHex}" Initial="{Binding Initial}" />
+        <StackPanel Grid.Column="1" Margin="18,0,0,0" Spacing="6" VerticalAlignment="Center">
+          <TextBlock Text="{x:Static l:S.YourName}" Classes="strong" />
+          <TextBox x:Name="AliasBox" Text="{Binding Alias}" MaxLength="40" FontSize="15" AutomationProperties.Name="{x:Static l:S.YourName}" />
+          <TextBlock Text="{x:Static l:S.YourNameHint}" Classes="meta" TextWrapping="Wrap" />
+        </StackPanel>
+      </Grid>
+    </Border>
+    <StackPanel Spacing="8">
+      <TextBlock Text="{x:Static l:S.PickAvatarTitle}" Classes="label" />
+      <ItemsControl ItemsSource="{Binding Choices}">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <WrapPanel ItemWidth="62" HorizontalAlignment="Center" />
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:AvatarChoiceViewModel">
+            <Button Classes="peer" Padding="2" Command="{Binding Pick}" ToolTip.Tip="{Binding Name}" AutomationProperties.Name="{Binding Name}">
+              <av:AvatarView Width="54" Height="54" AvatarId="{Binding Id}" ColorHex="{Binding ColorHex}" Initial="{Binding Initial}" Ring="{Binding Ring}" />
+            </Button>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </StackPanel>
+    <Button x:Name="StartButton" Classes="accent big" Content="{x:Static l:S.WelcomeStart}" HorizontalAlignment="Center"
+            MinWidth="180" IsDefault="True" Click="OnStart" />
   </StackPanel>
 </Window>

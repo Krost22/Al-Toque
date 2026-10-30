@@ -23,6 +23,13 @@ public partial class App : Application
             Core.Agent.AgentLog.Write("Error en segundo plano: " + e.Exception.GetBaseException().Message);
             e.SetObserved();
         };
+        // Para capturas y pruebas: ALTOQUE_THEME=dark|light fuerza el tema; por defecto se sigue al sistema.
+        RequestedThemeVariant = Environment.GetEnvironmentVariable("ALTOQUE_THEME") switch
+        {
+            "dark" => Avalonia.Styling.ThemeVariant.Dark,
+            "light" => Avalonia.Styling.ThemeVariant.Light,
+            _ => RequestedThemeVariant,
+        };
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             Controller = new AppController(this, desktop);

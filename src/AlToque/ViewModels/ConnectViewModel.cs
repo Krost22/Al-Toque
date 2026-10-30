@@ -18,6 +18,8 @@ public sealed class ConnectViewModel : ViewModelBase
     private PeerTarget? _target;
     private string _foundName = "";
     private IBrush? _foundColor;
+    private string _foundColorHex = "#888888";
+    private string _foundAvatarId = Controls.Avatars.AvatarCatalog.InitialId;
     private string _foundSymbols = "";
     private bool _foundTrusted;
     private bool _showMyCode;
@@ -81,9 +83,23 @@ public sealed class ConnectViewModel : ViewModelBase
     public bool HasTarget => _target is not null;
     public string FoundName { get => _foundName; private set => Set(ref _foundName, value); }
     public IBrush? FoundColor { get => _foundColor; private set => Set(ref _foundColor, value); }
+    public string FoundColorHex { get => _foundColorHex; private set => Set(ref _foundColorHex, value); }
+    public string FoundAvatarId { get => _foundAvatarId; private set => Set(ref _foundAvatarId, value); }
+    public Controls.Avatars.AvatarRing FoundRing => FoundTrusted ? Controls.Avatars.AvatarRing.Verified : Controls.Avatars.AvatarRing.Unverified;
     public string FoundSymbols { get => _foundSymbols; private set => Set(ref _foundSymbols, value); }
     public string FoundInitial => IdentityVisuals.Initial(FoundName);
-    public bool FoundTrusted { get => _foundTrusted; private set { if (Set(ref _foundTrusted, value)) Raise(nameof(FoundVerification)); } }
+    public bool FoundTrusted
+    {
+        get => _foundTrusted;
+        private set
+        {
+            if (Set(ref _foundTrusted, value))
+            {
+                Raise(nameof(FoundVerification));
+                Raise(nameof(FoundRing));
+            }
+        }
+    }
     public string FoundVerification => FoundTrusted ? "✓ " + S.Verified : "⚠ " + S.Unverified;
 
     public bool HasPending => _pending is { Count: > 0 };
@@ -135,6 +151,8 @@ public sealed class ConnectViewModel : ViewModelBase
             var name = _app.Agent.Trust.Find(id)?.DisplayName ?? (alias.Length > 0 ? alias : IdentityVisuals.ShortCode(id));
             FoundName = name;
             FoundColor = Brushes2.ForDevice(id);
+            FoundColorHex = IdentityVisuals.ColorHex(id);
+            FoundAvatarId = Controls.Avatars.AvatarCatalog.Resolve(_app.Agent.Peers.Find(id)?.Avatar, id);
             FoundSymbols = IdentityVisuals.SymbolSequence(id);
             FoundTrusted = trusted;
             Raise(nameof(FoundInitial));

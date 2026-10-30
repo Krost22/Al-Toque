@@ -1,4 +1,4 @@
-using System.Diagnostics;
+using AlToque.Controls;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -6,14 +6,13 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Media.Immutable;
-using Avalonia.VisualTree;
 
 namespace AlToque.Chasqui;
 
 /// <summary>
-/// Chasqui, el avión de papel con ojos. Se dibuja con vectores y se anima por fotogramas solo mientras es visible.
-/// Cada estado tiene su clip (sección 11.3); con "reducir movimiento" se usan poses fijas y fundidos.
-/// Los cambios de estado son interrumpibles: el clip nuevo arranca de inmediato con un fundido corto.
+/// Chasqui, la mascota: un avión de papel con ojos que reacciona a todo. Tiene anticipación, aplastar y estirar,
+/// caras para cada momento, pequeñas acciones cuando está aburrido y partículas en los logros. Con "reducir
+/// movimiento" usa poses fijas y fundidos.
 /// </summary>
 public sealed class ChasquiView : Control
 {
@@ -26,46 +25,31 @@ public sealed class ChasquiView : Control
     public static readonly StyledProperty<bool> ReduceMotionProperty =
         AvaloniaProperty.Register<ChasquiView, bool>(nameof(ReduceMotion));
 
-    private const double CrossfadeSeconds = 0.12;
+    public static readonly StyledProperty<bool> ShowRadarProperty =
+        AvaloniaProperty.Register<ChasquiView, bool>(nameof(ShowRadar), true);
 
-    private static readonly Palette Normal = new("#8484FF", "#5B5BF0", "#3B3BBD");
-    private static readonly Palette Danger = new("#F2898C", "#E5484D", "#B5353A");
-    private static readonly Palette Muted = new("#C2C2D2", "#A0A0B6", "#7E7E95");
-    private static readonly IBrush White = new ImmutableSolidColorBrush(Colors.White);
-    private static readonly IBrush Pupil = new ImmutableSolidColorBrush(Color.Parse("#1E1E3C"));
-    private static readonly IBrush SuccessBrush = new ImmutableSolidColorBrush(Color.Parse("#1F9D55"));
-    private static readonly IBrush AccentBrush = new ImmutableSolidColorBrush(Color.Parse("#5B5BF0"));
-    private static readonly Color[] ConfettiColors =
-        [Color.Parse("#5B5BF0"), Color.Parse("#F5A524"), Color.Parse("#1F9D55"), Color.Parse("#E5484D"), Color.Parse("#3B82F6")];
+    private const double Crossfade = 0.12;
+    private static readonly Random Rng = new();
 
-    // Polígonos del avión en un espacio de 100 × 100, con el pivote en (50, 50).
-    private static readonly Geometry UpperWing = Polygon((86, 20), (13, 46), (46, 55));
-    private static readonly Geometry LowerWing = Polygon((86, 20), (46, 55), (44, 84));
-    private static readonly Geometry InnerFold = Polygon((46, 55), (44, 84), (55, 62));
-    private static readonly Point LeftEye = new(46, 41);
-    private static readonly Point RightEye = new(56, 37.5);
-
-    private readonly Particle[] _confetti = new Particle[10];
-    private long _stateStart = Stopwatch.GetTimestamp();
-    private bool _attached;
-    private bool _frameRequested;
-    private double _shownProgress;
+    private ChasquiState _prev;
+    private double _start = -10, _prevStart = -10;
+    private readonly List<Burst> _bursts = [];
+    private int _seed = Rng.Next();
+    private double _blinkStart = -10, _nextBlink;
+    private double _actionStart = -10, _nextAction;
+    private int _action;
     private Point? _pointer;
-    private long _pointerSeen;
-    private Vector _look;
-    private double _nextBlink;
-    private TopLevel? _topLevel;
+    private double _pointerSeen = -100;
+    private double _lastActivity;
+    private bool _frameRequested;
+    private bool _skipFrame;
+    private TopLevel? _top;
+    private Avalonia.Threading.DispatcherTimer? _wake;
 
     static ChasquiView()
     {
-        AffectsRender<ChasquiView>(StateProperty, ProgressProperty, ReduceMotionProperty);
+        AffectsRender<ChasquiView>(StateProperty, ProgressProperty, ReduceMotionProperty, ShowRadarProperty);
         FocusableProperty.OverrideDefaultValue<ChasquiView>(false);
-    }
-
-    public ChasquiView()
-    {
-        AutomationProperties.SetName(this, ChasquiStates.Describe(ChasquiState.Idle));
-        AutomationProperties.SetLiveSetting(this, AutomationLiveSetting.Polite);
     }
 
     public ChasquiState State
@@ -86,27 +70,23 @@ public sealed class ChasquiView : Control
         set => SetValue(ReduceMotionProperty, value);
     }
 
-    private readonly record struct Palette(IBrush Upper, IBrush Lower, IBrush Inner)
+    /// <summary>Anillos de radar detrás de Chasqui mientras busca.</summary>
+    public bool ShowRadar
     {
-        public Palette(string upper, string lower, string inner)
-            : this(new ImmutableSolidColorBrush(Color.Parse(upper)), new ImmutableSolidColorBrush(Color.Parse(lower)), new ImmutableSolidColorBrush(Color.Parse(inner)))
-        {
-        }
+        get => GetValue(ShowRadarProperty);
+        set => SetValue(ShowRadarProperty, value);
     }
 
-    private struct Particle
-    {
-        public double X, Y, Vx, Vy, Spin;
-        public Color Color;
-    }
+    private bool Reduced => ReduceMotion || MotionPrefs.Reduced;
 
-    private struct Pose
+    /// <summary>Reacción rápida a algo que hizo el usuario (por ejemplo, soltar archivos): salta y celebra.</summary>
+    public void Cheer()
     {
-        public double Dx, Dy, Rotation, Scale, ScaleX, EyeScaleY, Opacity;
-        public bool Flip, CrossEyes;
-        public Palette Palette;
-
-        public static Pose Default => new() { Scale = 1, ScaleX = 1, EyeScaleY = 1, Opacity = 1, Palette = Normal };
+        var now = AnimClock.Now;
+        _action = 4;
+        _actionStart = now;
+        Emit(BurstKind.Sparkles, now, new Point(50, 40), 7, 1);
+        RequestFrame();
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
@@ -114,42 +94,97 @@ public sealed class ChasquiView : Control
         base.OnPropertyChanged(change);
         if (change.Property == StateProperty)
         {
-            _stateStart = Stopwatch.GetTimestamp();
-            if (State is ChasquiState.Success or ChasquiState.Received)
-                SeedConfetti();
-            if (State is not (ChasquiState.Sending or ChasquiState.Receiving))
-                _shownProgress = 0;
+            var now = AnimClock.Now;
+            _prev = change.GetOldValue<ChasquiState>();
+            _prevStart = _start;
+            _start = now;
+            _lastActivity = now;
+            _seed = Rng.Next();
+            OnEnter(State, now);
             AutomationProperties.SetName(this, ChasquiStates.Describe(State));
             RequestFrame();
         }
-        else if (change.Property == ProgressProperty || change.Property == ReduceMotionProperty)
+        else if (change.Property == ReduceMotionProperty)
         {
             RequestFrame();
         }
     }
 
+    private void OnEnter(ChasquiState s, double now)
+    {
+        if (Reduced)
+            return;
+        switch (s)
+        {
+            case ChasquiState.Success:
+                Emit(BurstKind.Confetti, now + 0.85, new Point(50, 44), 16, 1.1);
+                Emit(BurstKind.Stars, now + 0.85, new Point(50, 46), 6, 1);
+                break;
+            case ChasquiState.Received:
+                Emit(BurstKind.Stars, now + 0.12, new Point(50, 46), 6, 1);
+                Emit(BurstKind.Confetti, now + 0.55, new Point(50, 48), 10, 0.9);
+                break;
+            case ChasquiState.Rejected:
+                Emit(BurstKind.Puff, now + 0.35, new Point(80, 28), 4, 0.8);
+                break;
+            case ChasquiState.Error:
+                Emit(BurstKind.Puff, now + 0.05, new Point(22, 48), 5, 1);
+                Emit(BurstKind.Sweat, now + 0.4, new Point(62, 30), 2, 1);
+                break;
+            case ChasquiState.Sending:
+                Emit(BurstKind.Puff, now + 0.22, new Point(18, 52), 6, 1);
+                break;
+            case ChasquiState.Attentive or ChasquiState.Incoming:
+                Emit(BurstKind.Sparkles, now, new Point(50, 42), 5, 0.8);
+                break;
+        }
+    }
+
+    private void Emit(BurstKind kind, double at, Point origin, int count, double size)
+    {
+        _bursts.RemoveAll(b => AnimClock.Now - b.Start > Particles.Lifetime(b.Kind));
+        if (_bursts.Count < 12)
+            _bursts.Add(new Burst(kind, at, origin, count, _seed + _bursts.Count * 31, size));
+    }
+
+    // ===== Ciclo de vida y fotogramas =====
+
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
-        _attached = true;
-        _topLevel = TopLevel.GetTopLevel(this);
-        if (_topLevel is not null)
+        _top = TopLevel.GetTopLevel(this);
+        var now = AnimClock.Now;
+        _nextBlink = now + 1.5;
+        _nextAction = now + 5 + Rng.NextDouble() * 5;
+        _lastActivity = now;
+        if (_top is not null)
         {
-            _topLevel.AddHandler(PointerMovedEvent, OnPointerMovedAnywhere, RoutingStrategies.Tunnel, handledEventsToo: true);
-            _topLevel.PropertyChanged += OnTopLevelPropertyChanged;
+            _top.AddHandler(PointerMovedEvent, OnPointerMovedAnywhere, RoutingStrategies.Tunnel, handledEventsToo: true);
+            _top.PropertyChanged += OnTopLevelPropertyChanged;
         }
+        AutomationProperties.SetName(this, ChasquiStates.Describe(State));
+        // Despertador: en reposo no se dibuja nada; cada medio segundo se decide si toca parpadear o hacer algo.
+        _wake = new Avalonia.Threading.DispatcherTimer(TimeSpan.FromMilliseconds(500), Avalonia.Threading.DispatcherPriority.Background, (_, _) =>
+        {
+            if (!CanAnimate || Reduced)
+                return;
+            if (Schedule(AnimClock.Now))
+                RequestFrame();
+        });
+        _wake.Start();
         RequestFrame();
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
-        _attached = false;
-        if (_topLevel is not null)
+        _wake?.Stop();
+        _wake = null;
+        if (_top is not null)
         {
-            _topLevel.RemoveHandler(PointerMovedEvent, OnPointerMovedAnywhere);
-            _topLevel.PropertyChanged -= OnTopLevelPropertyChanged;
-            _topLevel = null;
+            _top.RemoveHandler(PointerMovedEvent, OnPointerMovedAnywhere);
+            _top.PropertyChanged -= OnTopLevelPropertyChanged;
+            _top = null;
         }
     }
 
@@ -162,417 +197,499 @@ public sealed class ChasquiView : Control
     private void OnPointerMovedAnywhere(object? sender, PointerEventArgs e)
     {
         _pointer = e.GetPosition(this);
-        _pointerSeen = Stopwatch.GetTimestamp();
-        if (!ReduceMotion)
-            RequestFrame();
+        var now = AnimClock.Now;
+        _pointerSeen = now;
+        _lastActivity = now;
+        RequestFrame();
     }
 
-    private double Seconds(long since) => Stopwatch.GetElapsedTime(since).TotalSeconds;
-
-    private static double GlobalSeconds => Stopwatch.GetTimestamp() / (double)Stopwatch.Frequency;
-
-    /// <summary>Se anima solo si hay algo que mover, la ventana es visible y no está minimizada.</summary>
-    private bool NeedsFrames
-    {
-        get
-        {
-            if (!_attached || _topLevel is null || !_topLevel.IsVisible || !IsEffectivelyVisible)
-                return false;
-            if (_topLevel is Window { WindowState: WindowState.Minimized })
-                return false;
-            var t = Seconds(_stateStart);
-            if (t < CrossfadeSeconds + 0.05)
-                return true;
-            if (ReduceMotion)
-                return State == ChasquiState.Searching || Math.Abs(_shownProgress - Progress) > 0.001;
-            if (ChasquiStates.IsTransient(State))
-                return t < ChasquiStates.ClipDuration(State).TotalSeconds + 0.1 || State == ChasquiState.Incoming;
-            return true;
-        }
-    }
+    private bool CanAnimate =>
+        _top is not null && _top.IsVisible && IsEffectivelyVisible && _top is not Window { WindowState: WindowState.Minimized } &&
+        AnimClock.Frozen is null;
 
     private void RequestFrame()
     {
-        if (_frameRequested || !_attached || _topLevel is null)
+        if (_frameRequested || _top is null)
+        {
+            if (_top is null)
+                InvalidateVisual();
             return;
+        }
         _frameRequested = true;
-        _topLevel.RequestAnimationFrame(_ =>
+        _top.RequestAnimationFrame(_ =>
         {
             _frameRequested = false;
-            InvalidateVisual();
-            if (NeedsFrames)
+            // Los bucles tranquilos (reposo, buscar, esperar) van a 30 fps; las acciones, a 60.
+            _skipFrame = !_skipFrame;
+            if (!_skipFrame || !IsCalmLoop(AnimClock.Now))
+                InvalidateVisual();
+            if (Busy(AnimClock.Now))
                 RequestFrame();
         });
     }
 
+    // ===== Dibujo =====
+
     public override void Render(DrawingContext ctx)
     {
         var size = Math.Min(Bounds.Width, Bounds.Height);
-        if (size <= 1)
+        if (size <= 2)
             return;
-        var t = Seconds(_stateStart);
-        var g = GlobalSeconds;
-        var rm = ReduceMotion;
+        var now = AnimClock.Now;
+        var k = size / 100;
+        using var box = ctx.PushTransform(Matrix.CreateScale(k, k) * Matrix.CreateTranslation((Bounds.Width - size) / 2, (Bounds.Height - size) / 2));
 
-        // El progreso se acerca suavemente al real: la estela no da saltos.
-        _shownProgress += (Math.Clamp(Progress, 0, 1) - _shownProgress) * (rm ? 1 : 0.18);
+        var state = State;
+        var t = now - _start;
+        var pose = PoseFor(state, t, now);
+        if (t < Crossfade && _prevStart > 0)
+        {
+            var prev = PoseFor(_prev, now - _prevStart, now);
+            pose = ChasquiPose.Lerp(prev, pose, Ease.Enter(t / Crossfade));
+        }
 
-        var offset = new Point((Bounds.Width - size) / 2, (Bounds.Height - size) / 2);
-        using var _ = ctx.PushTransform(Matrix.CreateScale(size / 100, size / 100) * Matrix.CreateTranslation(offset.X, offset.Y));
-        var fade = t < CrossfadeSeconds ? 0.35 + 0.65 * (t / CrossfadeSeconds) : 1;
-        using var __ = ctx.PushOpacity(fade);
+        DrawBehind(ctx, state, t, now);
+        ChasquiPainter.Draw(ctx, pose, shadow: size >= 32);
+        DrawFront(ctx, state, t, now, pose);
+        if (!Reduced)
+        {
+            foreach (var b in _bursts)
+                Particles.Draw(ctx, b, now);
+        }
+    }
 
-        var pose = Pose.Default;
-        UpdateLook(rm);
-        switch (State)
+    /// <summary>Parpadeos y acciones espontáneas cuando está en reposo. Devuelve si empezó algo.</summary>
+    private bool Schedule(double now)
+    {
+        if (Reduced || AnimClock.Frozen is not null)
+            return false;
+        var started = false;
+        if (now >= _nextBlink)
+        {
+            _blinkStart = now;
+            _nextBlink = now + (Rng.NextDouble() < 0.25 ? 0.3 : 2 + Rng.NextDouble() * 4);
+            started = true;
+        }
+        if (State == ChasquiState.Idle && now >= _nextAction && !IsSleepy(now))
+        {
+            _action = Rng.Next(5);
+            _actionStart = now;
+            _nextAction = now + 7 + Rng.NextDouble() * 7;
+            if (_action == 4)
+                Emit(BurstKind.Sparkles, now + 0.3, new Point(58, 30), 5, 0.7);
+            started = true;
+        }
+        return started;
+    }
+
+    /// <summary>¿Hace falta seguir dibujando? En reposo, tras unos segundos sin actividad, Chasqui se queda quieto.</summary>
+    private bool Busy(double now)
+    {
+        if (!CanAnimate)
+            return false;
+        var t = now - _start;
+        if (Reduced)
+            return t < Crossfade + 0.05;
+        if (t < 2 || now - _blinkStart < 0.2 || now - _actionStart < 2)
+            return true;
+        if (_bursts.Exists(b => now - b.Start < Particles.Lifetime(b.Kind)))
+            return true;
+        return State switch
+        {
+            ChasquiState.Idle => Liveliness(now) > 0,
+            ChasquiState.Success or ChasquiState.Received or ChasquiState.Rejected or ChasquiState.Error => false,
+            _ => true,
+        };
+    }
+
+    /// <summary>1 con actividad reciente; baja a 0 entre los 6 y 8 s de calma (el balanceo se apaga sin saltos).</summary>
+    private double Liveliness(double now) => 1 - Ease.Seg(now - _lastActivity, 6, 2);
+
+    private bool IsCalmLoop(double now) =>
+        State is ChasquiState.Idle or ChasquiState.Searching or ChasquiState.Waiting or ChasquiState.Reconnecting &&
+        now - _start > Crossfade && now - _actionStart > 1.8 && now - _blinkStart > 0.2;
+
+    private bool IsSleepy(double now) => State == ChasquiState.Idle && now - _lastActivity > 45 && now - _start > 45;
+
+    private double Blink(double now)
+    {
+        var t = now - _blinkStart;
+        return t is >= 0 and < 0.15 ? Math.Sin(t / 0.15 * Math.PI) : 0;
+    }
+
+    /// <summary>Hacia dónde mira: al puntero si se movió hace poco.</summary>
+    private Vector PointerLook(double now)
+    {
+        if (_pointer is not { } p || now - _pointerSeen > 4)
+            return default;
+        var size = Math.Min(Bounds.Width, Bounds.Height);
+        var center = new Point(Bounds.Width / 2, Bounds.Height / 2 - size * 0.1);
+        var d = p - center;
+        var len = Math.Sqrt(d.X * d.X + d.Y * d.Y);
+        if (len < 1)
+            return default;
+        var reach = Math.Min(1, len / (size * 1.5));
+        return new Vector(d.X / len * reach, d.Y / len * reach);
+    }
+
+    private ChasquiPose PoseFor(ChasquiState s, double t, double g)
+    {
+        var p = ChasquiPose.Rest;
+        var rm = Reduced;
+        p.Blink = Blink(g);
+        p.Look = PointerLook(g);
+        switch (s)
         {
             case ChasquiState.Idle:
-                Idle(ref pose, g, rm);
+            {
+                var sleepy = IsSleepy(g);
+                if (!rm)
+                {
+                    var live = Liveliness(g);
+                    p.Y = Math.Sin(g * 1.7) * 3 * live;
+                    p.Rotation = Math.Sin(g * 0.9) * 3 * live;
+                    p.Flap = Math.Sin(g * 2.4) * 0.35 * live;
+                }
+                if (sleepy)
+                {
+                    p.Eyes = ChasquiEyes.Sleepy;
+                    p.Mouth = ChasquiMouth.O;
+                    p.Look = default;
+                }
+                else if (!rm)
+                    IdleAction(ref p, g);
                 break;
+            }
             case ChasquiState.Attentive:
-                pose.Rotation = rm ? 0 : -8 + _look.X * 4;
-                pose.Scale = rm ? 1 : 1.06;
+            {
+                p.Scale = 1 + 0.14 * (rm ? 1 : Ease.Bounce(Ease.Seg(t, 0, 0.4)));
+                if (!rm)
+                {
+                    p.Y = -Math.Abs(Math.Sin(g * 8)) * 4;
+                    p.Rotation = Math.Sin(g * 8) * 5;
+                    p.Flap = Math.Sin(g * 14) * 0.8;
+                    var bounce = Math.Abs(Math.Cos(g * 8));
+                    p.Sy = 1 - 0.05 * bounce;
+                    p.Sx = 1 + 0.04 * bounce;
+                }
+                p.Eyes = ChasquiEyes.Wide;
+                p.Mouth = ChasquiMouth.Open;
                 break;
+            }
             case ChasquiState.Preparing:
-                Idle(ref pose, g, true);
-                pose.ScaleX = rm ? 1 : 0.86 + 0.14 * (0.5 + 0.5 * Math.Cos(g * Math.Tau / 0.6));
+                p.Sx = 1.08;
+                p.Sy = 0.9;
+                p.X = -4 + (rm ? 0 : Math.Sin(g * 50) * 0.7);
+                p.Eyes = ChasquiEyes.Focused;
+                p.Mouth = ChasquiMouth.Flat;
                 break;
             case ChasquiState.Searching:
-                DrawRadar(ctx, g, rm);
-                Idle(ref pose, g, rm);
-                pose.Scale = 0.78;
+                if (!rm)
+                {
+                    var a = g * 1.6;
+                    p.X = Math.Cos(a) * 9;
+                    p.Y = Math.Sin(a * 2) * 4;
+                    p.Rotation = -Math.Sin(a) * 14;
+                    p.Flap = Math.Sin(g * 6) * 0.6;
+                    p.Look = new Vector(Math.Cos(g * 0.8), Math.Sin(g * 1.3) * 0.5);
+                }
                 break;
             case ChasquiState.Waiting:
-                pose.Rotation = 6 + (rm ? 0 : Tap(g));
-                pose.Scale = 0.86;
-                pose.Dy = -4;
-                DrawDots(ctx, g, rm, 50, 88);
-                _look = new Vector(1, 0);
+            {
+                var ph = g % 0.9;
+                var tap = rm ? 0 : ph < 0.18 ? Math.Sin(ph / 0.18 * Math.PI) : 0;
+                p.Rotation = 10 * tap;
+                p.Y = 2.5 * tap;
+                p.Sy = 1 - 0.07 * tap;
+                p.Sx = 1 + 0.05 * tap;
+                p.Flap = rm ? 0 : Math.Sin(g * 2.4) * 0.3;
+                p.Look = new Vector(0.9, 0.3);
                 break;
+            }
             case ChasquiState.Sending:
+            {
+                if (!rm)
+                {
+                    // Despegue: se echa atrás (anticipación) y sale disparado estirándose.
+                    var back = Ease.OutCubic(Ease.Seg(t, 0, 0.22));
+                    var shoot = Ease.Seg(t, 0.22, 0.35);
+                    var overshoot = t < 0.22 ? 0 : Math.Sin(shoot * Math.PI) * 6 * (1 - shoot);
+                    p.X = -6 * back * (1 - Ease.Bounce(shoot)) + overshoot;
+                    p.Sx = t < 0.22 ? 1 - 0.1 * back : 1 + 0.16 * Math.Sin(shoot * Math.PI);
+                    p.Sy = t < 0.22 ? 1 + 0.08 * back : 1 - 0.1 * Math.Sin(shoot * Math.PI);
+                    var cruise = Ease.Seg(t, 0.4, 0.5);
+                    p.Y = Math.Sin(g * 3) * 3 * cruise;
+                    p.Rotation = (-6 + Math.Sin(g * 3 + 1) * 4) * cruise;
+                    p.Flap = Math.Sin(g * 12) * 0.9;
+                }
+                p.Eyes = ChasquiEyes.Focused;
+                p.Look = new Vector(1, 0);
+                break;
+            }
             case ChasquiState.Receiving:
-                Flying(ctx, ref pose, g, rm, State == ChasquiState.Receiving);
+                p.Flip = true;
+                if (!rm)
+                {
+                    p.Y = Math.Sin(g * 2.2) * 3;
+                    p.Rotation = Math.Sin(g * 1.1) * 4;
+                    p.Flap = Math.Sin(g * 5) * 0.5;
+                }
+                p.Mouth = ChasquiMouth.Smile;
+                p.Look = new Vector(0.8, 0.2);
                 break;
             case ChasquiState.Reconnecting:
                 if (!rm)
                 {
-                    var a = g * Math.Tau / 1.8;
-                    pose.Dx = 13 * Math.Cos(a);
-                    pose.Dy = 6 + 7 * Math.Sin(a);
-                    pose.Rotation = Math.Cos(a) * 14;
+                    var a = g * 1.1;
+                    p.X = Math.Cos(a) * 12;
+                    p.Y = Math.Sin(a) * 7;
+                    p.Rotation = -Math.Cos(a) * 18;
+                    p.Flap = Math.Sin(g * 3) * 0.4;
                 }
-                pose.Scale = 0.6;
-                DrawCloud(ctx, g, rm);
+                p.Eyes = ChasquiEyes.Worried;
+                p.Mouth = ChasquiMouth.Wobble;
                 break;
             case ChasquiState.Success:
-                Success(ctx, ref pose, t, rm);
+                if (rm)
+                {
+                    p.Eyes = ChasquiEyes.Happy;
+                    p.Mouth = ChasquiMouth.Open;
+                    break;
+                }
+                Loop(ref p, t, 0.2, 0.65, 14);
+                Land(ref p, t, 0.85);
+                p.Eyes = t < 0.2 ? ChasquiEyes.Wide : ChasquiEyes.Happy;
+                p.Mouth = t < 0.2 ? ChasquiMouth.O : ChasquiMouth.Open;
+                if (t > 1.4)
+                {
+                    p.Y += Math.Sin(g * 1.7) * 2;
+                    p.Flap = Math.Sin(g * 2.4) * 0.3;
+                }
                 break;
             case ChasquiState.Received:
-                Received(ctx, ref pose, t, rm);
-                return;
+                if (!rm)
+                {
+                    Hop(ref p, t, 0, 0.55, 14);
+                    Land(ref p, t, 0.55);
+                }
+                p.Eyes = ChasquiEyes.Happy;
+                p.Mouth = ChasquiMouth.Open;
+                break;
             case ChasquiState.Rejected:
-                pose.Palette = Muted;
-                pose.Flip = true;
-                pose.Scale = 0.8;
-                if (!rm)
-                {
-                    pose.Dx = -10 * EaseOut(Math.Min(1, t / 0.5));
-                    pose.Dy = -3 * Bump(t, 0.55) - 3 * Bump(t, 0.75);
-                }
-                else
-                    pose.Dx = -10;
-                break;
-            case ChasquiState.Error:
-                pose.Palette = Danger;
-                pose.CrossEyes = true;
-                var k = rm ? 1 : EaseOut(Math.Min(1, t / 0.6));
-                pose.Scale = 1 - 0.22 * k;
-                pose.Rotation = 18 * k;
-                pose.Dy = 8 * k;
-                if (!rm && t < 0.3)
-                    pose.Dx = Math.Sin(t * Math.Tau * 10) * 4 * (1 - t / 0.3);
-                pose.ScaleX = 1 - 0.12 * k;
-                break;
-            case ChasquiState.Incoming:
-                pose.Flip = true;
-                pose.Scale = 0.86;
-                if (!rm)
-                {
-                    pose.Dx = 60 * (1 - EaseOutBack(Math.Min(1, t / 0.7)));
-                    if (t > 0.7)
-                        Idle(ref pose, g, false);
-                }
-                _look = new Vector(-1, 0);
-                break;
-        }
-
-        DrawPlane(ctx, pose, g);
-    }
-
-    private void Idle(ref Pose pose, double g, bool still)
-    {
-        if (!still)
-        {
-            pose.Dy = Math.Sin(g * Math.Tau / 3.2) * 2.2;
-            pose.Rotation = Math.Sin(g * Math.Tau / 3.2 + 1) * 2.5;
-        }
-        // Parpadeo aleatorio cada 4 a 8 s.
-        if (_nextBlink <= 0 || g > _nextBlink + 0.13)
-            _nextBlink = g + 4 + Random.Shared.NextDouble() * 4;
-        else if (g >= _nextBlink)
-            pose.EyeScaleY = 0.15;
-    }
-
-    private void Flying(DrawingContext ctx, ref Pose pose, double g, bool rm, bool receiving)
-    {
-        var p = _shownProgress;
-        pose.Scale = 0.62;
-        pose.Flip = receiving;
-        var trailY = 70.0;
-        if (rm)
-        {
-            DrawTrail(ctx, receiving ? 90 : 10, receiving ? 90 - 80 * p : 10 + 80 * p, 88, solid: true);
-        }
-        else
-        {
-            var centerX = receiving ? 70 - 42 * p : 30 + 42 * p;
-            pose.Dx = centerX - 50;
-            pose.Dy = -6 + Math.Sin(g * Math.Tau / 0.9) * 1.6;
-            pose.Rotation = (receiving ? 4 : -4) + Math.Sin(g * Math.Tau / 0.9 + 0.6) * 2;
-            var tailX = receiving ? centerX + 20 : centerX - 20;
-            trailY = 58 + pose.Dy;
-            DrawTrail(ctx, receiving ? 96 : 4, tailX, trailY, solid: false);
-            // Líneas de velocidad.
-            var pen = new Pen(AccentBrush, 1.2, lineCap: PenLineCap.Round);
-            using (ctx.PushOpacity(0.35))
             {
+                var tilt = rm ? 1 : Ease.OutCubic(Ease.Seg(t, 0, 0.3));
+                p.Rotation = -16 * tilt;
+                p.Y = 4 * tilt;
+                if (!rm)
+                {
+                    // Se encoge de hombros: baja, sube un poco y vuelve.
+                    var shrug = Ease.Seg(t, 0.3, 0.45);
+                    p.Sy = 1 + 0.1 * Math.Sin(shrug * Math.PI) - 0.04 * Math.Sin(shrug * Math.PI * 2);
+                    p.Y -= 3 * Math.Sin(shrug * Math.PI);
+                }
+                p.Tint = tilt;
+                p.Eyes = ChasquiEyes.Meh;
+                p.Mouth = ChasquiMouth.Flat;
+                break;
+            }
+            case ChasquiState.Error:
+            {
+                if (!rm)
+                {
+                    var decay = 1 - Ease.Seg(t, 0, 0.7);
+                    p.X = Math.Sin(t * 42) * 5 * decay;
+                    p.Rotation = Math.Sin(t * 42 + 1) * 6 * decay;
+                    p.Sy = 1 - 0.05 * Math.Abs(Math.Sin(t * 42)) * decay;
+                }
+                p.Tint = -Math.Min(1, 0.6 + 0.4 * Ease.Seg(t, 0, 0.2));
+                p.Eyes = t < 0.5 || rm ? ChasquiEyes.Cross : ChasquiEyes.Dizzy;
+                p.Mouth = ChasquiMouth.Wobble;
+                break;
+            }
+            case ChasquiState.Incoming:
+                if (!rm)
+                {
+                    Hop(ref p, t, 0, 0.45, 12);
+                    Land(ref p, t, 0.45);
+                    p.Flap = Math.Sin(g * 7) * 0.5;
+                }
+                p.Eyes = ChasquiEyes.Wide;
+                p.Mouth = ChasquiMouth.O;
+                p.Look = new Vector(0, 0.6);
+                break;
+        }
+        return p;
+    }
+
+    /// <summary>Una vuelta completa en el aire (looping).</summary>
+    private static void Loop(ref ChasquiPose p, double t, double start, double length, double radius)
+    {
+        if (t < start)
+        {
+            var a = Ease.OutCubic(t / start);
+            p.Sy = 1 - 0.14 * a;
+            p.Sx = 1 + 0.1 * a;
+            p.Y = 3 * a;
+            return;
+        }
+        var u = Ease.Seg(t, start, length);
+        if (u >= 1)
+            return;
+        var angle = Ease.InOutSine(u) * Math.PI * 2;
+        p.X = Math.Sin(angle) * radius;
+        p.Y = -(1 - Math.Cos(angle)) * radius * 0.9;
+        p.Rotation = -angle * 180 / Math.PI;
+        p.Sx = 1 + 0.12 * Math.Sin(u * Math.PI);
+        p.Flap = Math.Sin(t * 30) * 0.9;
+    }
+
+    private static void Hop(ref ChasquiPose p, double t, double start, double length, double height)
+    {
+        var u = Ease.Seg(t, start, length);
+        if (u <= 0 || u >= 1)
+            return;
+        p.Y -= height * 4 * u * (1 - u);
+        var stretch = Math.Cos(u * Math.PI) * 0.1;
+        p.Sy *= 1 + stretch;
+        p.Sx *= 1 - stretch * 0.8;
+    }
+
+    /// <summary>Aterrizaje: se aplasta y rebota hasta quedarse quieto.</summary>
+    private static void Land(ref ChasquiPose p, double t, double at)
+    {
+        var u = t - at;
+        if (u < 0 || u > 0.6)
+            return;
+        var squash = Math.Exp(-u * 7) * Math.Cos(u * 22) * 0.18;
+        p.Sy *= 1 - squash;
+        p.Sx *= 1 + squash * 0.9;
+    }
+
+    private void IdleAction(ref ChasquiPose p, double g)
+    {
+        var t = g - _actionStart;
+        switch (_action)
+        {
+            case 0 when t < 1.3:
+                Loop(ref p, t, 0.15, 0.85, 12);
+                p.Eyes = ChasquiEyes.Happy;
+                p.Mouth = ChasquiMouth.Open;
+                break;
+            case 1 when t < 1.7:
+            {
+                // Bostezo con estiramiento.
+                var a = Math.Sin(Ease.Seg(t, 0, 1.7) * Math.PI);
+                p.Sy *= 1 + 0.12 * a;
+                p.Sx *= 1 - 0.08 * a;
+                p.Eyes = a > 0.3 ? ChasquiEyes.Sleepy : p.Eyes;
+                p.Mouth = a > 0.3 ? ChasquiMouth.O : p.Mouth;
+                break;
+            }
+            case 2 when t < 2.2:
+                p.Look = new Vector(Math.Sin(t * 2.9) * 1, -0.2);
+                break;
+            case 3 when t < 0.9:
+            {
+                // Tonel: gira sobre su eje.
+                var u = Ease.InOutSine(t / 0.9);
+                p.Sx *= Math.Cos(u * Math.PI * 2);
+                p.Y -= Math.Sin(u * Math.PI) * 6;
+                break;
+            }
+            case 4 when t < 0.9:
+                Hop(ref p, t, 0, 0.5, 9);
+                Land(ref p, t, 0.5);
+                p.Eyes = ChasquiEyes.Wink;
+                p.Mouth = ChasquiMouth.Smile;
+                break;
+        }
+    }
+
+    private void DrawBehind(DrawingContext ctx, ChasquiState s, double t, double g)
+    {
+        if (s == ChasquiState.Searching && ShowRadar)
+        {
+            var ring = new ImmutableSolidColorBrush(Color.FromArgb(60, 0x8E, 0x8E, 0xA8));
+            ctx.DrawEllipse(null, new Pen(ring, 0.8), new Point(50, 50), 30, 30);
+            ctx.DrawEllipse(null, new Pen(ring, 0.8), new Point(50, 50), 46, 46);
+            if (!Reduced)
+            {
+                for (int i = 0; i < 2; i++)
+                {
+                    var u = (g * 0.55 + i * 0.5) % 1;
+                    var r = 18 + u * 34;
+                    ctx.DrawEllipse(null, new Pen(new ImmutableSolidColorBrush(ColorUtil.WithAlpha(ColorUtil.Hex("#7C7CFF"), (1 - u) * 0.45)), 1.4),
+                        new Point(50, 50), r, r);
+                }
+            }
+        }
+        if (s == ChasquiState.Sending && !Reduced && t > 0.3)
+        {
+            // Líneas de velocidad que corren hacia atrás.
+            for (int i = 0; i < 3; i++)
+            {
+                var u = (g * 1.8 + i * 0.33) % 1;
+                var y = 44 + i * 9 + Math.Sin(g * 3) * 3;
+                var x = 26 - u * 26;
+                var pen = new Pen(new ImmutableSolidColorBrush(ColorUtil.WithAlpha(ColorUtil.Hex("#A3A3FF"), (1 - u) * 0.8)), 2.2, lineCap: PenLineCap.Round);
+                ctx.DrawLine(pen, new Point(x, y), new Point(x + 10, y));
+            }
+        }
+    }
+
+    private void DrawFront(DrawingContext ctx, ChasquiState s, double t, double g, in ChasquiPose pose)
+    {
+        var rm = Reduced;
+        var accent = ColorUtil.Hex("#A3A3FF");
+        switch (s)
+        {
+            case ChasquiState.Attentive when t < 1.2:
+            {
+                var pop = rm ? 1 : Ease.Bounce(Ease.Seg(t, 0, 0.35));
+                ChasquiPainter.Glyph(ctx, "!", new Point(78, 14 + pose.Y * 0.5), 22 * pop, ColorUtil.Hex("#F7C266"), 1 - Ease.Seg(t, 0.9, 0.3), 12);
+                break;
+            }
+            case ChasquiState.Incoming:
+            {
+                var pop = rm ? 1 : Ease.Bounce(Ease.Seg(t, 0, 0.35));
+                var pulse = rm ? 1 : 1 + Math.Sin(g * 6) * 0.06;
+                ChasquiPainter.Glyph(ctx, "!", new Point(76, 12 + pose.Y * 0.4), 24 * pop * pulse, ColorUtil.Hex("#F7C266"), 1, 10);
+                break;
+            }
+            case ChasquiState.Searching when !rm:
+            {
+                var u = g % 3.4;
+                if (u < 1.3)
+                {
+                    var pop = Ease.Bounce(Ease.Seg(u, 0, 0.35));
+                    ChasquiPainter.Glyph(ctx, "?", new Point(72 + pose.X * 0.6, 16 + pose.Y * 0.6), 18 * pop, accent, 1 - Ease.Seg(u, 1.0, 0.3), -8);
+                }
+                break;
+            }
+            case ChasquiState.Waiting when !rm:
+            {
+                // "…": tres puntos que laten como al escribir.
                 for (int i = 0; i < 3; i++)
                 {
-                    var phase = (g * 1.6 + i / 3.0) % 1;
-                    var x = receiving ? centerX + 22 + phase * 14 : centerX - 22 - phase * 14;
-                    var y = 44 + i * 7 + pose.Dy;
-                    ctx.DrawLine(pen, new Point(x, y), new Point(receiving ? x + 6 : x - 6, y));
+                    var a = 0.35 + 0.65 * Math.Max(0, Math.Sin(g * 5 - i * 0.7));
+                    ctx.DrawEllipse(new ImmutableSolidColorBrush(ColorUtil.WithAlpha(accent, a)), null, new Point(70 + i * 7, 16 - a * 2), 2.4, 2.4);
                 }
+                break;
+            }
+            case ChasquiState.Idle when IsSleepy(g) && !rm:
+                for (int i = 0; i < 2; i++)
+                {
+                    var u = 0.3 + i * 0.45;
+                    ChasquiPainter.Glyph(ctx, "z", new Point(70 + u * 14, 26 - u * 20), 9 + u * 7, accent, Math.Sin(u * Math.PI), -12);
+                }
+                break;
+            case ChasquiState.Reconnecting when !rm:
+            {
+                var u = g % 1.6;
+                if (u < 0.9)
+                    Particles.Drop(ctx, new Point(64 + pose.X, 26 + pose.Y + u * 10), 2.8, ColorUtil.WithAlpha(ColorUtil.Hex("#7CC8FF"), 1 - u / 0.9));
+                break;
             }
         }
-        if (receiving)
-            DrawDocument(ctx, new Point(50 + pose.Dx, 66 + pose.Dy), 0.55);
-    }
-
-    private void Success(DrawingContext ctx, ref Pose pose, double t, bool rm)
-    {
-        var land = rm ? 1 : EaseOut(Math.Min(1, t / 0.4));
-        pose.Dy = -6 + 10 * land;
-        pose.Scale = 0.8 - 0.1 * land;
-        pose.Dx = -6;
-        if (!rm)
-            DrawConfetti(ctx, t);
-        var checkT = rm ? 1 : Math.Clamp((t - 0.3) / 0.5, 0, 1);
-        DrawCheck(ctx, new Point(74, 72), 12, checkT);
-    }
-
-    private void Received(DrawingContext ctx, ref Pose pose, double t, bool rm)
-    {
-        var grow = rm ? 1 : EaseOutBack(Math.Min(1, t / 0.6));
-        DrawDocument(ctx, new Point(48, 50), 1.25 * grow);
-        if (!rm)
-            DrawConfetti(ctx, t);
-        var checkT = rm ? 1 : Math.Clamp((t - 0.5) / 0.5, 0, 1);
-        DrawCheck(ctx, new Point(70, 70), 12, checkT);
-    }
-
-    private void UpdateLook(bool rm)
-    {
-        var target = new Vector(0.6, -0.2);
-        if (!rm && _pointer is { } p && Stopwatch.GetElapsedTime(_pointerSeen).TotalSeconds < 4)
-        {
-            var size = Math.Min(Bounds.Width, Bounds.Height);
-            var center = new Point(Bounds.Width / 2, Bounds.Height / 2 - size * 0.1);
-            var v = p - center;
-            var len = Math.Sqrt(v.X * v.X + v.Y * v.Y);
-            target = len < 1 ? default : new Vector(v.X / Math.Max(len, size * 0.6), v.Y / Math.Max(len, size * 0.6));
-        }
-        // Resorte simple: los ojos siguen al puntero con algo de inercia.
-        _look += (target - _look) * (rm ? 1 : 0.2);
-    }
-
-    private void DrawPlane(DrawingContext ctx, Pose pose, double g)
-    {
-        var m = Matrix.CreateTranslation(-50, -50)
-                * Matrix.CreateScale((pose.Flip ? -1 : 1) * pose.Scale * pose.ScaleX, pose.Scale)
-                * Matrix.CreateRotation((pose.Flip ? -pose.Rotation : pose.Rotation) * Math.PI / 180)
-                * Matrix.CreateTranslation(50 + pose.Dx, 50 + pose.Dy);
-        using var _ = ctx.PushTransform(m);
-        using var __ = ctx.PushOpacity(pose.Opacity);
-        ctx.DrawGeometry(pose.Palette.Upper, null, UpperWing);
-        ctx.DrawGeometry(pose.Palette.Lower, null, LowerWing);
-        ctx.DrawGeometry(pose.Palette.Inner, null, InnerFold);
-
-        var look = pose.Flip ? new Vector(-_look.X, _look.Y) : _look;
-        foreach (var eye in new[] { LeftEye, RightEye })
-        {
-            if (pose.CrossEyes)
-            {
-                var pen = new Pen(Pupil, 1.4, lineCap: PenLineCap.Round);
-                ctx.DrawEllipse(White, null, eye, 4.4, 4.4);
-                ctx.DrawLine(pen, eye + new Vector(-2, -2), eye + new Vector(2, 2));
-                ctx.DrawLine(pen, eye + new Vector(-2, 2), eye + new Vector(2, -2));
-                continue;
-            }
-            var ry = 4.6 * pose.EyeScaleY;
-            ctx.DrawEllipse(White, new Pen(Pupil, 0.9), eye, 4.6, ry);
-            if (pose.EyeScaleY > 0.5)
-                ctx.DrawEllipse(Pupil, null, eye + new Vector(look.X * 1.7, look.Y * 1.7), 2.2, 2.2 * pose.EyeScaleY);
-        }
-    }
-
-    private static void DrawRadar(DrawingContext ctx, double g, bool rm)
-    {
-        if (rm)
-        {
-            // Puntos que se iluminan en secuencia, sin movimiento.
-            var lit = (int)(g * 2.5) % 3;
-            for (int i = 0; i < 3; i++)
-                ctx.DrawEllipse(AccentBrush, null, new Point(38 + i * 12, 92), 2.6, 2.6);
-            using (ctx.PushOpacity(0.5))
-                ctx.DrawEllipse(White, null, new Point(38 + lit * 12, 92), 1.6, 1.6);
-            return;
-        }
-        for (int k = 0; k < 3; k++)
-        {
-            var phase = (g / 1.2 + k / 3.0) % 1;
-            using (ctx.PushOpacity((1 - phase) * 0.45))
-                ctx.DrawEllipse(null, new Pen(AccentBrush, 1.6), new Point(50, 52), 10 + phase * 38, 10 + phase * 38);
-        }
-    }
-
-    private static void DrawDots(DrawingContext ctx, double g, bool rm, double cx, double cy)
-    {
-        for (int i = 0; i < 3; i++)
-        {
-            var o = rm ? 0.7 : 0.25 + 0.75 * Math.Max(0, Math.Sin((g * 2.2 - i * 0.33) * Math.PI));
-            using (ctx.PushOpacity(o))
-                ctx.DrawEllipse(AccentBrush, null, new Point(cx - 8 + i * 8, cy), 2.4, 2.4);
-        }
-    }
-
-    private static void DrawCloud(DrawingContext ctx, double g, bool rm)
-    {
-        var cloud = new RoundedRect(new Rect(36, 6, 28, 13), 6.5);
-        ctx.DrawRectangle(new ImmutableSolidColorBrush(Color.Parse("#E4E4F4")), null, cloud);
-        DrawDots(ctx, g, rm, 50, 12.5);
-    }
-
-    private static void DrawTrail(DrawingContext ctx, double fromX, double toX, double y, bool solid)
-    {
-        if (Math.Abs(toX - fromX) < 0.5)
-            return;
-        var pen = solid
-            ? new Pen(AccentBrush, 3, lineCap: PenLineCap.Round)
-            : new Pen(AccentBrush, 2.4, new ImmutableDashStyle([2.2, 1.6], 0), PenLineCap.Round);
-        using (ctx.PushOpacity(solid ? 1 : 0.65))
-            ctx.DrawLine(pen, new Point(fromX, y), new Point(toX, y));
-    }
-
-    private static void DrawDocument(DrawingContext ctx, Point center, double scale)
-    {
-        if (scale <= 0.01)
-            return;
-        using var _ = ctx.PushTransform(Matrix.CreateScale(scale, scale) * Matrix.CreateTranslation(center.X, center.Y));
-        var body = new StreamGeometry();
-        using (var g = body.Open())
-        {
-            g.BeginFigure(new Point(-10, -13), true);
-            g.LineTo(new Point(4, -13));
-            g.LineTo(new Point(10, -7));
-            g.LineTo(new Point(10, 13));
-            g.LineTo(new Point(-10, 13));
-            g.EndFigure(true);
-        }
-        ctx.DrawGeometry(White, new Pen(AccentBrush, 1.6, lineJoin: PenLineJoin.Round), body);
-        var linePen = new Pen(new ImmutableSolidColorBrush(Color.Parse("#B8B8F8")), 1.6, lineCap: PenLineCap.Round);
-        for (int i = 0; i < 3; i++)
-            ctx.DrawLine(linePen, new Point(-6, -2 + i * 5), new Point(6, -2 + i * 5));
-    }
-
-    private static void DrawCheck(DrawingContext ctx, Point center, double radius, double t)
-    {
-        if (t <= 0)
-            return;
-        using (ctx.PushOpacity(Math.Min(1, t * 2)))
-            ctx.DrawEllipse(SuccessBrush, null, center, radius * (0.7 + 0.3 * Math.Min(1, t * 2)), radius * (0.7 + 0.3 * Math.Min(1, t * 2)));
-        // El ✓ se dibuja como un trazo que avanza.
-        var a = center + new Vector(-5.5, 0.5);
-        var b = center + new Vector(-1.5, 4.5);
-        var c = center + new Vector(6, -4.5);
-        var pen = new Pen(White, 2.6, lineCap: PenLineCap.Round, lineJoin: PenLineJoin.Round);
-        var first = Math.Clamp(t / 0.4, 0, 1);
-        ctx.DrawLine(pen, a, a + (b - a) * first);
-        if (t > 0.4)
-        {
-            var second = Math.Clamp((t - 0.4) / 0.6, 0, 1);
-            ctx.DrawLine(pen, b, b + (c - b) * second);
-        }
-    }
-
-    private void SeedConfetti()
-    {
-        for (int i = 0; i < _confetti.Length; i++)
-        {
-            var angle = (-160 + Random.Shared.NextDouble() * 140) * Math.PI / 180;
-            var speed = 38 + Random.Shared.NextDouble() * 26;
-            _confetti[i] = new Particle
-            {
-                X = 50,
-                Y = 46,
-                Vx = Math.Cos(angle) * speed,
-                Vy = Math.Sin(angle) * speed,
-                Spin = Random.Shared.NextDouble() * 720 - 360,
-                Color = ConfettiColors[i % ConfettiColors.Length],
-            };
-        }
-    }
-
-    private void DrawConfetti(DrawingContext ctx, double t)
-    {
-        if (t > 1.2)
-            return;
-        foreach (var p in _confetti)
-        {
-            var x = p.X + p.Vx * t;
-            var y = p.Y + p.Vy * t + 0.5 * 90 * t * t;
-            var m = Matrix.CreateRotation(p.Spin * t * Math.PI / 180) * Matrix.CreateTranslation(x, y);
-            using (ctx.PushOpacity(1 - t / 1.2))
-            using (ctx.PushTransform(m))
-                ctx.FillRectangle(new ImmutableSolidColorBrush(p.Color), new Rect(-1.8, -1, 3.6, 2));
-        }
-    }
-
-    private static double Tap(double g)
-    {
-        var phase = g % 0.9;
-        return phase < 0.15 ? Math.Sin(phase / 0.15 * Math.PI) * 5 : 0;
-    }
-
-    private static double Bump(double t, double at) => t > at && t < at + 0.15 ? Math.Sin((t - at) / 0.15 * Math.PI) : 0;
-
-    /// <summary>"Rápido al salir, lento al llegar", como cubic-bezier(0, 0, 0, 1).</summary>
-    private static double EaseOut(double x) => 1 - Math.Pow(1 - x, 3);
-
-    private static double EaseOutBack(double x)
-    {
-        const double c1 = 1.70158, c3 = c1 + 1;
-        return 1 + c3 * Math.Pow(x - 1, 3) + c1 * Math.Pow(x - 1, 2);
-    }
-
-    private static Geometry Polygon(params (double X, double Y)[] points)
-    {
-        var geometry = new StreamGeometry();
-        using var ctx = geometry.Open();
-        ctx.BeginFigure(new Point(points[0].X, points[0].Y), true);
-        foreach (var (x, y) in points.Skip(1))
-            ctx.LineTo(new Point(x, y));
-        ctx.EndFigure(true);
-        return geometry;
     }
 }

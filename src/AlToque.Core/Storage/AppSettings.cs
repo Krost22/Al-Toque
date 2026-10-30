@@ -27,6 +27,12 @@ public sealed class AppSettings
     /// <summary>Alias visible en la red. Nunca se usa el nombre de usuario del sistema.</summary>
     public string Alias { get; set; } = DefaultAlias();
 
+    /// <summary>Personaje elegido para el avatar; <c>null</c> usa el que corresponde a este equipo.</summary>
+    public string? Avatar { get; set; }
+
+    /// <summary>"system" sigue la preferencia de Windows; "full" o "reduced" la fuerzan.</summary>
+    public string AnimationMode { get; set; } = "system";
+
     public string ReceiveFolder { get; set; } = KnownFolders.DefaultReceiveFolder();
 
     public ReceiveMode ReceiveMode { get; set; } = ReceiveMode.TrustedOnly;

@@ -239,6 +239,31 @@ public class ProtocolTests
         Assert.Null(TextLimits.CleanAlias("​‮"));
         Assert.Equal(40, TextLimits.CleanAlias(new string('x', 100))!.Length);
     }
+
+    [Fact]
+    public void AvatarTravelsInsideHelloCapabilitiesAndIsValidated()
+    {
+        var caps = Capabilities.ForHello("gato");
+        Assert.Contains(Capabilities.Burst, caps);
+        Assert.Equal("gato", Capabilities.AvatarOf(caps));
+        Assert.Equal([.. Capabilities.Local], Capabilities.ForHello(null));
+        Assert.Equal([.. Capabilities.Local], Capabilities.ForHello("../../x"));
+        Assert.Null(Capabilities.AvatarOf(["av:GATO"]));
+        Assert.Null(Capabilities.AvatarOf(["av:" + new string('a', 40)]));
+        Assert.Null(Capabilities.AvatarOf(null));
+        Assert.Null(TextLimits.CleanAvatar("a"));
+        Assert.Equal("pinguino", TextLimits.CleanAvatar("pinguino"));
+    }
+
+    [Fact]
+    public void DiscoveryPacketCarriesAnOptionalAvatar()
+    {
+        var id = DeviceIdentity.CreateNew().DeviceId;
+        var good = new DiscoveryPacket { App = "altoque", V = 1, T = "announce", Id = id, Port = 45831, N = "abc", Alias = "Laura", Av = "rana" };
+        Assert.Equal("rana", DiscoveryPacket.TryParse(good.ToBytes())!.Av);
+        var bad = new DiscoveryPacket { App = "altoque", V = 1, T = "announce", Id = id, Port = 45831, N = "abc", Av = "Rana!" };
+        Assert.Null(DiscoveryPacket.TryParse(bad.ToBytes()));
+    }
 }
 
 internal sealed class TempDir : IDisposable

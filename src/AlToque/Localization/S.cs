@@ -6,7 +6,7 @@ namespace AlToque.Localization;
 /// Textos de la interfaz en español neutro e inglés. El idioma se fija al arrancar (ajuste "auto", "es" o "en");
 /// cambiarlo requiere reiniciar la app.
 /// </summary>
-public static class S
+public static partial class S
 {
     public static bool Spanish { get; private set; } = true;
 
@@ -28,6 +28,9 @@ public static class S
     }
 
     private static string T(string es, string en) => Spanish ? es : en;
+
+    /// <summary>Texto en el idioma de la interfaz, para catálogos fuera de esta clase.</summary>
+    public static string Pick(string es, string en) => T(es, en);
 
     // ── General ──────────────────────────────────────────────────────────────────
     public static string AppName => "Al Toque";
@@ -79,11 +82,11 @@ public static class S
     public static string UseIp => T("Usar IP", "Use IP");
     public static string PairButton => T("Emparejar", "Pair");
     public static string MyCode => T("Mi código", "My code");
-    public static string Checking => T("verificando…", "checking…");
-    public static string Offline => T("desconectado", "offline");
-    public static string Available => T("disponible", "available");
-    public static string Busy => T("ocupado", "busy");
-    public static string WantsToPair => T("quiere emparejar", "wants to pair");
+    public static string Checking => T("Verificando…", "Checking…");
+    public static string Offline => T("Sin conexión", "Offline");
+    public static string Available => T("Disponible", "Available");
+    public static string Busy => T("Ocupado", "Busy");
+    public static string WantsToPair => T("Quiere emparejar", "Wants to pair");
     public static string PickTitle(int count, string size) => T($"Enviar {Items(count)} ({size}) a…", $"Send {Items(count)} ({size}) to…");
     public static string MessagePlaceholder => T("Mensaje opcional (\"Aquí va el render final\")", "Optional message (\"Here's the final render\")");
     public static string NetworkPublicPaused => T("Esta red es pública: por seguridad no estoy recibiendo archivos ni emparejamientos. Si confías en esta red, puedes recibir igual.",

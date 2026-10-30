@@ -2,95 +2,173 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:AlToque.ViewModels"
         xmlns:ch="using:AlToque.Chasqui"
+        xmlns:c="using:AlToque.Controls"
+        xmlns:av="using:AlToque.Controls.Avatars"
         xmlns:l="using:AlToque.Localization"
         x:Class="AlToque.Views.PairingWindow"
         x:DataType="vm:PairingViewModel"
         Title="{x:Static l:S.PairTitle}"
         Icon="avares://AlToque/Assets/altoque.ico"
-        Width="440" SizeToContent="Height"
+        Width="540" SizeToContent="Height"
         WindowStartupLocation="CenterScreen">
-  <StackPanel Margin="24,20" Spacing="16">
-    <Grid ColumnDefinitions="*,Auto">
-      <TextBlock Text="{x:Static l:S.PairTitle}" Classes="title" />
-      <TextBlock Grid.Column="1" Text="{Binding Countdown}" Classes="caption" VerticalAlignment="Center" />
+  <StackPanel Margin="32,22,32,28" Spacing="18">
+    <TextBlock Text="{Binding StepText}" Classes="meta" />
+    <Grid ColumnDefinitions="*,Auto,Auto" IsVisible="{Binding !IsDone}">
+      <TextBlock Text="{Binding PairWithTitle}" Classes="subtitle" TextWrapping="Wrap" VerticalAlignment="Center" />
+      <c:CountdownRing Grid.Column="1" Width="22" Height="22" Fraction="{Binding CountdownFraction}" VerticalAlignment="Center" />
+      <TextBlock Grid.Column="2" Text="{Binding Countdown}" Classes="meta num" Margin="8,0,0,0" VerticalAlignment="Center" />
     </Grid>
 
-    <!-- Cómo me ven -->
-    <Border Classes="section">
-      <StackPanel Spacing="8">
-        <TextBlock Text="{x:Static l:S.PairVisibleAs}" Classes="caption" />
-        <StackPanel Orientation="Horizontal" Spacing="12">
-          <Border Classes="avatar" Width="36" Height="36" CornerRadius="18" Background="{Binding MyColor}">
-            <TextBlock Text="{Binding MyInitial}" FontSize="15" />
-          </Border>
-          <TextBlock Text="{Binding MyAlias}" FontWeight="SemiBold" VerticalAlignment="Center" />
-          <TextBlock Text="{Binding MySymbols}" Foreground="{Binding MyColor}" FontSize="15" VerticalAlignment="Center" />
+    <!-- Paso 1: elegir el equipo -->
+    <StackPanel IsVisible="{Binding ShowChooser}" Spacing="16">
+      <TextBlock Text="{Binding Status}" Classes="body2" TextWrapping="Wrap" />
+      <Border Classes="card">
+        <Grid ColumnDefinitions="Auto,*">
+          <av:AvatarView Width="60" Height="60" AvatarId="{Binding MyAvatarId}" ColorHex="{Binding MyColorHex}" Initial="{Binding MyInitial}" />
+          <StackPanel Grid.Column="1" Margin="14,0" VerticalAlignment="Center" Spacing="2">
+            <TextBlock Text="{x:Static l:S.PairVisibleAs}" Classes="meta" />
+            <TextBlock Text="{Binding MyAlias}" Classes="strong" FontSize="16" />
+            <TextBlock Text="{Binding MySymbols}" Foreground="{Binding MyColor}" FontSize="16" />
+          </StackPanel>
+        </Grid>
+      </Border>
+      <Border Classes="warnbox" IsVisible="{Binding NetworkPaused}">
+        <StackPanel Spacing="8">
+          <TextBlock Text="{x:Static l:S.PairPublicNetwork}" TextWrapping="Wrap" />
+          <Button Classes="link" Padding="0" HorizontalAlignment="Left" Content="{x:Static l:S.AllowPublicNetwork}" Command="{Binding AllowPublicNetwork}" />
         </StackPanel>
-      </StackPanel>
-    </Border>
-
-    <Border Classes="banner warning" IsVisible="{Binding NetworkPaused}">
-      <StackPanel Spacing="8">
-        <TextBlock Text="{x:Static l:S.PairPublicNetwork}" TextWrapping="Wrap" Foreground="{DynamicResource WarningTextBrush}" />
-        <Button Classes="accent" Content="{x:Static l:S.AllowPublicNetwork}" Command="{Binding AllowPublicNetwork}" />
-      </StackPanel>
-    </Border>
-
-    <!-- Elegir con quién -->
-    <StackPanel Spacing="10" IsVisible="{Binding ShowChooser}">
-      <TextBlock Text="{x:Static l:S.PairWaiting}" TextWrapping="Wrap" />
-      <TextBlock Text="{x:Static l:S.PairOpenHint}" Classes="caption" TextWrapping="Wrap" IsVisible="{Binding HasCandidates}" />
-      <ItemsControl ItemsSource="{Binding Candidates}">
+      </Border>
+      <TextBlock Text="{x:Static l:S.PairOpenHint}" Classes="label" TextWrapping="Wrap" />
+      <ItemsControl ItemsSource="{Binding Candidates}" IsVisible="{Binding HasCandidates}">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <WrapPanel ItemWidth="150" />
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="vm:PeerViewModel">
-            <Button HorizontalAlignment="Stretch" Margin="0,2" Padding="10,8"
-                    Command="{Binding $parent[ItemsControl].((vm:PairingViewModel)DataContext).PairWith}" CommandParameter="{Binding}">
-              <Grid ColumnDefinitions="Auto,*,Auto">
-                <Border Classes="avatar" Width="32" Height="32" CornerRadius="16" Background="{Binding Color}">
-                  <TextBlock Text="{Binding Initial}" />
-                </Border>
-                <StackPanel Grid.Column="1" Margin="10,0" VerticalAlignment="Center">
-                  <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
-                  <TextBlock Text="{Binding Os}" Classes="caption" />
-                </StackPanel>
-                <TextBlock Grid.Column="2" Text="{Binding Symbols}" Foreground="{Binding Color}" VerticalAlignment="Center" />
-              </Grid>
+            <Button Classes="peer" Command="{Binding $parent[ItemsControl].((vm:PairingViewModel)DataContext).PairWith}" CommandParameter="{Binding}"
+                    AutomationProperties.Name="{Binding Name}" HorizontalAlignment="Stretch">
+              <StackPanel Spacing="4">
+                <av:AvatarView Width="80" Height="80" AvatarId="{Binding AvatarId}" ColorHex="{Binding ColorHex}" Initial="{Binding Initial}"
+                               Ring="Unverified" PopOnLoad="True" />
+                <TextBlock Text="{Binding Name}" Classes="strong" HorizontalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="140" />
+                <TextBlock Text="{Binding Symbols}" Foreground="{Binding Color}" HorizontalAlignment="Center" />
+                <TextBlock Text="{x:Static l:S.PairWithThis}" Classes="accent caption" HorizontalAlignment="Center" />
+              </StackPanel>
             </Button>
           </DataTemplate>
         </ItemsControl.ItemTemplate>
       </ItemsControl>
-      <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding NoCandidates}" HorizontalAlignment="Center">
-        <ch:ChasquiView Width="48" Height="48" State="Searching" />
-        <TextBlock Text="{x:Static l:S.PairNoCandidates}" Classes="caption" VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="280" />
-      </StackPanel>
-    </StackPanel>
-
-    <TextBlock Text="{Binding Status}" IsVisible="{Binding Connecting}" HorizontalAlignment="Center" />
-
-    <!-- Código para comparar -->
-    <StackPanel Spacing="12" IsVisible="{Binding HasPrompt}">
-      <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Center">
-        <Border Classes="avatar" Width="32" Height="32" CornerRadius="16" Background="{Binding PeerColor}">
-          <TextBlock Text="{Binding PeerInitial}" />
-        </Border>
-        <TextBlock Text="{Binding PeerName}" FontWeight="SemiBold" VerticalAlignment="Center" />
-        <TextBlock Text="{Binding PeerSymbols}" Foreground="{Binding PeerColor}" VerticalAlignment="Center" />
-      </StackPanel>
-      <Border Classes="section" Padding="16,12">
-        <TextBlock Text="{Binding Code}" Classes="big-code" AutomationProperties.Name="{Binding Code}" />
+      <Border Classes="card" IsVisible="{Binding NoCandidates}" Padding="20">
+        <StackPanel Spacing="10" HorizontalAlignment="Center">
+          <ch:ChasquiView Width="110" Height="110" State="Searching" HorizontalAlignment="Center" />
+          <TextBlock Text="{x:Static l:S.PairNoCandidates}" Classes="body2" TextWrapping="Wrap" TextAlignment="Center" />
+        </StackPanel>
       </Border>
-      <TextBlock Text="{Binding Status}" HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" />
-      <Grid ColumnDefinitions="*,12,*" IsVisible="{Binding ShowConfirmButtons}">
-        <Button Content="{x:Static l:S.PairDoesNotMatch}" Command="{Binding DoesNotMatch}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
-        <Button Grid.Column="2" Classes="accent" Content="{x:Static l:S.PairMatches}" Command="{Binding Matches}"
-                HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
-      </Grid>
     </StackPanel>
 
-    <!-- Resultado -->
-    <StackPanel Spacing="10" IsVisible="{Binding HasResult}" HorizontalAlignment="Center">
-      <ch:ChasquiView Width="72" Height="72" State="{Binding ResultOk, Converter={x:Static vm:Converters.SuccessOrError}}" />
-      <TextBlock Text="{Binding Result}" TextWrapping="Wrap" TextAlignment="Center" FontWeight="SemiBold" />
+    <!-- Conectando -->
+    <StackPanel IsVisible="{Binding Connecting}" Spacing="10" HorizontalAlignment="Center">
+      <ch:ChasquiView Width="110" Height="110" State="Waiting" HorizontalAlignment="Center" />
+      <TextBlock Text="{Binding Status}" Classes="body2" TextWrapping="Wrap" TextAlignment="Center" />
+    </StackPanel>
+
+    <!-- Paso 2: comparar el código -->
+    <StackPanel IsVisible="{Binding HasPrompt}" Spacing="18">
+      <Grid ColumnDefinitions="*,120,*">
+        <StackPanel Spacing="6" HorizontalAlignment="Center">
+          <TextBlock Text="{x:Static l:S.You}" Classes="meta" HorizontalAlignment="Center" />
+          <av:AvatarView Width="84" Height="84" AvatarId="{Binding MyAvatarId}" ColorHex="{Binding MyColorHex}" Initial="{Binding MyInitial}"
+                         HorizontalAlignment="Center" />
+          <TextBlock Text="{Binding MyAlias}" Classes="strong" HorizontalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="160" />
+          <TextBlock Text="{Binding MySymbols}" Foreground="{Binding MyColor}" HorizontalAlignment="Center" />
+        </StackPanel>
+        <Panel Grid.Column="1" VerticalAlignment="Center">
+          <Border Height="2" CornerRadius="1" Background="{DynamicResource AccentTextBrush}" Opacity="0.7" />
+          <ch:ChasquiView Width="44" Height="44" State="Sending" ShowRadar="False" HorizontalAlignment="Center" />
+        </Panel>
+        <StackPanel Grid.Column="2" Spacing="6" HorizontalAlignment="Center">
+          <TextBlock Text="{x:Static l:S.YourTeammate}" Classes="meta" HorizontalAlignment="Center" />
+          <av:AvatarView Width="84" Height="84" AvatarId="{Binding PeerAvatarId}" ColorHex="{Binding PeerColorHex}" Initial="{Binding PeerInitial}"
+                         HorizontalAlignment="Center" />
+          <TextBlock Text="{Binding PeerName}" Classes="strong" HorizontalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="160" />
+          <TextBlock Text="{Binding PeerSymbols}" Foreground="{Binding PeerColor}" HorizontalAlignment="Center" />
+        </StackPanel>
+      </Grid>
+      <TextBlock Text="{Binding SeesThisCode}" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" FontSize="15" />
+      <StackPanel x:Name="Digits" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="10">
+        <ItemsControl ItemsSource="{Binding CodeFirst}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <StackPanel Orientation="Horizontal" Spacing="10" />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="x:String">
+              <Border Classes="digitbox">
+                <TextBlock Text="{Binding}" Classes="digit" />
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <Border Width="14" />
+        <ItemsControl ItemsSource="{Binding CodeLast}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <StackPanel Orientation="Horizontal" Spacing="10" />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="x:String">
+              <Border Classes="digitbox">
+                <TextBlock Text="{Binding}" Classes="digit" />
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+      <TextBlock Text="{x:Static l:S.ReadItAloud}" Classes="meta" TextAlignment="Center" TextWrapping="Wrap" HorizontalAlignment="Center" MaxWidth="420" />
+      <Grid ColumnDefinitions="*,14,*" IsVisible="{Binding ShowConfirmButtons}">
+        <Button x:Name="NoMatchButton" Classes="danger big" HorizontalAlignment="Stretch" Content="{x:Static l:S.NoMatch}" Command="{Binding DoesNotMatch}" />
+        <Button Grid.Column="2" Classes="accent big" HorizontalAlignment="Stretch" Content="{x:Static l:S.YesMatch}" Command="{Binding Matches}" />
+      </Grid>
+      <TextBlock Text="{Binding Status}" IsVisible="{Binding Confirmed}" Classes="body2" HorizontalAlignment="Center" TextWrapping="Wrap" />
+    </StackPanel>
+
+    <!-- Paso 3: listo -->
+    <StackPanel IsVisible="{Binding IsDone}" Spacing="16">
+      <Panel Width="250" Height="124" HorizontalAlignment="Center">
+        <av:AvatarView x:Name="DoneMe" Width="120" Height="120" HorizontalAlignment="Left" AvatarId="{Binding MyAvatarId}"
+                       ColorHex="{Binding MyColorHex}" Initial="{Binding MyInitial}" Mood="Love" />
+        <av:AvatarView x:Name="DonePeer" Width="120" Height="120" HorizontalAlignment="Right" AvatarId="{Binding PeerAvatarId}"
+                       ColorHex="{Binding PeerColorHex}" Initial="{Binding PeerInitial}" Mood="Love" />
+        <Border x:Name="DoneShield" Width="52" Height="52" CornerRadius="26" Background="{DynamicResource SurfaceBrush}"
+                HorizontalAlignment="Center" VerticalAlignment="Center" BoxShadow="0 4 12 0 #40000000">
+          <c:IconView Kind="ShieldCheck" Width="30" Height="30" Stroke="2" Foreground="{DynamicResource SuccessBrush}" />
+        </Border>
+      </Panel>
+      <StackPanel Spacing="6">
+        <TextBlock Text="{Binding NowTrustedTitle}" Classes="subtitle" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" />
+        <TextBlock Text="{x:Static l:S.NowTrustedBody}" Classes="body2" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" />
+      </StackPanel>
+      <Border Classes="card">
+        <Grid ColumnDefinitions="*,Auto">
+          <StackPanel Spacing="2" VerticalAlignment="Center">
+            <TextBlock Text="{x:Static l:S.AcceptWithoutAsking}" Classes="strong" />
+            <TextBlock Text="{x:Static l:S.AcceptWithoutAskingHint}" Classes="meta" TextWrapping="Wrap" />
+          </StackPanel>
+          <ToggleSwitch Grid.Column="1" IsChecked="{Binding AutoAccept}" AutomationProperties.Name="{x:Static l:S.AcceptWithoutAsking}" />
+        </Grid>
+      </Border>
+      <Button Classes="accent big" HorizontalAlignment="Right" MinWidth="180" Content="{x:Static l:S.Done}" Command="{Binding Finish}" />
+    </StackPanel>
+
+    <!-- No se pudo -->
+    <StackPanel IsVisible="{Binding IsFailed}" Spacing="14" HorizontalAlignment="Center">
+      <ch:ChasquiView Width="110" Height="110" State="Rejected" HorizontalAlignment="Center" />
+      <TextBlock Text="{Binding Result}" Classes="body2" TextWrapping="Wrap" TextAlignment="Center" />
+      <Button Classes="accent" HorizontalAlignment="Center" Content="{x:Static l:S.Retry}" Command="{Binding TryAgain}" />
     </StackPanel>
   </StackPanel>
 </Window>

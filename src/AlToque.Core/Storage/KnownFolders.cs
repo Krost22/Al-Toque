@@ -94,6 +94,10 @@ public static class TextLimits
     }
 
     public static string? CleanAlias(string? alias) => CleanShortText(alias?.Replace('\n', ' '), MaxAliasLength);
+
+    /// <summary>Id de avatar: de 2 a 16 letras ASCII minúsculas; cualquier otra cosa se descarta.</summary>
+    public static string? CleanAvatar(string? avatar) =>
+        avatar is { Length: >= 2 and <= 16 } && avatar.All(c => c is >= 'a' and <= 'z') ? avatar : null;
 }
 
 /// <summary>Conjuntos de caracteres peligrosos compartidos por el saneamiento de nombres y textos.</summary>

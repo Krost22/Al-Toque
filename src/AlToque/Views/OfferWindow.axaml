@@ -2,88 +2,160 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:AlToque.ViewModels"
         xmlns:ch="using:AlToque.Chasqui"
+        xmlns:c="using:AlToque.Controls"
+        xmlns:av="using:AlToque.Controls.Avatars"
         xmlns:l="using:AlToque.Localization"
         x:Class="AlToque.Views.OfferWindow"
         x:DataType="vm:OfferViewModel"
         Title="Al Toque"
-        Width="400" SizeToContent="Height"
+        Width="460" SizeToContent="Height"
         WindowDecorations="None"
         ShowInTaskbar="False"
-        ShowActivated="False"
         Topmost="True"
         Background="Transparent">
-  <Border x:Name="Root" Classes="card" Padding="16,14">
-    <StackPanel Spacing="12">
-      <!-- Quién envía -->
-      <Grid ColumnDefinitions="Auto,*,Auto">
-        <Border Classes="avatar" Width="40" Height="40" CornerRadius="20" Background="{Binding PeerColor}">
-          <TextBlock Text="{Binding Initial}" FontSize="17" />
+  <Border x:Name="Root" Classes="panel" ClipToBounds="True">
+    <Grid RowDefinitions="Auto,*">
+      <ProgressBar Classes="countdown" Minimum="0" Maximum="1" Value="{Binding CountdownFraction}" />
+      <StackPanel Grid.Row="1" Margin="20,16,20,20" Spacing="16">
+
+        <!-- ═══ Tarjeta grande ═══ -->
+        <Grid ColumnDefinitions="Auto,*,Auto" IsVisible="{Binding IsFull}">
+          <av:AvatarView x:Name="PeerAvatar" Width="76" Height="76" AvatarId="{Binding PeerAvatarId}" ColorHex="{Binding PeerColorHex}"
+                         Initial="{Binding Initial}" Ring="Unverified" Mood="Surprised" IsVisible="{Binding Unverified}" />
+          <av:AvatarView Width="76" Height="76" AvatarId="{Binding PeerAvatarId}" ColorHex="{Binding PeerColorHex}"
+                         Initial="{Binding Initial}" Ring="Verified" Mood="Happy" IsVisible="{Binding Trusted}" />
+          <StackPanel Grid.Column="1" Margin="14,0" VerticalAlignment="Center" Spacing="4">
+            <WrapPanel>
+              <TextBlock Text="{Binding PeerName}" Classes="strong" FontSize="17" Margin="0,0,10,0" VerticalAlignment="Center" />
+              <Border Classes="chip warning" IsVisible="{Binding Unverified}">
+                <StackPanel Orientation="Horizontal" Spacing="5">
+                  <c:IconView Kind="Alert" />
+                  <TextBlock Text="{x:Static l:S.ChipUnverified}" />
+                </StackPanel>
+              </Border>
+              <Border Classes="chip success" IsVisible="{Binding Trusted}">
+                <StackPanel Orientation="Horizontal" Spacing="5">
+                  <c:IconView Kind="ShieldCheck" />
+                  <TextBlock Text="{x:Static l:S.ChipTrusted}" />
+                </StackPanel>
+              </Border>
+            </WrapPanel>
+            <TextBlock Text="{Binding Summary}" Classes="body2 num" TextWrapping="Wrap" />
+          </StackPanel>
+          <ch:ChasquiView Grid.Column="2" Width="46" Height="46" State="Incoming" VerticalAlignment="Top" ShowRadar="False" />
+        </Grid>
+
+        <!-- Desconocido: comparar símbolos antes de aceptar -->
+        <Border Classes="warnbox" IsVisible="{Binding Unverified}">
+          <StackPanel Spacing="12">
+            <TextBlock Text="{Binding UnverifiedText}" TextWrapping="Wrap" />
+            <Grid ColumnDefinitions="Auto,*">
+              <ItemsControl ItemsSource="{Binding SymbolItems}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <StackPanel Orientation="Horizontal" Spacing="8" />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="x:String">
+                    <Border Classes="symbol">
+                      <TextBlock Text="{Binding}" FontSize="24" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                 Foreground="{Binding $parent[ItemsControl].((vm:OfferViewModel)DataContext).PeerColor}" />
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <Button Grid.Column="1" Classes="link" Command="{Binding PairInstead}" HorizontalAlignment="Right" VerticalAlignment="Center">
+                <TextBlock Text="{x:Static l:S.PairInstead}" TextWrapping="Wrap" TextAlignment="Center" MaxWidth="120" />
+              </Button>
+            </Grid>
+          </StackPanel>
         </Border>
-        <StackPanel Grid.Column="1" Margin="10,0" VerticalAlignment="Center" Spacing="1">
-          <StackPanel Orientation="Horizontal" Spacing="8">
-            <TextBlock Text="{Binding PeerName}" FontWeight="SemiBold" FontSize="15" TextTrimming="CharacterEllipsis" MaxWidth="170" />
-            <TextBlock Text="{Binding VerificationText}" Foreground="{Binding VerificationBrush}" FontWeight="SemiBold" VerticalAlignment="Center" />
-          </StackPanel>
-          <TextBlock Text="{Binding Summary}" Classes="caption" />
-        </StackPanel>
-        <ch:ChasquiView Grid.Column="2" Width="44" Height="44" State="Incoming" />
-      </Grid>
 
-      <Border Classes="banner warning" IsVisible="{Binding Unverified}">
-        <StackPanel Spacing="4">
-          <TextBlock Text="{x:Static l:S.UnverifiedWarning}" TextWrapping="Wrap" Foreground="{DynamicResource WarningTextBrush}" />
-          <TextBlock Text="{Binding Symbols}" FontSize="15" Foreground="{Binding PeerColor}" />
-        </StackPanel>
-      </Border>
-
-      <!-- Archivos -->
-      <Border Classes="section" Padding="8">
-        <ScrollViewer MaxHeight="210" HorizontalScrollBarVisibility="Disabled">
-          <StackPanel Spacing="2" Margin="0,0,12,0">
-            <ItemsControl ItemsSource="{Binding Files}">
-              <ItemsControl.ItemTemplate>
-                <DataTemplate x:DataType="vm:OfferFileViewModel">
-                  <StackPanel Margin="0,3">
-                    <Grid ColumnDefinitions="Auto,*,Auto">
-                      <Border Background="{Binding BadgeBrush}" CornerRadius="4" Padding="5,1" MinWidth="34" VerticalAlignment="Center">
-                        <TextBlock Text="{Binding Badge}" Foreground="White" FontSize="10" FontWeight="Bold" HorizontalAlignment="Center" />
+        <!-- Archivos -->
+        <Border Classes="card" Padding="6,4" IsVisible="{Binding IsFull}">
+          <StackPanel>
+            <ScrollViewer MaxHeight="264" HorizontalScrollBarVisibility="Disabled">
+              <ItemsControl ItemsSource="{Binding Files}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:OfferFileViewModel">
+                    <Grid ColumnDefinitions="Auto,Auto,*,Auto" RowDefinitions="Auto,Auto" Margin="4,6">
+                      <CheckBox IsChecked="{Binding IsChecked}" IsEnabled="{Binding CanToggle}" VerticalAlignment="Center" MinWidth="0"
+                                Padding="0" Margin="0,0,4,0" AutomationProperties.Name="{Binding Name}" />
+                      <Border Grid.Column="1" Classes="tile" Classes.error="{Binding IsError}" Classes.plain="{Binding IsPlain}" Width="36" Height="36">
+                        <c:IconView Kind="{Binding Icon}" />
                       </Border>
-                      <TextBlock Grid.Column="1" Text="{Binding Name}" Margin="8,0" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
-                                 FontWeight="{Binding Dangerous, Converter={x:Static vm:Converters.BoolToSemiBold}}" />
-                      <TextBlock Grid.Column="2" Text="{Binding Size}" Classes="caption" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="2" Text="{Binding Name}" Margin="12,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                 Classes.strong="{Binding Dangerous}" />
+                      <TextBlock Grid.Column="3" Text="{Binding Size}" Classes="meta num" VerticalAlignment="Center" Margin="0,0,6,0" />
+                      <TextBlock Grid.Row="1" Grid.Column="2" Grid.ColumnSpan="2" Text="{Binding Warning}" Classes="error" TextWrapping="Wrap"
+                                 IsVisible="{Binding HasWarning}" Margin="12,4,6,0" />
                     </Grid>
-                    <TextBlock Text="{Binding Warning}" IsVisible="{Binding HasWarning}" Foreground="{StaticResource ErrorBrush}"
-                               FontSize="12" TextWrapping="Wrap" Margin="42,2,0,0" />
-                  </StackPanel>
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
-            <TextBlock Text="{Binding MoreText}" IsVisible="{Binding HasMore}" Classes="caption" Margin="42,2,0,0" />
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
+            <TextBlock Text="{Binding MoreText}" IsVisible="{Binding HasMore}" Classes="meta" Margin="52,4,0,6" />
           </StackPanel>
-        </ScrollViewer>
-      </Border>
+        </Border>
 
-      <TextBlock Text="{Binding Message}" IsVisible="{Binding HasMessage}" FontStyle="Italic" TextWrapping="Wrap" />
+        <!-- Mensaje -->
+        <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding HasMessage}">
+          <av:AvatarView Width="36" Height="36" AvatarId="{Binding PeerAvatarId}" ColorHex="{Binding PeerColorHex}" Initial="{Binding Initial}"
+                         Live="False" React="False" VerticalAlignment="Top" />
+          <Border Grid.Column="1" Classes="bubble" Margin="10,0,0,0" HorizontalAlignment="Left">
+            <TextBlock Text="{Binding Message}" TextWrapping="Wrap" />
+          </Border>
+        </Grid>
 
-      <Grid ColumnDefinitions="Auto,*,Auto">
-        <TextBlock Text="{x:Static l:S.SaveIn}" Classes="caption" VerticalAlignment="Center" />
-        <TextBlock Grid.Column="1" Text="{Binding FolderDisplay}" Margin="6,0" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
-                   ToolTip.Tip="{Binding Folder}" />
-        <Button Grid.Column="2" Classes="link" Content="{x:Static l:S.Change}" Click="OnChangeFolder" />
-      </Grid>
+        <!-- Guardar en -->
+        <Grid ColumnDefinitions="Auto,Auto,*,Auto" IsVisible="{Binding IsFull}">
+          <c:IconView Kind="Folder" Width="20" Height="20" VerticalAlignment="Center" />
+          <TextBlock Grid.Column="1" Text="{x:Static l:S.SaveInShort}" Classes="meta" Margin="10,0" VerticalAlignment="Center" />
+          <TextBlock Grid.Column="2" Text="{Binding FolderDisplay}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+          <Button Grid.Column="3" Classes="link" Content="{x:Static l:S.Change}" Click="OnChangeFolder" />
+        </Grid>
 
-      <Grid ColumnDefinitions="Auto,*,Auto,Auto">
-        <SplitButton Content="{x:Static l:S.Decline}" Command="{Binding Decline}">
-          <SplitButton.Flyout>
-            <MenuFlyout Placement="TopEdgeAlignedLeft">
-              <MenuItem Header="{x:Static l:S.DeclineAndBlock}" Command="{Binding DeclineAndBlock}" />
-            </MenuFlyout>
-          </SplitButton.Flyout>
-        </SplitButton>
-        <TextBlock Grid.Column="1" Text="{Binding Countdown}" Classes="caption" VerticalAlignment="Center" HorizontalAlignment="Center" />
-        <Button Grid.Column="3" Classes="accent" Content="{x:Static l:S.Accept}" Command="{Binding Accept}" MinWidth="110"
-                HorizontalContentAlignment="Center" IsDefault="True" />
-      </Grid>
-    </StackPanel>
+        <!-- Acciones -->
+        <Grid ColumnDefinitions="Auto,*,Auto" IsVisible="{Binding IsFull}">
+          <SplitButton Content="{x:Static l:S.Decline}" Command="{Binding Decline}" MinHeight="40" Padding="12,0">
+            <SplitButton.Flyout>
+              <MenuFlyout Placement="Top">
+                <MenuItem Header="{x:Static l:S.DeclineAndBlock}" Command="{Binding DeclineAndBlock}" />
+              </MenuFlyout>
+            </SplitButton.Flyout>
+          </SplitButton>
+          <TextBlock Grid.Column="1" Text="{Binding Countdown}" Classes="meta num" VerticalAlignment="Center" Margin="12,0" FontSize="13" />
+          <Button Grid.Column="2" Classes="accent" Content="{Binding AcceptLabel}" Command="{Binding Accept}" MinHeight="40" Padding="16,0" />
+        </Grid>
+
+        <!-- ═══ Tarjeta compacta (compañero de confianza) ═══ -->
+        <StackPanel IsVisible="{Binding IsCompact}" Spacing="14">
+          <Grid ColumnDefinitions="Auto,*">
+            <av:AvatarView Width="68" Height="68" AvatarId="{Binding PeerAvatarId}" ColorHex="{Binding PeerColorHex}" Initial="{Binding Initial}"
+                           Ring="Verified" Mood="Happy" />
+            <StackPanel Grid.Column="1" Margin="14,0" VerticalAlignment="Center" Spacing="4">
+              <WrapPanel>
+                <TextBlock Text="{Binding PeerName}" Classes="strong" FontSize="17" Margin="0,0,10,0" VerticalAlignment="Center" />
+                <Border Classes="chip success">
+                  <StackPanel Orientation="Horizontal" Spacing="5">
+                    <c:IconView Kind="ShieldCheck" />
+                    <TextBlock Text="{x:Static l:S.ChipTrusted}" />
+                  </StackPanel>
+                </Border>
+              </WrapPanel>
+              <TextBlock Text="{Binding Summary}" Classes="body2 num" TextWrapping="Wrap" />
+            </StackPanel>
+          </Grid>
+          <Grid ColumnDefinitions="*,Auto,Auto">
+            <Button Classes="ghost" Command="{Binding AlwaysAccept}" HorizontalAlignment="Left" Padding="8,6">
+              <TextBlock Text="{Binding AlwaysAcceptText}" TextTrimming="CharacterEllipsis" />
+            </Button>
+            <Button Grid.Column="1" Content="{x:Static l:S.Decline}" Command="{Binding Decline}" Margin="8,0" MinHeight="38" />
+            <Button Grid.Column="2" Classes="accent" Content="{x:Static l:S.Accept}" Command="{Binding Accept}" MinHeight="38" MinWidth="100" />
+          </Grid>
+        </StackPanel>
+      </StackPanel>
+    </Grid>
   </Border>
 </Window>

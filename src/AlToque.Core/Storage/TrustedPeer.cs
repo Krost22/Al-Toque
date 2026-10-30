@@ -16,6 +16,9 @@ public sealed class TrustedPeer
 
     public string? Os { get; set; }
 
+    /// <summary>Último avatar que mostró el compañero (solo decorativo).</summary>
+    public string? Avatar { get; set; }
+
     public DateTimeOffset PairedAt { get; set; }
 
     public bool AutoAccept { get; set; }
@@ -56,4 +59,11 @@ public sealed class HistoryEntry
 
     public string? Folder { get; set; }
     public string? FirstFile { get; set; }
+
+    public const int MaxPaths = 500;
+
+    /// <summary>Rutas de origen de un envío, para "Reintentar".</summary>
+    public List<string>? Paths { get; set; }
+
+    public string? Avatar { get; set; }
 }

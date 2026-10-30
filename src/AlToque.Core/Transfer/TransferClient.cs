@@ -42,16 +42,18 @@ public sealed class TransferClient
     private readonly DeviceIdentity _identity;
     private readonly TrustStore _trust;
     private readonly Func<string> _alias;
+    private readonly Func<string?> _avatar;
 
-    public TransferClient(DeviceIdentity identity, TrustStore trust, Func<string> alias)
+    public TransferClient(DeviceIdentity identity, TrustStore trust, Func<string> alias, Func<string?>? avatar = null)
     {
         _identity = identity;
         _trust = trust;
         _alias = alias;
+        _avatar = avatar ?? (() => null);
     }
 
     /// <summary>La clave del receptor quedó verificada (deviceId, punto de escucha, alias, SO).</summary>
-    public event Action<string, IPEndPoint, string?, string?>? PeerVerified;
+    public event Action<string, IPEndPoint, string?, string?, string?>? PeerVerified;
 
     public TransferInfo CreateInfo(PeerTarget target, OutgoingManifest manifest) => new(TransferDirection.Send, target.DisplayName)
     {
@@ -83,7 +85,7 @@ public sealed class TransferClient
                 Alias = _alias(),
                 Os = AppInfo.OsName,
                 AppVersion = AppInfo.Version,
-                Caps = [.. Capabilities.Local],
+                Caps = Capabilities.ForHello(_avatar()),
             }, ProtocolJsonContext.Default.HelloMessage, ct).ConfigureAwait(false);
 
             HelloMessage hello;
@@ -102,7 +104,8 @@ public sealed class TransferClient
 
             if (!info.PeerTrusted && TextLimits.CleanAlias(hello.Alias) is { } alias)
                 info.PeerName = alias;
-            PeerVerified?.Invoke(control.RemoteDeviceId, target.EndPoint, TextLimits.CleanAlias(hello.Alias), hello.Os);
+            info.PeerAvatar = Capabilities.AvatarOf(hello.Caps);
+            PeerVerified?.Invoke(control.RemoteDeviceId, target.EndPoint, TextLimits.CleanAlias(hello.Alias), hello.Os, info.PeerAvatar);
 
             await control.Frames.SendAsync(FrameType.Offer, manifest.Offer, ProtocolJsonContext.Default.OfferMessage, ct).ConfigureAwait(false);
             info.AcceptDeadline = DateTimeOffset.Now + TransferServer.OfferTimeout;
@@ -247,11 +250,11 @@ public sealed class TransferClient
             Alias = _alias(),
             Os = AppInfo.OsName,
             AppVersion = AppInfo.Version,
-            Caps = [.. Capabilities.Local],
+            Caps = Capabilities.ForHello(_avatar()),
         }, ProtocolJsonContext.Default.HelloMessage, ct).ConfigureAwait(false);
         using var frame = await conn.Frames.ReadExpectAsync(TimeSpan.FromSeconds(5), ct, FrameType.Hello).ConfigureAwait(false);
         var hello = frame.Parse(ProtocolJsonContext.Default.HelloMessage);
-        PeerVerified?.Invoke(conn.RemoteDeviceId, target.EndPoint, TextLimits.CleanAlias(hello.Alias), hello.Os);
+        PeerVerified?.Invoke(conn.RemoteDeviceId, target.EndPoint, TextLimits.CleanAlias(hello.Alias), hello.Os, Capabilities.AvatarOf(hello.Caps));
         return (conn.RemoteDeviceId, conn.RemotePublicKey, TextLimits.CleanAlias(hello.Alias) ?? "", hello.Os);
     }
 

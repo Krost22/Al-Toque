@@ -46,6 +46,15 @@ public sealed class TransferInfo
     public string PeerName { get; internal set; }
     public string? PeerId { get; internal set; }
 
+    /// <summary>Avatar que mostró el compañero en su HELLO, si lo mandó.</summary>
+    public string? PeerAvatar { get; internal set; }
+
+    /// <summary>Rutas elegidas al enviar, para poder reintentar.</summary>
+    public IReadOnlyList<string> SourcePaths { get; internal set; } = [];
+
+    /// <summary>Mensaje que acompañaba al envío.</summary>
+    public string? OutgoingMessage { get; internal set; }
+
     /// <summary>La clave del compañero estaba fijada (emparejado). Si no, se muestra "No verificado".</summary>
     public bool PeerTrusted { get; internal set; }
 

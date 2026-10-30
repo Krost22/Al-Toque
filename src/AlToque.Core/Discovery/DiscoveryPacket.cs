@@ -29,6 +29,10 @@ public sealed class DiscoveryPacket
 
     public string? Alias { get; init; }
     public string? Os { get; init; }
+
+    /// <summary>Avatar elegido; viaja solo junto con el alias. Las versiones anteriores lo ignoran.</summary>
+    public string? Av { get; init; }
+
     public bool Busy { get; init; }
 
     /// <summary>La ventana de emparejamiento está abierta.</summary>
@@ -68,6 +72,8 @@ public sealed class DiscoveryPacket
         if (p.Os is { Length: > 16 })
             return null;
         if (p.Alias is not null && TextLimits.CleanAlias(p.Alias) != p.Alias)
+            return null;
+        if (p.Av is not null && TextLimits.CleanAvatar(p.Av) is null)
             return null;
         return p;
     }

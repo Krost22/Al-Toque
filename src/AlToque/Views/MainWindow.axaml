@@ -1,169 +1,405 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:AlToque.ViewModels"
+        xmlns:c="using:AlToque.Controls"
+        xmlns:av="using:AlToque.Controls.Avatars"
+        xmlns:ch="using:AlToque.Chasqui"
         xmlns:l="using:AlToque.Localization"
         x:Class="AlToque.Views.MainWindow"
         x:DataType="vm:MainViewModel"
         Title="Al Toque"
         Icon="avares://AlToque/Assets/altoque.ico"
-        Width="680" Height="600" MinWidth="520" MinHeight="420"
+        Width="1000" Height="760" MinWidth="760" MinHeight="520"
         WindowStartupLocation="CenterScreen">
-  <DockPanel>
-    <Border DockPanel.Dock="Top" Classes="banner warning" Margin="16,12,16,0" IsVisible="{Binding HasNotice}">
-      <TextBlock Text="{Binding Notice}" TextWrapping="Wrap" Foreground="{DynamicResource WarningTextBrush}" />
-    </Border>
-    <TabControl SelectedIndex="{Binding Tab}" Padding="16,8,16,16">
-      <!-- Compañeros -->
-      <TabItem Header="{x:Static l:S.TabPeers}">
-        <DockPanel>
-          <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,4,0,12">
-            <TextBlock Text="{x:Static l:S.TabPeers}" Classes="title" />
-            <Button Grid.Column="1" Classes="accent" Content="{x:Static l:S.PairNew}" Command="{Binding PairNew}" />
-          </Grid>
-          <TextBlock DockPanel.Dock="Top" Text="{x:Static l:S.NoTrustedPeers}" IsVisible="{Binding NoTrustedPeers}" Classes="caption" />
-          <ScrollViewer>
-            <ItemsControl ItemsSource="{Binding TrustedPeers}">
-              <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate>
-                  <StackPanel Spacing="8" />
-                </ItemsPanelTemplate>
-              </ItemsControl.ItemsPanel>
-              <ItemsControl.ItemTemplate>
-                <DataTemplate x:DataType="vm:TrustedPeerViewModel">
-                  <Border Classes="section">
-                    <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto">
-                      <Border Classes="avatar" Grid.RowSpan="2" Width="40" Height="40" CornerRadius="20" Background="{Binding Color}" VerticalAlignment="Top">
-                        <TextBlock Text="{Binding Initial}" FontSize="17" />
-                      </Border>
-                      <StackPanel Grid.Column="1" Margin="12,0" Spacing="2">
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                          <TextBlock Text="{Binding Title}" FontWeight="SemiBold" FontSize="14" />
-                          <TextBlock Text="{Binding Symbols}" Foreground="{Binding Color}" />
-                        </StackPanel>
-                        <TextBlock Text="{Binding Subtitle}" Classes="caption" />
-                      </StackPanel>
-                      <Button Grid.Column="2" Content="{x:Static l:S.Forget}" Command="{Binding Forget}" VerticalAlignment="Top" />
-                      <WrapPanel Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Margin="12,10,0,0">
-                        <TextBox Text="{Binding LocalName, UpdateSourceTrigger=LostFocus}" PlaceholderText="{x:Static l:S.Rename}" Width="190" Margin="0,0,16,6" />
-                        <CheckBox IsChecked="{Binding Favorite}" Content="{x:Static l:S.Favorite}" Margin="0,0,16,6" />
-                        <CheckBox IsChecked="{Binding AutoAccept}" Content="{x:Static l:S.AutoAccept}" Margin="0,0,0,6" />
-                      </WrapPanel>
-                    </Grid>
-                  </Border>
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
-          </ScrollViewer>
-        </DockPanel>
-      </TabItem>
+  <Grid ColumnDefinitions="260,*">
+    <!-- Navegación -->
+    <Grid RowDefinitions="Auto,*,Auto" Margin="12,16,12,16">
+      <StackPanel Orientation="Horizontal" Spacing="10" Margin="10,0,0,20">
+        <Border Width="26" Height="26" CornerRadius="6" Background="{StaticResource AccentBrush}">
+          <c:IconView Kind="Send" Width="15" Height="15" Foreground="White" />
+        </Border>
+        <TextBlock Text="Al Toque" VerticalAlignment="Center" FontSize="15" />
+      </StackPanel>
+      <StackPanel Grid.Row="1" Spacing="4">
+        <Panel>
+          <Button Classes="nav" Classes.selected="{Binding IsPeersTab}" Command="{Binding SelectTab}" CommandParameter="0">
+            <StackPanel Orientation="Horizontal" Spacing="14">
+              <c:IconView Kind="Users" />
+              <TextBlock Text="{x:Static l:S.TabPeers}" />
+            </StackPanel>
+          </Button>
+          <Border Classes="navmark" IsVisible="{Binding IsPeersTab}" />
+        </Panel>
+        <Panel>
+          <Button Classes="nav" Classes.selected="{Binding IsHistoryTab}" Command="{Binding SelectTab}" CommandParameter="1">
+            <StackPanel Orientation="Horizontal" Spacing="14">
+              <c:IconView Kind="Clock" />
+              <TextBlock Text="{x:Static l:S.TabHistory}" />
+            </StackPanel>
+          </Button>
+          <Border Classes="navmark" IsVisible="{Binding IsHistoryTab}" />
+        </Panel>
+        <Panel>
+          <Button Classes="nav" Classes.selected="{Binding IsSettingsTab}" Command="{Binding SelectTab}" CommandParameter="2">
+            <StackPanel Orientation="Horizontal" Spacing="14">
+              <c:IconView Kind="Settings" />
+              <TextBlock Text="{x:Static l:S.TabSettings}" />
+            </StackPanel>
+          </Button>
+          <Border Classes="navmark" IsVisible="{Binding IsSettingsTab}" />
+        </Panel>
+      </StackPanel>
+      <Panel Grid.Row="2">
+        <Button Classes="nav" Classes.selected="{Binding IsAboutTab}" Command="{Binding SelectTab}" CommandParameter="3">
+          <StackPanel Orientation="Horizontal" Spacing="14">
+            <c:IconView Kind="Info" />
+            <TextBlock Text="{x:Static l:S.NavAbout}" />
+          </StackPanel>
+        </Button>
+        <Border Classes="navmark" IsVisible="{Binding IsAboutTab}" />
+      </Panel>
+    </Grid>
 
-      <!-- Historial -->
-      <TabItem Header="{x:Static l:S.TabHistory}">
-        <DockPanel>
-          <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,4,0,12">
-            <TextBlock Text="{x:Static l:S.TabHistory}" Classes="title" />
-            <Button Grid.Column="1" Content="{x:Static l:S.ClearHistory}" Command="{Binding ClearHistory}" IsEnabled="{Binding HasHistory}" />
+    <!-- Contenido -->
+    <ScrollViewer Grid.Column="1" x:Name="Pages" HorizontalScrollBarVisibility="Disabled">
+      <Panel Margin="32,24,40,40" MaxWidth="980" HorizontalAlignment="Stretch">
+
+        <!-- ═══ Compañeros ═══ -->
+        <StackPanel x:Name="PeersPage" IsVisible="{Binding IsPeersTab}" Spacing="12">
+          <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,8">
+            <StackPanel Spacing="4">
+              <TextBlock Text="{x:Static l:S.TabPeers}" Classes="title" />
+              <TextBlock Text="{x:Static l:S.PeersPageHint}" Classes="body2" />
+            </StackPanel>
+            <Button Grid.Column="1" Classes="accent big" Command="{Binding PairNew}" VerticalAlignment="Center">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <c:IconView Kind="UserPlus" Width="18" Height="18" />
+                <TextBlock Text="{x:Static l:S.PairNew}" />
+              </StackPanel>
+            </Button>
           </Grid>
-          <TextBlock DockPanel.Dock="Top" Text="{x:Static l:S.HistoryEmpty}" IsVisible="{Binding NoHistory}" Classes="caption" />
-          <ScrollViewer>
+          <Border Classes="card" IsVisible="{Binding NoTrustedPeers}" Padding="24">
+            <StackPanel Spacing="12" HorizontalAlignment="Center">
+              <ch:ChasquiView Width="110" Height="110" State="Searching" HorizontalAlignment="Center" />
+              <TextBlock Text="{x:Static l:S.NoTrustedPeers}" TextWrapping="Wrap" TextAlignment="Center" MaxWidth="420" Classes="body2" />
+            </StackPanel>
+          </Border>
+          <ItemsControl ItemsSource="{Binding TrustedPeers}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:TrustedPeerViewModel">
+                <Border Classes="setting" Padding="16,12">
+                  <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                    <av:AvatarView Width="60" Height="60" AvatarId="{Binding AvatarId}" ColorHex="{Binding ColorHex}" Initial="{Binding Initial}"
+                                   Ring="Verified" PopOnLoad="True" />
+                    <StackPanel Grid.Column="1" Margin="14,0" VerticalAlignment="Center" Spacing="2">
+                      <TextBlock Text="{Binding Title}" Classes="strong" FontSize="15" TextTrimming="CharacterEllipsis" />
+                      <TextBlock Classes="meta" TextTrimming="CharacterEllipsis">
+                        <Run Text="{Binding Symbols}" Foreground="{Binding Color}" />
+                        <Run Text="  " />
+                        <Run Text="{Binding Subtitle}" />
+                      </TextBlock>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                      <TextBlock Text="{x:Static l:S.AutoAccept}" Classes="body2" VerticalAlignment="Center" />
+                      <ToggleSwitch IsChecked="{Binding AutoAccept}" AutomationProperties.Name="{x:Static l:S.AutoAccept}" />
+                      <ToggleButton Classes="star" IsChecked="{Binding Favorite}" ToolTip.Tip="{x:Static l:S.Favorite}"
+                                    AutomationProperties.Name="{x:Static l:S.Favorite}">
+                        <c:IconView Kind="Star" />
+                      </ToggleButton>
+                    </StackPanel>
+                    <Button Grid.Column="3" Classes="icon" Margin="6,0,0,0" Command="{Binding Forget}" VerticalAlignment="Center"
+                            ToolTip.Tip="{x:Static l:S.Forget}" AutomationProperties.Name="{x:Static l:S.Forget}">
+                      <c:IconView Kind="Trash" />
+                    </Button>
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+
+        <!-- ═══ Historial ═══ -->
+        <StackPanel x:Name="HistoryPage" IsVisible="{Binding IsHistoryTab}" Spacing="12">
+          <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,8">
+            <TextBlock Text="{x:Static l:S.TabHistory}" Classes="title" />
+            <Button Grid.Column="1" Command="{Binding ClearHistory}" IsVisible="{Binding HasHistory}" VerticalAlignment="Center">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <c:IconView Kind="Trash" Width="16" Height="16" />
+                <TextBlock Text="{x:Static l:S.ClearHistory}" />
+              </StackPanel>
+            </Button>
+          </Grid>
+          <Border Classes="card" IsVisible="{Binding NoHistory}" Padding="24">
+            <StackPanel Spacing="12" HorizontalAlignment="Center">
+              <ch:ChasquiView Width="110" Height="110" State="Idle" HorizontalAlignment="Center" />
+              <TextBlock Text="{x:Static l:S.HistoryEmpty}" Classes="body2" HorizontalAlignment="Center" />
+            </StackPanel>
+          </Border>
+          <Border Classes="setting" Padding="8" IsVisible="{Binding HasHistory}">
             <ItemsControl ItemsSource="{Binding History}">
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:HistoryItemViewModel">
-                  <Grid ColumnDefinitions="28,*,Auto,Auto" Margin="0,4">
-                    <Border Width="22" Height="22" CornerRadius="11" Background="{Binding Color}">
-                      <TextBlock Text="{Binding Arrow}" Foreground="White" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                  <Grid ColumnDefinitions="Auto,*,Auto,Auto" Margin="8,6">
+                    <Border Classes="tile" Classes.error="{Binding IsFailed}">
+                      <c:IconView Kind="{Binding Icon}" />
                     </Border>
-                    <StackPanel Grid.Column="1" Margin="8,0">
-                      <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
-                      <TextBlock Text="{Binding Subtitle}" Classes="caption" />
+                    <StackPanel Grid.Column="1" Margin="14,0" VerticalAlignment="Center" Spacing="1">
+                      <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                      <TextBlock Text="{Binding Subtitle}" Classes="meta" Classes.error="{Binding IsFailed}" TextTrimming="CharacterEllipsis" />
                     </StackPanel>
-                    <TextBlock Grid.Column="2" Text="{Binding ResultText}" Foreground="{Binding ResultBrush}" FontWeight="Bold" FontSize="15" VerticalAlignment="Center" Margin="8,0" />
-                    <Button Grid.Column="3" Classes="subtle" Content="{x:Static l:S.OpenFolder}" IsVisible="{Binding CanOpen}"
-                            Command="{Binding $parent[TabControl].((vm:MainViewModel)DataContext).OpenHistoryItem}" CommandParameter="{Binding}" />
+                    <av:AvatarView Grid.Column="2" Width="32" Height="32" AvatarId="{Binding AvatarId}" ColorHex="{Binding ColorHex}"
+                                   Initial="{Binding Initial}" Live="False" Margin="0,0,12,0" />
+                    <Panel Grid.Column="3" VerticalAlignment="Center" MinWidth="40">
+                      <c:IconView Kind="Check" Width="20" Height="20" Foreground="{DynamicResource SuccessBrush}" IsVisible="{Binding ShowOk}"
+                                  HorizontalAlignment="Center" />
+                      <Button Classes="link" Command="{Binding Retry}" IsVisible="{Binding CanRetry}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                          <c:IconView Kind="Retry" Width="16" Height="16" />
+                          <TextBlock Text="{x:Static l:S.Retry}" />
+                        </StackPanel>
+                      </Button>
+                      <Button Classes="icon small" Command="{Binding Open}" IsVisible="{Binding CanOpen}" HorizontalAlignment="Center"
+                              ToolTip.Tip="{x:Static l:S.OpenFolder}" AutomationProperties.Name="{x:Static l:S.OpenFolder}">
+                        <c:IconView Kind="External" />
+                      </Button>
+                    </Panel>
                   </Grid>
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
-          </ScrollViewer>
-        </DockPanel>
-      </TabItem>
+          </Border>
+        </StackPanel>
 
-      <!-- Ajustes -->
-      <TabItem Header="{x:Static l:S.TabSettings}">
-        <ScrollViewer>
-          <StackPanel Spacing="16" Margin="0,4,8,8">
-            <TextBlock Text="{x:Static l:S.TabSettings}" Classes="title" />
-
-            <StackPanel Spacing="6">
-              <TextBlock Text="{x:Static l:S.SettingAlias}" Classes="section" />
-              <TextBox x:Name="AliasBox" Text="{Binding Alias}" MaxLength="40" LostFocus="OnAliasLostFocus" />
-              <TextBlock Text="{x:Static l:S.SettingAliasHint}" Classes="caption" TextWrapping="Wrap" />
-            </StackPanel>
-
-            <StackPanel Spacing="6">
-              <TextBlock Text="{x:Static l:S.SettingFolder}" Classes="section" />
-              <Grid ColumnDefinitions="*,Auto">
-                <TextBox Text="{Binding Folder}" IsReadOnly="True" />
-                <Button Grid.Column="1" Content="{x:Static l:S.Change}" Margin="8,0,0,0" Click="OnChooseFolder" />
-              </Grid>
-            </StackPanel>
-
-            <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="16" RowSpacing="6">
-              <TextBlock Text="{x:Static l:S.SettingConflicts}" Classes="section" />
-              <TextBlock Grid.Column="1" Text="{x:Static l:S.SettingMode}" Classes="section" />
-              <ComboBox Grid.Row="1" ItemsSource="{Binding ConflictItems}" SelectedIndex="{Binding ConflictIndex}" HorizontalAlignment="Stretch" />
-              <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding ModeItems}" SelectedIndex="{Binding ModeIndex}" HorizontalAlignment="Stretch" />
+        <!-- ═══ Ajustes ═══ -->
+        <StackPanel x:Name="SettingsPage" IsVisible="{Binding IsSettingsTab}">
+          <TextBlock Text="{x:Static l:S.TabSettings}" Classes="title" Margin="0,0,0,8" />
+          <Border Classes="warnbox" IsVisible="{Binding HasNotice}" Margin="0,8,0,0">
+            <Grid ColumnDefinitions="28,*">
+              <c:IconView Kind="Alert" Width="20" Height="20" Foreground="{DynamicResource WarningBrush}" VerticalAlignment="Top" />
+              <TextBlock Grid.Column="1" Text="{Binding Notice}" TextWrapping="Wrap" />
             </Grid>
+          </Border>
 
-            <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="16" RowSpacing="6">
-              <TextBlock Text="{x:Static l:S.SettingLanguage}" Classes="section" />
-              <ComboBox Grid.Row="1" ItemsSource="{Binding LanguageItems}" SelectedIndex="{Binding LanguageIndex}" HorizontalAlignment="Stretch" />
-            </Grid>
-
-            <StackPanel Spacing="4">
-              <ToggleSwitch IsChecked="{Binding ReduceMotion}" OnContent="{x:Static l:S.SettingReduceMotion}" OffContent="{x:Static l:S.SettingReduceMotion}" />
-              <ToggleSwitch IsChecked="{Binding Sounds}" OnContent="{x:Static l:S.SettingSounds}" OffContent="{x:Static l:S.SettingSounds}" />
-              <ToggleSwitch IsChecked="{Binding StartWithSystem}" OnContent="{x:Static l:S.SettingStartup}" OffContent="{x:Static l:S.SettingStartup}" />
-              <ToggleSwitch IsChecked="{Binding ShellIntegration}" IsVisible="{Binding IsWindows}"
-                            OnContent="{x:Static l:S.SettingShell}" OffContent="{x:Static l:S.SettingShell}" />
-              <TextBlock Text="{x:Static l:S.SettingShellHint}" Classes="caption" IsVisible="{Binding IsWindows}" Margin="0,-2,0,4" TextWrapping="Wrap" />
-              <ToggleSwitch IsChecked="{Binding AllowPublicNetworks}" OnContent="{x:Static l:S.SettingAllowPublic}" OffContent="{x:Static l:S.SettingAllowPublic}" />
-              <TextBlock Text="{x:Static l:S.SettingAllowPublicHint}" Classes="caption" Margin="0,-2,0,4" TextWrapping="Wrap" />
-              <ToggleSwitch IsChecked="{Binding ExcludeVirtual}" OnContent="{x:Static l:S.SettingExcludeVirtual}" OffContent="{x:Static l:S.SettingExcludeVirtual}" />
-            </StackPanel>
-
-            <StackPanel Spacing="6" IsVisible="{Binding IsWindows}">
-              <StackPanel Orientation="Horizontal" Spacing="8">
-                <Button Content="{x:Static l:S.SettingFirewall}" Command="{Binding ApplyFirewall}" />
-                <TextBlock Text="{Binding FirewallStatus}" VerticalAlignment="Center" FontWeight="Bold" />
-              </StackPanel>
-              <TextBlock Text="{x:Static l:S.SettingFirewallHint}" Classes="caption" />
-            </StackPanel>
-
-            <Border Classes="section">
-              <StackPanel Spacing="8">
-                <TextBlock Text="{x:Static l:S.SettingIdentity}" Classes="section" />
-                <StackPanel Orientation="Horizontal" Spacing="12">
-                  <Border Classes="avatar" Width="40" Height="40" CornerRadius="20" Background="{Binding MyColor}">
-                    <TextBlock Text="{Binding MyInitial}" FontSize="17" />
-                  </Border>
-                  <StackPanel VerticalAlignment="Center" Spacing="2">
-                    <StackPanel Orientation="Horizontal" Spacing="10">
-                      <TextBlock Text="{Binding Alias}" FontWeight="SemiBold" />
-                      <TextBlock Text="{Binding MySymbols}" Foreground="{Binding MyColor}" FontSize="15" />
-                    </StackPanel>
-                    <TextBlock Text="{Binding MyShortCode}" Classes="caption" />
-                  </StackPanel>
+          <TextBlock Text="{x:Static l:S.YourDevice}" Classes="section" />
+          <Border Classes="setting" Padding="24,20">
+            <StackPanel Spacing="16">
+              <Grid ColumnDefinitions="Auto,*,Auto">
+                <Button Classes="ghost" Padding="0" Command="{Binding ToggleAvatarPicker}" VerticalAlignment="Center"
+                        ToolTip.Tip="{x:Static l:S.ChangeAvatar}" AutomationProperties.Name="{x:Static l:S.ChangeAvatar}">
+                  <Panel>
+                    <av:AvatarView x:Name="MyAvatar" Width="96" Height="96" AvatarId="{Binding MyAvatarId}" ColorHex="{Binding MyColorHex}"
+                                   Initial="{Binding MyInitial}" />
+                    <Border Width="30" Height="30" CornerRadius="15" Background="{DynamicResource Surface2Brush}" BorderThickness="2"
+                            BorderBrush="{DynamicResource SurfaceBrush}" HorizontalAlignment="Right" VerticalAlignment="Bottom">
+                      <c:IconView Kind="Pencil" Width="14" Height="14" Foreground="{DynamicResource Text1Brush}" />
+                    </Border>
+                  </Panel>
+                </Button>
+                <StackPanel Grid.Column="1" Margin="20,0" Spacing="6" VerticalAlignment="Center">
+                  <TextBlock Text="{x:Static l:S.YourName}" Classes="strong" />
+                  <TextBox x:Name="AliasBox" Text="{Binding Alias}" MaxLength="40" LostFocus="OnAliasLostFocus" MaxWidth="420"
+                           HorizontalAlignment="Stretch" AutomationProperties.Name="{x:Static l:S.YourName}" />
+                  <TextBlock Text="{x:Static l:S.YourNameHint}" Classes="meta" TextWrapping="Wrap" />
                 </StackPanel>
-                <TextBlock Text="{x:Static l:S.SettingIdentityHint}" Classes="caption" TextWrapping="Wrap" />
-                <Button Content="{x:Static l:S.ResetIdentity}" Command="{Binding ResetIdentity}" />
+                <StackPanel Grid.Column="2" Spacing="6" VerticalAlignment="Center" HorizontalAlignment="Right">
+                  <TextBlock Text="{Binding MySymbols}" FontSize="22" HorizontalAlignment="Right" Foreground="{Binding MyColor}" />
+                  <TextBlock Text="{Binding MyFingerprint}" Classes="meta num" HorizontalAlignment="Right" />
+                </StackPanel>
+              </Grid>
+              <StackPanel Spacing="10" IsVisible="{Binding ShowAvatarPicker}" x:Name="AvatarPicker">
+                <Border Classes="divider" />
+                <StackPanel Spacing="2">
+                  <TextBlock Text="{x:Static l:S.PickAvatarTitle}" Classes="strong" />
+                  <TextBlock Text="{x:Static l:S.PickAvatarHint}" Classes="meta" TextWrapping="Wrap" />
+                </StackPanel>
+                <ItemsControl ItemsSource="{Binding AvatarChoices}">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <WrapPanel ItemWidth="88" />
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:AvatarChoiceViewModel">
+                      <Button Classes="peer" Command="{Binding Pick}" ToolTip.Tip="{Binding Name}" AutomationProperties.Name="{Binding Name}">
+                        <StackPanel Spacing="2">
+                          <av:AvatarView Width="68" Height="68" AvatarId="{Binding Id}" ColorHex="{Binding ColorHex}" Initial="{Binding Initial}"
+                                         Ring="{Binding Ring}" />
+                          <TextBlock Text="{Binding Name}" Classes="caption" HorizontalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="80" />
+                        </StackPanel>
+                      </Button>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
               </StackPanel>
-            </Border>
+            </StackPanel>
+          </Border>
 
-            <TextBlock Text="{Binding VersionText}" Classes="caption" />
+          <TextBlock Text="{x:Static l:S.SectionReceive}" Classes="section" Margin="0,24,0,8" />
+          <Border Classes="setting">
+            <Grid ColumnDefinitions="40,*,Auto">
+              <c:IconView Kind="Folder" Width="22" Height="22" VerticalAlignment="Center" />
+              <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2" Margin="8,0">
+                <TextBlock Text="{x:Static l:S.DestFolder}" FontSize="15" />
+                <TextBlock Text="{Binding Folder}" Classes="meta" TextTrimming="PathSegmentEllipsis" />
+              </StackPanel>
+              <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                <Button Content="{x:Static l:S.Open}" Command="{Binding OpenFolder}" />
+                <Button Content="{x:Static l:S.ChangeEllipsis}" Click="OnChooseFolder" />
+              </StackPanel>
+            </Grid>
+          </Border>
+          <Border Classes="setting">
+            <Grid ColumnDefinitions="40,*,Auto">
+              <c:IconView Kind="ShieldCheck" Width="22" Height="22" VerticalAlignment="Center" />
+              <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2" Margin="8,0">
+                <TextBlock Text="{x:Static l:S.WhoCanSend}" FontSize="15" />
+                <TextBlock Text="{x:Static l:S.WhoCanSendHint}" Classes="meta" TextWrapping="Wrap" />
+              </StackPanel>
+              <c:Segmented Grid.Column="2" Classes="compact" Width="300" VerticalAlignment="Center"
+                           AutomationProperties.Name="{x:Static l:S.WhoCanSend}">
+                <RadioButton Classes="segment" GroupName="main-mode" Content="{x:Static l:S.SegNobody}" IsChecked="{Binding ModeNobody}" />
+                <RadioButton Classes="segment" GroupName="main-mode" Content="{x:Static l:S.SegTrusted}" IsChecked="{Binding ModeTrusted}" />
+                <RadioButton Classes="segment" GroupName="main-mode" Content="{x:Static l:S.SegEveryone}" IsChecked="{Binding ModeEveryone}" />
+              </c:Segmented>
+            </Grid>
+          </Border>
+          <Border Classes="setting">
+            <Grid ColumnDefinitions="40,*,Auto">
+              <c:IconView Kind="Copy" Width="22" Height="22" VerticalAlignment="Center" />
+              <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2" Margin="8,0">
+                <TextBlock Text="{x:Static l:S.IfExists}" FontSize="15" />
+                <TextBlock Text="{x:Static l:S.IfExistsHint}" Classes="meta" TextWrapping="Wrap" />
+              </StackPanel>
+              <ComboBox Grid.Column="2" Width="300" VerticalAlignment="Center" ItemsSource="{Binding ConflictItems}"
+                        SelectedIndex="{Binding ConflictIndex}" AutomationProperties.Name="{x:Static l:S.IfExists}" />
+            </Grid>
+          </Border>
+
+          <TextBlock Text="{x:Static l:S.SectionSystem}" Classes="section" Margin="0,24,0,8" />
+          <Border Classes="setting">
+            <Grid ColumnDefinitions="40,*,Auto,Auto">
+              <c:IconView Kind="Power" Width="22" Height="22" VerticalAlignment="Center" />
+              <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2" Margin="8,0">
+                <TextBlock Text="{x:Static l:S.StartWithSystem}" FontSize="15" />
+                <TextBlock Text="{x:Static l:S.StartHint}" Classes="meta" TextWrapping="Wrap" />
+              </StackPanel>
+              <TextBlock Grid.Column="2" Text="{Binding StartupState}" Classes="body2" VerticalAlignment="Center" Margin="0,0,12,0" />
+              <ToggleSwitch Grid.Column="3" IsChecked="{Binding StartWithSystem}" AutomationProperties.Name="{x:Static l:S.StartWithSystem}" />
+            </Grid>
+          </Border>
+          <Border Classes="setting" IsVisible="{Binding IsWindows}">
+            <Grid ColumnDefinitions="40,*,Auto,Auto">
+              <c:IconView Kind="Pointer" Width="22" Height="22" VerticalAlignment="Center" />
+              <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2" Margin="8,0">
+                <TextBlock Text="{x:Static l:S.ShellTitle}" FontSize="15" />
+                <TextBlock Text="{x:Static l:S.ShellHint2}" Classes="meta" TextWrapping="Wrap" />
+              </StackPanel>
+              <TextBlock Grid.Column="2" Text="{Binding ShellState}" Classes="body2" VerticalAlignment="Center" Margin="0,0,12,0" />
+              <ToggleSwitch Grid.Column="3" IsChecked="{Binding ShellIntegration}" AutomationProperties.Name="{x:Static l:S.ShellTitle}" />
+            </Grid>
+          </Border>
+
+          <TextBlock Text="{x:Static l:S.SectionGeneral}" Classes="section" Margin="0,24,0,8" />
+          <Border Classes="setting">
+            <Grid ColumnDefinitions="40,*,Auto,Auto">
+              <c:IconView Kind="Volume" Width="22" Height="22" VerticalAlignment="Center" />
+              <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2" Margin="8,0">
+                <TextBlock Text="{x:Static l:S.Sounds}" FontSize="15" />
+                <TextBlock Text="{x:Static l:S.SoundsHint}" Classes="meta" TextWrapping="Wrap" />
+              </StackPanel>
+              <TextBlock Grid.Column="2" Text="{Binding SoundsState}" Classes="body2" VerticalAlignment="Center" Margin="0,0,12,0" />
+              <ToggleSwitch Grid.Column="3" IsChecked="{Binding Sounds}" AutomationProperties.Name="{x:Static l:S.Sounds}" />
+            </Grid>
+          </Border>
+          <Border Classes="setting">
+            <Grid ColumnDefinitions="40,*,Auto">
+              <c:IconView Kind="Sparkles" Width="22" Height="22" VerticalAlignment="Center" />
+              <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2" Margin="8,0">
+                <TextBlock Text="{x:Static l:S.Animations}" FontSize="15" />
+                <TextBlock Text="{x:Static l:S.AnimationsHint}" Classes="meta" TextWrapping="Wrap" />
+              </StackPanel>
+              <ComboBox Grid.Column="2" Width="300" VerticalAlignment="Center" ItemsSource="{Binding AnimationItems}"
+                        SelectedIndex="{Binding AnimationIndex}" AutomationProperties.Name="{x:Static l:S.Animations}" />
+            </Grid>
+          </Border>
+          <Border Classes="setting">
+            <Grid ColumnDefinitions="40,*,Auto">
+              <c:IconView Kind="Languages" Width="22" Height="22" VerticalAlignment="Center" />
+              <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2" Margin="8,0">
+                <TextBlock Text="{x:Static l:S.Language}" FontSize="15" />
+                <TextBlock Text="{x:Static l:S.LanguageHint}" Classes="meta" TextWrapping="Wrap" />
+              </StackPanel>
+              <ComboBox Grid.Column="2" Width="300" VerticalAlignment="Center" ItemsSource="{Binding LanguageItems}"
+                        SelectedIndex="{Binding LanguageIndex}" AutomationProperties.Name="{x:Static l:S.Language}" />
+            </Grid>
+          </Border>
+
+          <TextBlock Text="{x:Static l:S.SectionNetwork}" Classes="section" Margin="0,24,0,8" />
+          <Border Classes="setting" IsVisible="{Binding IsWindows}">
+            <Grid ColumnDefinitions="40,*,Auto,Auto">
+              <c:IconView Kind="Shield" Width="22" Height="22" VerticalAlignment="Center" />
+              <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2" Margin="8,0">
+                <TextBlock Text="{x:Static l:S.SettingFirewall}" FontSize="15" />
+                <TextBlock Text="{x:Static l:S.SettingFirewallHint}" Classes="meta" TextWrapping="Wrap" />
+              </StackPanel>
+              <TextBlock Grid.Column="2" Text="{Binding FirewallStatus}" VerticalAlignment="Center" Margin="0,0,12,0" Classes="success" />
+              <Button Grid.Column="3" Content="{x:Static l:S.Change}" Command="{Binding ApplyFirewall}" VerticalAlignment="Center" />
+            </Grid>
+          </Border>
+          <Border Classes="setting">
+            <Grid ColumnDefinitions="40,*,Auto">
+              <c:IconView Kind="Globe" Width="22" Height="22" VerticalAlignment="Center" />
+              <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2" Margin="8,0">
+                <TextBlock Text="{x:Static l:S.SettingAllowPublic}" FontSize="15" />
+                <TextBlock Text="{x:Static l:S.SettingAllowPublicHint}" Classes="meta" TextWrapping="Wrap" />
+              </StackPanel>
+              <ToggleSwitch Grid.Column="2" IsChecked="{Binding AllowPublicNetworks}" AutomationProperties.Name="{x:Static l:S.SettingAllowPublic}" />
+            </Grid>
+          </Border>
+          <Border Classes="setting">
+            <Grid ColumnDefinitions="40,*,Auto">
+              <c:IconView Kind="Wifi" Width="22" Height="22" VerticalAlignment="Center" />
+              <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="8,0">
+                <TextBlock Text="{x:Static l:S.SettingExcludeVirtual}" FontSize="15" TextWrapping="Wrap" />
+              </StackPanel>
+              <ToggleSwitch Grid.Column="2" IsChecked="{Binding ExcludeVirtual}" AutomationProperties.Name="{x:Static l:S.SettingExcludeVirtual}" />
+            </Grid>
+          </Border>
+          <Border Classes="setting">
+            <Grid ColumnDefinitions="40,*,Auto">
+              <c:IconView Kind="Zap" Width="22" Height="22" VerticalAlignment="Center" />
+              <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2" Margin="8,0">
+                <TextBlock Text="{x:Static l:S.SettingIdentity}" FontSize="15" />
+                <TextBlock Text="{x:Static l:S.SettingIdentityHint}" Classes="meta" TextWrapping="Wrap" />
+              </StackPanel>
+              <Button Grid.Column="2" Classes="danger" Content="{x:Static l:S.ResetIdentity}" Command="{Binding ResetIdentity}" VerticalAlignment="Center" />
+            </Grid>
+          </Border>
+        </StackPanel>
+
+        <!-- ═══ Acerca de ═══ -->
+        <StackPanel x:Name="AboutPage" IsVisible="{Binding IsAboutTab}" Spacing="16" HorizontalAlignment="Center" Margin="0,24,0,0" MaxWidth="560">
+          <ch:ChasquiView x:Name="AboutChasqui" Width="160" Height="160" State="Idle" HorizontalAlignment="Center" />
+          <StackPanel Spacing="4">
+            <TextBlock Text="Al Toque" Classes="title" HorizontalAlignment="Center" />
+            <TextBlock Text="{Binding VersionText}" Classes="meta num" HorizontalAlignment="Center" />
           </StackPanel>
-        </ScrollViewer>
-      </TabItem>
-    </TabControl>
-  </DockPanel>
+          <TextBlock Text="{x:Static l:S.AboutBody}" Classes="body2" TextWrapping="Wrap" TextAlignment="Center" />
+          <ItemsControl ItemsSource="{Binding AboutParade}" HorizontalAlignment="Center">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <StackPanel Orientation="Horizontal" Spacing="10" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:AvatarChoiceViewModel">
+                <av:AvatarView Width="52" Height="52" AvatarId="{Binding Id}" ColorHex="{Binding ColorHex}" Initial="{Binding Initial}" PopOnLoad="True" />
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <TextBlock Text="{x:Static l:S.License}" Classes="meta" HorizontalAlignment="Center" />
+        </StackPanel>
+      </Panel>
+    </ScrollViewer>
+  </Grid>
 </Window>

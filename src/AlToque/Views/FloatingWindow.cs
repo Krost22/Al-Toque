@@ -9,7 +9,8 @@ public static class FloatingWindow
 {
     public const double ShadowMargin = 12;
 
-    public static void ApplyChrome(Window window, Border root)
+    /// <param name="shadowOnRoot">Falso cuando el contenido son varias tarjetas con su propia sombra.</param>
+    public static void ApplyChrome(Window window, Border root, bool shadowOnRoot = true)
     {
         if (OperatingSystem.IsWindows())
         {
@@ -17,7 +18,8 @@ public static class FloatingWindow
             window.TransparencyLevelHint = [WindowTransparencyLevel.Transparent];
             window.Background = Brushes.Transparent;
             root.Margin = new Thickness(ShadowMargin);
-            root.BoxShadow = BoxShadows.Parse("0 8 28 0 #38000000");
+            if (shadowOnRoot)
+                root.BoxShadow = BoxShadows.Parse("0 8 28 0 #38000000");
         }
         else
         {

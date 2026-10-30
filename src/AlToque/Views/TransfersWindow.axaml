@@ -2,51 +2,65 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:AlToque.ViewModels"
         xmlns:ch="using:AlToque.Chasqui"
+        xmlns:c="using:AlToque.Controls"
+        xmlns:av="using:AlToque.Controls.Avatars"
         xmlns:l="using:AlToque.Localization"
         x:Class="AlToque.Views.TransfersWindow"
         x:DataType="vm:TransfersViewModel"
         Title="Al Toque"
-        Width="400" SizeToContent="Height"
+        Width="460" SizeToContent="Height"
         WindowDecorations="None"
         ShowInTaskbar="False"
-        ShowActivated="False"
         Topmost="True"
+        ShowActivated="False"
         Background="Transparent">
-  <Border x:Name="Root" Classes="card" Padding="12,10">
-    <ItemsControl ItemsSource="{Binding Items}">
+  <Border x:Name="Root" Background="Transparent">
+    <ItemsControl x:Name="Cards" ItemsSource="{Binding Items}">
       <ItemsControl.ItemsPanel>
         <ItemsPanelTemplate>
-          <StackPanel Spacing="10" />
+          <StackPanel Spacing="12" />
         </ItemsPanelTemplate>
       </ItemsControl.ItemsPanel>
       <ItemsControl.ItemTemplate>
         <DataTemplate x:DataType="vm:TransferViewModel">
-          <Grid ColumnDefinitions="56,*,Auto" RowDefinitions="Auto,Auto,Auto,Auto">
-            <ch:ChasquiView Grid.RowSpan="4" Width="48" Height="48" VerticalAlignment="Top"
-                            State="{Binding Chasqui}" Progress="{Binding Progress}"
-                            ReduceMotion="{Binding $parent[ItemsControl].((vm:TransfersViewModel)DataContext).ReduceMotion}" />
-            <TextBlock Grid.Column="1" Text="{Binding Title}" TextWrapping="Wrap" FontWeight="SemiBold"
-                       AutomationProperties.LiveSetting="Polite" />
-            <Button Grid.Column="2" Classes="icon" VerticalAlignment="Top" Margin="4,-4,-4,0"
-                    Command="{Binding Cancel}" IsVisible="{Binding IsActive}"
-                    ToolTip.Tip="{x:Static l:S.Cancel}" AutomationProperties.Name="{x:Static l:S.Cancel}">
-              <PathIcon Width="10" Height="10" Data="M3.5 2.1 8 6.6l4.5-4.5 1.4 1.4L9.4 8l4.5 4.5-1.4 1.4L8 9.4l-4.5 4.5-1.4-1.4L6.6 8 2.1 3.5z" />
-            </Button>
-            <Button Grid.Column="2" Classes="icon" VerticalAlignment="Top" Margin="4,-4,-4,0"
-                    Command="{Binding Dismiss}" IsVisible="{Binding !IsActive}"
-                    ToolTip.Tip="{x:Static l:S.Close}" AutomationProperties.Name="{x:Static l:S.Close}">
-              <PathIcon Width="10" Height="10" Data="M3.5 2.1 8 6.6l4.5-4.5 1.4 1.4L9.4 8l4.5 4.5-1.4 1.4L8 9.4l-4.5 4.5-1.4-1.4L6.6 8 2.1 3.5z" />
-            </Button>
-            <TextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Text="{Binding Detail}" Classes="caption"
-                       TextTrimming="CharacterEllipsis" Margin="0,2,0,0" />
-            <ProgressBar Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,8,0,0"
-                         Minimum="0" Maximum="1" Value="{Binding Progress}" IsVisible="{Binding ShowProgress}" />
-            <StackPanel Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="8" Margin="0,8,0,0"
-                        IsVisible="{Binding CanOpen}">
-              <Button Classes="accent" Content="{x:Static l:S.OpenFolder}" Command="{Binding OpenFolder}" />
-              <Button Content="{x:Static l:S.Open}" Command="{Binding OpenFile}" IsVisible="{Binding CanOpenFile}" />
+          <Border Classes="panel floatcard" Padding="20,16,14,18">
+            <StackPanel Spacing="10">
+              <Grid ColumnDefinitions="Auto,*,Auto">
+                <Panel Width="52" Height="52" VerticalAlignment="Top">
+                  <av:AvatarView Width="52" Height="52" AvatarId="{Binding AvatarId}" ColorHex="{Binding ColorHex}" Initial="{Binding Initial}"
+                                 Mood="{Binding PeerMood}" IsVisible="{Binding ShowAvatar}" PopOnLoad="True" />
+                  <ch:ChasquiView Width="48" Height="48" State="{Binding Chasqui}" ShowRadar="False" IsVisible="{Binding ShowChasqui}" />
+                </Panel>
+                <StackPanel Grid.Column="1" Margin="14,2,8,0" Spacing="2" VerticalAlignment="Center">
+                  <TextBlock Text="{Binding Title}" Classes="strong" FontSize="16" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+                  <TextBlock Text="{Binding Detail}" Classes="body2 num" TextWrapping="Wrap" />
+                </StackPanel>
+                <Button Grid.Column="2" Classes="icon small" Command="{Binding Dismiss}" VerticalAlignment="Top"
+                        ToolTip.Tip="{x:Static l:S.Close}" AutomationProperties.Name="{x:Static l:S.Close}">
+                  <c:IconView Kind="Close" />
+                </Button>
+              </Grid>
+              <c:TransferTrack Mode="{Binding Track}" Progress="{Binding Progress}" EndColor="{Binding ColorHex}" IsVisible="{Binding ShowTrack}"
+                               Margin="0,0,6,0" />
+              <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding HasFoot}" Margin="0,0,6,0">
+                <TextBlock Text="{Binding FootLeft}" Classes="meta num" />
+                <TextBlock Grid.Column="1" Text="{Binding FootRight}" Classes="meta num" FontWeight="SemiBold" />
+              </Grid>
+              <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding CanOpen}">
+                <Button Classes="accent" Content="{x:Static l:S.OpenFolder}" Command="{Binding OpenFolder}" MinHeight="38" />
+                <Button Content="{Binding OpenFileText}" Command="{Binding OpenFile}" IsVisible="{Binding CanOpenFile}" MinHeight="38" />
+              </StackPanel>
+              <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding ShowErrorActions}" Margin="66,0,0,0">
+                <Button Classes="accent" Command="{Binding Retry}" MinHeight="38">
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <c:IconView Kind="Retry" Width="18" Height="18" />
+                    <TextBlock Text="{x:Static l:S.Retry}" />
+                  </StackPanel>
+                </Button>
+                <Button Content="{x:Static l:S.ConnectByCode}" Command="{Binding ConnectByCode}" MinHeight="38" />
+              </StackPanel>
             </StackPanel>
-          </Grid>
+          </Border>
         </DataTemplate>
       </ItemsControl.ItemTemplate>
     </ItemsControl>

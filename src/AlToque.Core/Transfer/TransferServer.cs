@@ -62,7 +62,7 @@ public sealed class TransferServer : IAsyncDisposable
     public event Action<TransferInfo>? TransferFinished;
 
     /// <summary>Un compañero se conectó y su clave quedó comprobada por TLS.</summary>
-    public event Action<string, string?, string?>? PeerVerified;
+    public event Action<string, string?, string?, string?>? PeerVerified;
 
     public int Port { get; private set; }
     public bool IsListening => _listener is not null;
@@ -239,7 +239,7 @@ public sealed class TransferServer : IAsyncDisposable
                     return;
                 var trusted = _ctx.Trust.IsTrustedKey(conn.RemotePublicKey);
                 if (trusted)
-                    PeerVerified?.Invoke(conn.RemoteDeviceId, TextLimits.CleanAlias(hello.Alias), hello.Os);
+                    PeerVerified?.Invoke(conn.RemoteDeviceId, TextLimits.CleanAlias(hello.Alias), hello.Os, Capabilities.AvatarOf(hello.Caps));
 
                 switch (hello.Purpose)
                 {
@@ -264,7 +264,7 @@ public sealed class TransferServer : IAsyncDisposable
         Alias = _ctx.Settings().Alias,
         Os = AppInfo.OsName,
         AppVersion = AppInfo.Version,
-        Caps = [.. Capabilities.Local],
+        Caps = Capabilities.ForHello(_ctx.Settings().Avatar),
     };
 
     private static Task SendErrorAsync(PeerConnection conn, string code, string? message, CancellationToken ct) =>
@@ -334,6 +334,7 @@ public sealed class TransferServer : IAsyncDisposable
         var info = new TransferInfo(TransferDirection.Receive, trustedPeer?.DisplayName ?? TextLimits.CleanAlias(hello.Alias) ?? IdentityVisuals.ShortCode(peerId))
         {
             PeerId = peerId,
+            PeerAvatar = Capabilities.AvatarOf(hello.Caps),
             PeerTrusted = trusted,
             FileCount = plan.Files.Count,
             TotalBytes = plan.AcceptedBytes,
@@ -419,6 +420,14 @@ public sealed class TransferServer : IAsyncDisposable
                 }
                 info.DestinationFolder = finalPlan.SingleTopFolder ?? finalPlan.Root;
                 info.TotalBytes = finalPlan.AcceptedBytes;
+            }
+
+            // Archivos que el usuario desmarcó en la tarjeta (por ejemplo, un programa que no esperaba).
+            if (response.SkipFileIds is { } skip)
+            {
+                finalPlan = finalPlan.WithSkipped(skip);
+                info.TotalBytes = finalPlan.AcceptedBytes;
+                info.FileCount = finalPlan.AcceptedCount;
             }
 
             // Nada se escribe en disco antes de este punto.

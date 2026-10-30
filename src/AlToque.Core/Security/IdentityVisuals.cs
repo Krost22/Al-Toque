@@ -14,11 +14,16 @@ public static class IdentityVisuals
 
     private static byte[] Hash(string deviceId) => SHA256.HashData(Encoding.UTF8.GetBytes("altoque-visual:" + deviceId));
 
-    /// <summary>Color en formato <c>#RRGGBB</c>, con luminosidad suficiente para texto blanco encima.</summary>
+    /// <summary>
+    /// Color en formato <c>#RRGGBB</c>, con luminosidad suficiente para texto blanco encima. Se saltan los tonos
+    /// 225°–260° para que ningún compañero se confunda con el índigo de la marca.
+    /// </summary>
     public static string ColorHex(string deviceId)
     {
         var h = Hash(deviceId);
-        double hue = ((h[0] << 8) | h[1]) % 360;
+        double hue = ((h[0] << 8) | h[1]) % 325;
+        if (hue >= 225)
+            hue += 35;
         double saturation = 0.55 + h[2] / 255.0 * 0.2;
         double lightness = 0.40 + h[3] / 255.0 * 0.08;
         var (r, g, b) = HslToRgb(hue, saturation, lightness);

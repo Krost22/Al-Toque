@@ -66,6 +66,24 @@ public sealed class ReceivePlan
     }
 
     /// <exception cref="TransferException">Con <see cref="ErrorCodes.BadManifest"/> si la oferta no es válida.</exception>
+    /// <summary>Mismo plan con algunos archivos marcados para no recibir (los desmarcó el usuario).</summary>
+    public ReceivePlan WithSkipped(IReadOnlySet<string> fileIds)
+    {
+        var files = Files.Select(f => fileIds.Contains(f.Offer.FileId) && !f.Skip
+            ? new PlannedFile
+            {
+                Offer = f.Offer,
+                Components = f.Components,
+                FinalPath = f.FinalPath,
+                HadHiddenCharacters = f.HadHiddenCharacters,
+                Dangerous = f.Dangerous,
+                MisleadingName = f.MisleadingName,
+                Skip = true,
+            }
+            : f).ToList();
+        return new ReceivePlan(Root, files, [.. Dirs], Message);
+    }
+
     public static ReceivePlan Build(OfferMessage offer, string root, ConflictPolicy policy, bool windowsRules)
     {
         if (!Base32.IsValid(offer.SessionId, 26))

@@ -207,6 +207,7 @@ public sealed class TrustStore
                 // Conserva preferencias locales al volver a emparejar.
                 var old = _peers[existing];
                 peer.LocalName ??= old.LocalName;
+                peer.Avatar ??= old.Avatar;
                 peer.Favorite |= old.Favorite;
                 _peers[existing] = Copy(peer);
             }
@@ -267,6 +268,7 @@ public sealed class TrustStore
         Alias = p.Alias,
         LocalName = p.LocalName,
         Os = p.Os,
+        Avatar = TextLimits.CleanAvatar(p.Avatar),
         PairedAt = p.PairedAt,
         AutoAccept = p.AutoAccept,
         Favorite = p.Favorite,

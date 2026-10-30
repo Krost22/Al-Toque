@@ -15,16 +15,19 @@ public static partial class NetworkCategory
     private const int NlmEnumNetworkConnected = 0x01;
     private const int NlmCategoryPublic = 0;
 
-    public static bool IsOnPublicNetwork() => OperatingSystem.IsWindows() && QueryWindows();
+    public static bool IsOnPublicNetwork() => OperatingSystem.IsWindows() && QueryWindows().Public;
+
+    /// <summary>Nombre de la red conectada ("Oficina-5G"), o <c>null</c> si no se sabe.</summary>
+    public static string? CurrentNetworkName() => OperatingSystem.IsWindows() ? QueryWindows().Name : null;
 
     [SupportedOSPlatform("windows")]
-    private static bool QueryWindows()
+    private static (bool Public, string? Name) QueryWindows()
     {
         var init = CoInitializeEx(0, 0 /* COINIT_MULTITHREADED */);
         try
         {
             if (CoCreateInstance(ClsidNetworkListManager, 0, 0x17 /* CLSCTX_ALL */, IidNetworkListManager, out var ptr) < 0)
-                return false;
+                return (false, null);
             try
             {
                 var wrappers = new StrategyBasedComWrappers();
@@ -32,11 +35,12 @@ public static partial class NetworkCategory
                 manager.GetNetworks(NlmEnumNetworkConnected, out var enumPtr);
                 ((ComObject)(object)manager).FinalRelease();
                 if (enumPtr == 0)
-                    return false;
+                    return (false, null);
                 try
                 {
                     var networks = (IEnumNetworks)wrappers.GetOrCreateObjectForComInstance(enumPtr, CreateObjectFlags.None);
                     int total = 0, publicCount = 0;
+                    string? name = null;
                     while (total < 64)
                     {
                         networks.Next(1, out var netPtr, out var fetched);
@@ -46,6 +50,12 @@ public static partial class NetworkCategory
                         {
                             var network = (INetwork)wrappers.GetOrCreateObjectForComInstance(netPtr, CreateObjectFlags.None);
                             network.GetCategory(out var category);
+                            network.GetName(out var namePtr);
+                            if (namePtr != 0)
+                            {
+                                name ??= Marshal.PtrToStringBSTR(namePtr);
+                                Marshal.FreeBSTR(namePtr);
+                            }
                             ((ComObject)(object)network).FinalRelease();
                             total++;
                             if (category == NlmCategoryPublic)
@@ -57,7 +67,7 @@ public static partial class NetworkCategory
                         }
                     }
                     ((ComObject)(object)networks).FinalRelease();
-                    return total > 0 && publicCount == total;
+                    return (total > 0 && publicCount == total, name);
                 }
                 finally
                 {
@@ -71,7 +81,7 @@ public static partial class NetworkCategory
         }
         catch (COMException)
         {
-            return false;
+            return (false, null);
         }
         finally
         {

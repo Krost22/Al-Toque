@@ -6,9 +6,19 @@ y **Chasqui**, un avión de papel con ojos, acompaña cada envío.
 *Clic derecho → nombre de tu compañero → listo.* Sin cuentas, sin internet y sin escribir direcciones IP.
 
 <p>
-  <img src="docs/img/panel.png" alt="Panel rápido con Chasqui y un compañero de confianza" width="300" />
-  <img src="docs/img/solicitud.png" alt="Solicitud entrante de un equipo no verificado, con la advertencia del .exe" width="520" />
+  <img src="docs/img/panel.png" alt="Panel rápido con Chasqui y un compañero de confianza" width="330" />
+  <img src="docs/img/solicitud.png" alt="Solicitud entrante de un equipo no verificado, con el .exe desmarcado" width="345" />
 </p>
+
+Cada equipo elige su **avatar**: un personaje que parpadea, mira, salta al pasar el ratón y celebra cuando llega algo.
+El fondo es siempre el color de su identidad.
+
+<p><img src="docs/img/avatares.png" alt="Los 24 personajes disponibles para el avatar, más la inicial" width="680" /></p>
+
+Y **Chasqui** tiene una cara para cada momento: se agacha antes de despegar, da una vuelta al terminar con confeti,
+se encoge de hombros si rechazan el envío y se marea si algo falla.
+
+<p><img src="docs/img/chasqui.png" alt="Chasqui en reposo, atento, buscando, enviando, con éxito, rechazado y con error" width="680" /></p>
 
 La especificación completa está en [`docs/especificacion.md`](docs/especificacion.md) (escrita con el nombre de trabajo
 "Pásalo"; el producto se llama **Al Toque**).
@@ -28,11 +38,13 @@ Primera versión para **Windows** (el código ya es multiplataforma y corre en L
 | Emparejamiento | Código de **6 dígitos** comparado en ambas pantallas, con compromiso previo (contra intermediarios); bloqueo de 5 min tras 3 fallos |
 | Conexión manual | Por IP o por **código de conexión** (`K7Q2-9XM4`) para redes que bloquean el multicast |
 | Windows | Menú clásico **"Enviar con Al Toque ›"** con tus compañeros (sin firma ni DLL, en `HKCU`), **"Enviar a"**, inicio con Windows, regla de firewall solo para redes privadas, pausa en redes públicas, sonidos y "reducir movimiento" del sistema |
-| Interfaz | Bandeja, panel rápido con radar de compañeros y zona para soltar, Chasqui animado (13 estados, respeta "reducir movimiento"), ventana flotante de progreso, historial, ajustes, bienvenida |
+| Interfaz | Sistema visual propio con tokens claro/oscuro e íconos de trazo; panel rápido (reposo, arrastrando, "no veo a nadie" con consejos y nombre de la red), tarjetas flotantes por estado con la estela de Chasqui como barra de progreso, solicitud grande o compacta con **aceptación parcial** (los programas llegan desmarcados), emparejamiento en 3 pasos, ajustes por tarjetas, historial con **Reintentar** |
+| Avatares | 24 personajes vectoriales con volumen suave, elegibles en la bienvenida y en Ajustes; parpadean, miran, saltan, celebran y cambian de cara según el momento; viajan dentro del `HELLO` cifrado y, para los compañeros de confianza, solo se aceptan por TLS |
+| Movimiento | Chasqui con expresiones, anticipación, aplastar y estirar, looping, confeti, estrellas, humo y gotas; entradas en cascada y sacudidas; curvas y duraciones del diseño; "Animaciones: como en Windows / completas / reducidas"; nada se anima con la ventana oculta |
 | Distribución | NativeAOT (sin .NET instalado), modo portable (`portable.flag`), instalador y actualizaciones con Velopack, CI en GitHub Actions |
 
 Pendiente para próximas versiones (ver la hoja de ruta de la especificación): reanudación tras cortes, pausa manual,
-envío a varios destinatarios y grupos, notificaciones nativas del Windows App SDK, animaciones Lottie de Chasqui,
+envío a varios destinatarios y grupos, notificaciones nativas del Windows App SDK, miniaturas en las solicitudes,
 inglés revisado, macOS e integración con gestores de archivos de Linux, IPv6 en el descubrimiento.
 
 ## Instalar
@@ -103,10 +115,13 @@ src/AlToque.Core      Núcleo sin interfaz (compatible con NativeAOT)
   Ipc/                Tubería local entre el CLI y el agente
   Agent/              AgentHost: orquesta todo lo anterior
 src/AlToque           App de escritorio Avalonia 12
-  Chasqui/            Chasqui: control vectorial animado y sus estados
+  Chasqui/            Chasqui: pintor vectorial con expresiones y control animado por estados
+  Controls/           Avatares, íconos, pista de progreso, control segmentado, partículas y animaciones
+  Theme/              Tokens de color, tipografía y estilos (claro y oscuro)
   Views/, ViewModels/ Panel, tarjetas de solicitud y progreso, ventanas
   Platform/           Menú contextual, "Enviar a", firewall, red pública, actualizaciones
 tests/                xUnit: saneamiento, tramas, códigos, sellado, ataques simulados y envíos reales
+tools/AlToque.Gallery Capturas sin ventana (Avalonia.Headless) de avatares, Chasqui y la pista de progreso
 ```
 
 Un solo proceso hace de agente y de interfaz; las ventanas se crean la primera vez que hacen falta y luego solo se
@@ -124,8 +139,9 @@ ocultan. Datos locales: `%APPDATA%\AlToque` (o `AlToque.data` junto al ejecutabl
 
 - **Notificaciones**: tarjetas propias (Avalonia) en lugar del Windows App SDK, que la especificación marca como riesgo
   con NativeAOT y sin paquete. Tienen botones, cuenta regresiva y progreso, y no roban el foco.
-- **Chasqui**: dibujado con vectores y animado por fotogramas (sin Lottie hasta tener las animaciones diseñadas);
-  el control `ChasquiView` es la abstracción que permitirá cambiar de tecnología sin tocar la lógica.
+- **Chasqui y avatares**: dibujados con vectores y animados por código (poses, expresiones y partículas calculadas en
+  cada fotograma, sin Lottie). Solo se pide un fotograma cuando algo se mueve: en reposo, Chasqui se queda quieto a los
+  pocos segundos y los avatares guardan su cuerpo en un mapa de bits y solo repintan la cara al parpadear.
 - **Clave privada**: PKCS#12 protegido con DPAPI del usuario (las claves CNG no exportables quedan para cuando haya
   firma de código).
 - **Puertos**: TCP 45831 (si está ocupado, otro libre que se anuncia) y UDP 45832, no registrados en IANA.

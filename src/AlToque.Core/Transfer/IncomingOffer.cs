@@ -9,7 +9,7 @@ public enum OfferResponseKind
     DeclineAndBlock,
 }
 
-public sealed record OfferResponse(OfferResponseKind Kind, string? Folder = null);
+public sealed record OfferResponse(OfferResponseKind Kind, string? Folder = null, IReadOnlySet<string>? SkipFileIds = null);
 
 /// <summary>
 /// Solicitud entrante que la interfaz muestra al usuario. Se responde una sola vez con <see cref="Accept"/> o
@@ -51,7 +51,9 @@ public sealed class IncomingOffer
     public bool IsAnswered => _response.Task.IsCompleted;
 
     /// <param name="folder">Otra carpeta de destino elegida en la tarjeta, o <c>null</c> para la predeterminada.</param>
-    public bool Accept(string? folder = null) => _response.TrySetResult(new OfferResponse(OfferResponseKind.Accept, folder));
+    /// <param name="skipFileIds">Archivos que el usuario desmarcó; el resto se recibe.</param>
+    public bool Accept(string? folder = null, IReadOnlySet<string>? skipFileIds = null) =>
+        _response.TrySetResult(new OfferResponse(OfferResponseKind.Accept, folder, skipFileIds is { Count: > 0 } ? skipFileIds : null));
 
     public bool Decline(bool block = false) =>
         _response.TrySetResult(new OfferResponse(block ? OfferResponseKind.DeclineAndBlock : OfferResponseKind.Decline));

@@ -89,6 +89,38 @@ public class TransferIntegrationTests
     }
 
     [Fact]
+    public async Task ReceiverCanUncheckFilesAndSeesTheSenderAvatar()
+    {
+        await using var a = TestAgent.Create("Laura");
+        await using var b = TestAgent.Create("Andrés");
+        a.Host.Settings.Update(s => s.Avatar = "gato");
+        b.Host.SetReceiveMode(ReceiveMode.Everyone);
+        IncomingOffer? seen = null;
+        b.Host.OfferReceived += o =>
+        {
+            seen = o;
+            var program = o.Plan.Files.Single(f => f.Name == "instalador.exe").Offer.FileId;
+            o.Accept(skipFileIds: new HashSet<string> { program });
+        };
+        var receivedTcs = new TaskCompletionSource<TransferInfo>();
+        b.Host.TransferFinished += i => receivedTcs.TrySetResult(i);
+        var notas = a.WriteFile("notas.txt", 6);
+        var program = a.WriteFile("instalador.exe", 2048);
+
+        var info = a.Host.BeginSend(a.TargetFor(b), [notas, program]);
+        await WaitFinished(info);
+        var received = await receivedTcs.Task.WaitAsync(Timeout);
+
+        Assert.Equal("gato", seen!.Transfer.PeerAvatar);
+        Assert.True(info.IsSuccess || info.State == TransferState.PartiallyCompleted);
+        Assert.Equal(1, received.FileCount);
+        AssertSameFile(notas, Path.Combine(b.Inbox, "notas.txt"));
+        Assert.False(File.Exists(Path.Combine(b.Inbox, "instalador.exe")));
+        Assert.Empty(Directory.EnumerateFiles(b.Inbox, "*" + AppInfo.PartExtension, SearchOption.AllDirectories));
+        Assert.Equal([notas, program], a.Host.History.Recent().First(h => h.Direction == "sent").Paths);
+    }
+
+    [Fact]
     public async Task ReceiverCanDecline()
     {
         await using var a = TestAgent.Create("Laura");
@@ -107,6 +139,8 @@ public class TransferIntegrationTests
     {
         await using var a = TestAgent.Create("Laura");
         await using var b = TestAgent.Create("Andrés");
+        a.Host.Settings.Update(s => s.Avatar = "pinguino");
+        b.Host.Settings.Update(s => s.Avatar = "rana");
         string? codeA = null, codeB = null;
         a.Host.Pairing.PromptRequested += p =>
         {
@@ -128,6 +162,8 @@ public class TransferIntegrationTests
         await WaitUntil(() => b.Host.Trust.Find(a.Host.DeviceId) is not null);
         Assert.Equal("Andrés", a.Host.Trust.Find(b.Host.DeviceId)!.Alias);
         Assert.Equal("Laura", b.Host.Trust.Find(a.Host.DeviceId)!.Alias);
+        Assert.Equal("rana", a.Host.Trust.Find(b.Host.DeviceId)!.Avatar);
+        Assert.Equal("pinguino", b.Host.Trust.Find(a.Host.DeviceId)!.Avatar);
         Assert.False(b.Host.Pairing.IsWindowOpen);
 
         // Ya en "Solo confianza", con la clave fijada.

@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using AlToque.Controls.Avatars;
 using AlToque.Core;
 using AlToque.Core.Security;
 using AlToque.Core.Storage;
@@ -9,7 +10,42 @@ using Avalonia.Media;
 
 namespace AlToque.ViewModels;
 
-/// <summary>Ventana principal: Compañeros · Historial · Ajustes.</summary>
+/// <summary>Un personaje en el selector de avatares.</summary>
+public sealed class AvatarChoiceViewModel : ViewModelBase
+{
+    private bool _isSelected;
+
+    public AvatarChoiceViewModel(string id, string colorHex, string initial, Action<AvatarChoiceViewModel> pick)
+    {
+        Id = id;
+        ColorHex = colorHex;
+        _initial = initial;
+        Name = AvatarCatalog.NameOf(id);
+        Pick = new RelayCommand(() => pick(this));
+    }
+
+    public string Id { get; }
+    public string Name { get; }
+    public string ColorHex { get; }
+    private string _initial = "";
+
+    public string Initial { get => _initial; set => Set(ref _initial, value); }
+    public RelayCommand Pick { get; }
+
+    public bool IsSelected
+    {
+        get => _isSelected;
+        set
+        {
+            if (Set(ref _isSelected, value))
+                Raise(nameof(Ring));
+        }
+    }
+
+    public AvatarRing Ring => IsSelected ? AvatarRing.Selected : AvatarRing.None;
+}
+
+/// <summary>Ventana principal: Compañeros · Historial · Ajustes · Acerca de.</summary>
 public sealed class MainViewModel : ViewModelBase
 {
     private readonly AppController _app;
@@ -18,6 +54,7 @@ public sealed class MainViewModel : ViewModelBase
     private string _folder;
     private string? _notice;
     private string? _firewallStatus;
+    private bool _showAvatarPicker;
 
     public MainViewModel(AppController app)
     {
@@ -41,15 +78,124 @@ public sealed class MainViewModel : ViewModelBase
             FirewallStatus = ok ? "✓" : "—";
         });
         ResetIdentity = new RelayCommand(() => _app.ConfirmResetIdentity());
-        ConflictItems = [S.ConflictRename, S.ConflictReplace, S.ConflictSkip];
-        ModeItems = [S.ModeNobody, S.ModeTrusted];
+        SelectTab = new RelayCommand(p => Tab = p switch { int i => i, string str when int.TryParse(str, out var i) => i, _ => 0 });
+        ToggleAvatarPicker = new RelayCommand(() => ShowAvatarPicker = !ShowAvatarPicker);
+        OpenFolder = new RelayCommand(() => Opener.OpenFolder(Folder));
+        var initial = IdentityVisuals.Initial(_alias);
+        AvatarChoices = AvatarCatalog.Ids.Select(id => new AvatarChoiceViewModel(id, MyColorHex, initial, PickAvatar)).ToList();
+        foreach (var c in AvatarChoices)
+            c.IsSelected = c.Id == MyAvatarId;
+        ConflictItems = [S.RenameRecommended, S.ConflictReplace, S.ConflictSkip];
         LanguageItems = [S.LanguageAuto, "Español", "English"];
         ReloadPeers();
         ReloadHistory();
         RefreshNotice();
     }
 
-    public int Tab { get => _tab; set => Set(ref _tab, value); }
+    public int Tab
+    {
+        get => _tab;
+        set
+        {
+            if (!Set(ref _tab, value))
+                return;
+            Raise(nameof(IsPeersTab));
+            Raise(nameof(IsHistoryTab));
+            Raise(nameof(IsSettingsTab));
+            Raise(nameof(IsAboutTab));
+        }
+    }
+
+    public bool IsPeersTab => Tab == 0;
+    public bool IsHistoryTab => Tab == 1;
+    public bool IsSettingsTab => Tab == 2;
+    public bool IsAboutTab => Tab == 3;
+    public RelayCommand SelectTab { get; }
+    public RelayCommand OpenFolder { get; }
+
+    // ── Avatar ───────────────────────────────────────────────────────────────────
+    public string MyColorHex => IdentityVisuals.ColorHex(_app.Agent.DeviceId);
+    public string MyAvatarId => AvatarCatalog.Resolve(_app.Agent.Settings.Current.Avatar, _app.Agent.DeviceId);
+    public IReadOnlyList<AvatarChoiceViewModel> AvatarChoices { get; }
+    public string MyFingerprint => S.YourFingerprint(MyShortCode);
+
+    /// <summary>Unos cuantos personajes saludando en "Acerca de".</summary>
+    public IReadOnlyList<AvatarChoiceViewModel> AboutParade { get; } =
+    [
+        new("gato", "#2AA05A", "", _ => { }), new("rana", "#2A8AB0", "", _ => { }), new("pinguino", "#C0682A", "", _ => { }),
+        new("robot", "#9A3AB8", "", _ => { }), new("fantasma", "#C8285E", "", _ => { }), new("tostada", "#2E9E8E", "", _ => { }),
+    ];
+    public RelayCommand ToggleAvatarPicker { get; }
+    public bool ShowAvatarPicker { get => _showAvatarPicker; set => Set(ref _showAvatarPicker, value); }
+
+    private void PickAvatar(AvatarChoiceViewModel choice)
+    {
+        foreach (var c in AvatarChoices)
+            c.IsSelected = c == choice;
+        _app.Agent.Settings.Update(s => s.Avatar = choice.Id);
+        Raise(nameof(MyAvatarId));
+    }
+
+    // ── Modo y animaciones (control segmentado y listas) ─────────────────────────
+    public bool ModeNobody
+    {
+        get => _app.Agent.EffectiveMode == ReceiveMode.Nobody;
+        set
+        {
+            if (value)
+                _app.Agent.SetReceiveMode(ReceiveMode.Nobody);
+        }
+    }
+
+    public bool ModeTrusted
+    {
+        get => _app.Agent.EffectiveMode == ReceiveMode.TrustedOnly;
+        set
+        {
+            if (value)
+                _app.Agent.SetReceiveMode(ReceiveMode.TrustedOnly);
+        }
+    }
+
+    public bool ModeEveryone
+    {
+        get => _app.Agent.EffectiveMode == ReceiveMode.Everyone;
+        set
+        {
+            if (value)
+                _app.Agent.SetReceiveMode(ReceiveMode.Everyone);
+        }
+    }
+
+    public void RefreshMode()
+    {
+        Raise(nameof(ModeNobody));
+        Raise(nameof(ModeTrusted));
+        Raise(nameof(ModeEveryone));
+    }
+
+    public IReadOnlyList<string> AnimationItems { get; } = [S.AnimSystem, S.AnimFull, S.AnimReduced];
+
+    /// <summary>El antiguo "Reducir movimiento" activado se muestra como "Reducidas" y se sustituye al elegir otra opción.</summary>
+    public int AnimationIndex
+    {
+        get => _app.Agent.Settings.Current.AnimationMode switch
+        {
+            "full" => 1,
+            "reduced" => 2,
+            _ => _app.Agent.Settings.Current.ReduceMotion ? 2 : 0,
+        };
+        set => Update(s =>
+        {
+            s.AnimationMode = value switch { 1 => "full", 2 => "reduced", _ => "system" };
+            s.ReduceMotion = false;
+        });
+    }
+
+    public string OnOff(bool value) => value ? S.On : S.Off;
+    public string SoundsState => OnOff(Sounds);
+    public string StartupState => OnOff(StartWithSystem);
+    public string ShellState => OnOff(ShellIntegration);
 
     public ObservableCollection<TrustedPeerViewModel> TrustedPeers { get; } = [];
     public ObservableCollection<HistoryItemViewModel> History { get; } = [];
@@ -64,7 +210,6 @@ public sealed class MainViewModel : ViewModelBase
     public RelayCommand ResetIdentity { get; }
 
     public IReadOnlyList<string> ConflictItems { get; }
-    public IReadOnlyList<string> ModeItems { get; }
     public IReadOnlyList<string> LanguageItems { get; }
     public bool IsWindows => OperatingSystem.IsWindows();
 
@@ -104,6 +249,8 @@ public sealed class MainViewModel : ViewModelBase
         if (clean != _app.Agent.Settings.Current.Alias)
             _app.Agent.Settings.Update(s => s.Alias = clean);
         Alias = clean;
+        foreach (var c in AvatarChoices)
+            c.Initial = IdentityVisuals.Initial(clean);
     }
 
     public string Folder
@@ -125,12 +272,6 @@ public sealed class MainViewModel : ViewModelBase
         set => Update(s => s.ConflictPolicy = (ConflictPolicy)value);
     }
 
-    public int ModeIndex
-    {
-        get => _app.Agent.Settings.Current.ReceiveMode == ReceiveMode.Nobody ? 0 : 1;
-        set => _app.Agent.SetReceiveMode(value == 0 ? ReceiveMode.Nobody : ReceiveMode.TrustedOnly);
-    }
-
     public int LanguageIndex
     {
         get => _app.Agent.Settings.Current.Language switch { "es" => 1, "en" => 2, _ => 0 };
@@ -140,12 +281,6 @@ public sealed class MainViewModel : ViewModelBase
             Notice = S.RestartNeeded;
             Raise(nameof(HasNotice));
         }
-    }
-
-    public bool ReduceMotion
-    {
-        get => _app.Agent.Settings.Current.ReduceMotion;
-        set => Update(s => s.ReduceMotion = value);
     }
 
     public bool Sounds
@@ -200,7 +335,7 @@ public sealed class MainViewModel : ViewModelBase
     {
         History.Clear();
         foreach (var e in _app.Agent.History.Recent(200))
-            History.Add(new HistoryItemViewModel(e));
+            History.Add(new HistoryItemViewModel(e, _app.Retry, _app.OpenHistoryItem));
         Raise(nameof(HasHistory));
         Raise(nameof(NoHistory));
     }

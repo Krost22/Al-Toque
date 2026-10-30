@@ -67,8 +67,8 @@ public sealed class AgentHost : IAsyncDisposable
         History = HistoryStore.Load(paths);
         PeerCache = PeerCacheStore.Load(paths);
         Peers = new PeerDirectory(Trust, PeerCache);
-        Pairing = new PairingService(identity, Trust, () => Settings.Current.Alias);
-        Client = new TransferClient(identity, Trust, () => Settings.Current.Alias);
+        Pairing = new PairingService(identity, Trust, () => Settings.Current.Alias, () => Settings.Current.Avatar);
+        Client = new TransferClient(identity, Trust, () => Settings.Current.Alias, () => Settings.Current.Avatar);
         Server = new TransferServer(new ServerContext
         {
             Identity = identity,
@@ -169,8 +169,8 @@ public sealed class AgentHost : IAsyncDisposable
             RecordHistory(info);
             TransferFinished?.Invoke(info);
         };
-        Server.PeerVerified += (id, alias, os) => Peers.MarkVerified(id, null, alias, os);
-        Client.PeerVerified += (id, ep, alias, os) => Peers.MarkVerified(id, ep, alias, os);
+        Server.PeerVerified += (id, alias, os, avatar) => OnPeerVerified(id, null, alias, os, avatar);
+        Client.PeerVerified += (id, ep, alias, os, avatar) => OnPeerVerified(id, ep, alias, os, avatar);
         Discovery?.HintReceived += hint => Peers.OnHint(hint);
         Discovery?.ByeReceived += id => Peers.OnBye(id);
         Pairing.WindowChanged += () =>
@@ -311,7 +311,15 @@ public sealed class AgentHost : IAsyncDisposable
             return null;
         var showAlias = mode == ReceiveMode.Everyone || pairing;
         return new DiscoveryAdvert(Server.Port, showAlias ? Settings.Current.Alias : null, showAlias ? AppInfo.OsName : null,
-            Server.HasActiveSessions, pairing);
+            Server.HasActiveSessions, pairing, showAlias ? Settings.Current.Avatar : null);
+    }
+
+    private void OnPeerVerified(string deviceId, System.Net.IPEndPoint? endPoint, string? alias, string? os, string? avatar)
+    {
+        Peers.MarkVerified(deviceId, endPoint, alias, os, avatar);
+        // El avatar de un compañero de confianza se recuerda para mostrarlo aunque no esté conectado.
+        if (avatar is not null && Trust.Find(deviceId) is { } trusted && trusted.Avatar != avatar)
+            Trust.Update(deviceId, t => t.Avatar = avatar);
     }
 
     private bool IsBlocked(string deviceId)
@@ -499,6 +507,9 @@ public sealed class AgentHost : IAsyncDisposable
             PeerTrusted = target.PinnedKey is not null,
             FirstName = paths.Count > 0 ? Path.GetFileName(Path.TrimEndingDirectorySeparator(paths[0])) : "",
             FileCount = paths.Count,
+            SourcePaths = [.. paths],
+            OutgoingMessage = message,
+            PeerAvatar = target.ExpectedDeviceId is { } id ? Peers.Find(id)?.Avatar : null,
         };
         lock (_lock)
             _active.Add(info);
@@ -581,6 +592,8 @@ public sealed class AgentHost : IAsyncDisposable
             },
             Folder = info.DestinationFolder,
             FirstFile = info.CompletedPaths.Count == 1 ? info.CompletedPaths[0] : null,
+            Paths = info.Direction == TransferDirection.Send && info.SourcePaths.Count <= HistoryEntry.MaxPaths ? [.. info.SourcePaths] : null,
+            Avatar = info.PeerAvatar,
         });
     }
 

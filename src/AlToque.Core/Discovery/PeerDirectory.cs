@@ -17,6 +17,10 @@ public sealed record PeerInfo
     public required string DeviceId { get; init; }
     public required string DisplayName { get; init; }
     public string? Os { get; init; }
+
+    /// <summary>Avatar anunciado o guardado; <c>null</c> si nunca se conoció.</summary>
+    public string? Avatar { get; init; }
+
     public IPEndPoint? EndPoint { get; init; }
     public PeerPresence Presence { get; init; }
     public bool IsTrusted { get; init; }
@@ -65,6 +69,11 @@ public sealed class PeerDirectory
         public IPEndPoint? EndPoint;
         public string? Alias;
         public string? Os;
+        /// <summary>Avatar anunciado por UDP: una pista sin autenticar, como el alias.</summary>
+        public string? Avatar;
+
+        /// <summary>Avatar recibido en un HELLO por TLS (no se puede falsificar).</summary>
+        public string? VerifiedAvatar;
         public bool Busy;
         public bool Pairing;
         public DateTimeOffset LastSeen;
@@ -88,6 +97,7 @@ public sealed class PeerDirectory
             peer.EndPoint = hint.EndPoint;
             peer.Alias = hint.Alias;
             peer.Os = hint.Os ?? peer.Os;
+            peer.Avatar = hint.Avatar ?? peer.Avatar;
             peer.Busy = hint.Busy;
             peer.Pairing = hint.Pairing;
             peer.LastSeen = DateTimeOffset.UtcNow;
@@ -121,7 +131,7 @@ public sealed class PeerDirectory
     /// La clave se comprobó por TLS en una conexión real. <paramref name="reachableAt"/> es el punto de escucha
     /// del compañero (solo se conoce en conexiones salientes).
     /// </summary>
-    public void MarkVerified(string deviceId, IPEndPoint? reachableAt, string? alias, string? os)
+    public void MarkVerified(string deviceId, IPEndPoint? reachableAt, string? alias, string? os, string? avatar = null)
     {
         lock (_lock)
         {
@@ -138,6 +148,7 @@ public sealed class PeerDirectory
                     peer.EndPoint = new IPEndPoint(reachableAt.Address.IsIPv4MappedToIPv6 ? reachableAt.Address.MapToIPv4() : reachableAt.Address, reachableAt.Port);
                 peer.Alias ??= alias;
                 peer.Os ??= os;
+                peer.VerifiedAvatar = avatar ?? peer.VerifiedAvatar;
                 peer.LastSeen = DateTimeOffset.UtcNow;
             }
         }
@@ -200,6 +211,8 @@ public sealed class PeerDirectory
                     DeviceId = t.DeviceId,
                     DisplayName = t.DisplayName,
                     Os = live?.Os ?? t.Os ?? cached?.Os,
+                    // De un compañero de confianza solo vale lo que llegó por TLS: un anuncio UDP se puede falsificar.
+                    Avatar = live?.VerifiedAvatar ?? t.Avatar,
                     EndPoint = ep,
                     Presence = presence,
                     IsTrusted = true,
@@ -220,6 +233,7 @@ public sealed class PeerDirectory
                     DeviceId = live.DeviceId,
                     DisplayName = live.Alias!,
                     Os = live.Os,
+                    Avatar = live.VerifiedAvatar ?? live.Avatar,
                     EndPoint = live.EndPoint,
                     Presence = PeerPresence.Online,
                     Busy = live.Busy,

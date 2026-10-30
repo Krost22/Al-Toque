@@ -2,15 +2,17 @@ using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using AlToque.Core.Security;
+using AlToque.Core.Storage;
 
 namespace AlToque.Core.Discovery;
 
 /// <summary>Lo que este equipo anuncia. <c>null</c> = invisible (modo "Nadie").</summary>
-public sealed record DiscoveryAdvert(int Port, string? Alias, string? Os, bool Busy, bool Pairing);
+public sealed record DiscoveryAdvert(int Port, string? Alias, string? Os, bool Busy, bool Pairing, string? Avatar = null);
 
 /// <summary>Pista recibida por UDP. No prueba nada: la identidad se verifica después con TLS.</summary>
 public sealed record DiscoveryHint(
-    string DeviceId, IPEndPoint EndPoint, string? Alias, string? Os, bool Busy, bool Pairing, IReadOnlyList<string> Caps);
+    string DeviceId, IPEndPoint EndPoint, string? Alias, string? Os, bool Busy, bool Pairing, IReadOnlyList<string> Caps,
+    string? Avatar = null);
 
 /// <summary>
 /// Descubrimiento por UDP multicast (239.255.0.0/16, TTL 1) con broadcast dirigido a la subred como respaldo.
@@ -202,6 +204,7 @@ public sealed class DiscoveryService : IDisposable
             N = Base32.Encode(System.Security.Cryptography.RandomNumberGenerator.GetBytes(8)),
             Alias = advert?.Alias,
             Os = advert?.Os,
+            Av = advert?.Alias is null ? null : TextLimits.CleanAvatar(advert.Avatar),
             Busy = advert?.Busy ?? false,
             Pairing = advert?.Pairing ?? false,
             Caps = advert is null ? null : [.. Protocol.Capabilities.Local],
@@ -303,7 +306,7 @@ public sealed class DiscoveryService : IDisposable
                 break;
             default:
                 HintReceived?.Invoke(new DiscoveryHint(packet.Id, new IPEndPoint(from.Address, packet.Port), packet.Alias,
-                    packet.Os, packet.Busy, packet.Pairing, packet.Caps ?? []));
+                    packet.Os, packet.Busy, packet.Pairing, packet.Caps ?? [], packet.Av));
                 break;
         }
     }

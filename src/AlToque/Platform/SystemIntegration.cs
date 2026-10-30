@@ -91,6 +91,20 @@ public static class Opener
     }
 
     /// <summary>Abre con la aplicación asociada; la marca de origen hace que Windows avise si es un programa.</summary>
+    /// <summary>Abre la carpeta en el explorador de archivos (la crea si aún no existe).</summary>
+    public static void OpenFolder(string path)
+    {
+        try
+        {
+            Directory.CreateDirectory(path);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return;
+        }
+        OpenFile(path);
+    }
+
     public static void OpenFile(string path)
     {
         try

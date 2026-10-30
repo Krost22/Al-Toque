@@ -63,6 +63,15 @@ public sealed class AppSettings
 
     public bool WelcomeDone { get; set; }
 
+    /// <summary>Ya se mostró el tutorial guiado en esta PC.</summary>
+    public bool TutorialDone { get; set; }
+
+    /// <summary>Descargar las versiones nuevas en segundo plano e instalarlas al cerrar o reiniciar.</summary>
+    public bool AutoUpdate { get; set; } = true;
+
+    /// <summary>Versión que corrió la última vez, para celebrar una actualización.</summary>
+    public string? LastVersion { get; set; }
+
     public static string DefaultAlias()
     {
         var name = Environment.MachineName;

@@ -13,15 +13,16 @@
         ShowInTaskbar="False"
         Topmost="True"
         Background="Transparent">
-  <Border x:Name="Root" Classes="panel" Padding="20,16,20,20" DragDrop.AllowDrop="True">
-    <StackPanel x:Name="Sections" Spacing="18">
+  <Border x:Name="Root" Classes="panel" DragDrop.AllowDrop="True" ClipToBounds="True">
+    <Panel>
+    <StackPanel x:Name="Sections" Spacing="18" Margin="20,16,20,20">
       <!-- Encabezado -->
       <Grid ColumnDefinitions="Auto,*,Auto,Auto">
         <Border Width="30" Height="30" CornerRadius="7" Background="{StaticResource AccentBrush}">
           <c:IconView Kind="Send" Width="17" Height="17" Foreground="White" />
         </Border>
         <TextBlock Grid.Column="1" Text="Al Toque" Classes="subtitle" Margin="12,0" VerticalAlignment="Center" />
-        <Button Grid.Column="2" Classes="icon" Command="{Binding OpenSettings}" ToolTip.Tip="{x:Static l:S.Settings}"
+        <Button x:Name="SettingsButton" Grid.Column="2" Classes="icon" Command="{Binding OpenSettings}" ToolTip.Tip="{x:Static l:S.Settings}"
                 AutomationProperties.Name="{x:Static l:S.Settings}">
           <c:IconView Kind="Settings" />
         </Button>
@@ -31,8 +32,34 @@
         </Button>
       </Grid>
 
+      <!-- Versión nueva -->
+      <Border x:Name="UpdateBanner" Classes="card" Padding="14,12" Background="{DynamicResource AccentTintBrush}"
+              BorderBrush="{StaticResource AccentBrush}" BorderThickness="1" IsVisible="{Binding Update.ShowBanner, FallbackValue=False}">
+        <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto">
+          <Border Width="40" Height="40" CornerRadius="20" Background="{StaticResource AccentBrush}" VerticalAlignment="Top">
+            <c:IconView Kind="Download" Width="20" Height="20" Foreground="White" />
+          </Border>
+          <StackPanel Grid.Column="1" Margin="12,0,6,0" VerticalAlignment="Center" Spacing="1">
+            <TextBlock Text="{Binding Update.Title, FallbackValue=''}" Classes="strong" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding Update.Detail, FallbackValue=''}" Classes="meta num" TextWrapping="Wrap" />
+          </StackPanel>
+          <Button Grid.Column="2" Classes="icon small" Command="{Binding Update.Dismiss}" VerticalAlignment="Top"
+                  ToolTip.Tip="{x:Static l:S.UpdateLater}" AutomationProperties.Name="{x:Static l:S.UpdateLater}">
+            <c:IconView Kind="Close" />
+          </Button>
+          <Grid Grid.Row="1" Grid.ColumnSpan="3" ColumnDefinitions="*,Auto" Margin="52,10,0,0">
+            <ProgressBar Classes="update" Minimum="0" Maximum="100" Value="{Binding Update.Progress, FallbackValue=0}"
+                         IsVisible="{Binding Update.IsDownloading, FallbackValue=False}" VerticalAlignment="Center" />
+            <Button Classes="link" Content="{x:Static l:S.SeeWhatsNew}" Command="{Binding Update.OpenNotes}" HorizontalAlignment="Left"
+                    Padding="0,4" IsVisible="{Binding !Update.IsDownloading, FallbackValue=False}" />
+            <Button Grid.Column="1" Classes="accent" Content="{Binding Update.ActionText, FallbackValue=''}" Command="{Binding Update.Act}"
+                    IsVisible="{Binding !Update.IsDownloading, FallbackValue=False}" />
+          </Grid>
+        </Grid>
+      </Border>
+
       <!-- Destino pendiente ("Elegir destino…" o archivos soltados en el panel) -->
-      <Border Classes="card" IsVisible="{Binding HasPending}" Background="{DynamicResource AccentTintBrush}"
+      <Border x:Name="PendingCard" Classes="card" IsVisible="{Binding HasPending}" Background="{DynamicResource AccentTintBrush}"
               BorderBrush="{StaticResource AccentBrush}" BorderThickness="1.5">
         <StackPanel Spacing="10">
           <Grid ColumnDefinitions="Auto,*,Auto">
@@ -56,7 +83,7 @@
       </Border>
 
       <!-- Reposo: listo para enviar -->
-      <Border Classes="card" IsVisible="{Binding ShowReadyCard}" Padding="14,12,16,12">
+      <Border x:Name="ReadyCard" Classes="card" IsVisible="{Binding ShowReadyCard}" Padding="14,12,16,12">
         <Grid ColumnDefinitions="Auto,*,Auto">
           <ch:ChasquiView x:Name="Mascot" Width="58" Height="58" State="{Binding Chasqui}" Progress="{Binding ChasquiProgress}"
                           ReduceMotion="{Binding ReduceMotion}" ShowRadar="False" />
@@ -86,7 +113,7 @@
       </Border>
 
       <!-- Nadie en la red -->
-      <StackPanel IsVisible="{Binding ShowNobodyView}" Spacing="16">
+      <StackPanel x:Name="NobodyView" IsVisible="{Binding ShowNobodyView}" Spacing="16">
         <ch:ChasquiView Width="156" Height="156" HorizontalAlignment="Center" State="{Binding Chasqui}"
                         ReduceMotion="{Binding ReduceMotion}" />
         <StackPanel Spacing="4">
@@ -131,7 +158,7 @@
             </StackPanel>
           </Button>
         </Grid>
-        <Button Classes="link" HorizontalAlignment="Center" Command="{Binding Pair}">
+        <Button x:Name="NobodyPair" Classes="link" HorizontalAlignment="Center" Command="{Binding Pair}">
           <StackPanel Orientation="Horizontal" Spacing="6">
             <c:IconView Kind="UserPlus" Width="16" Height="16" />
             <TextBlock Text="{x:Static l:S.PairNew}" />
@@ -146,7 +173,7 @@
             <Run Text="{x:Static l:S.PeersHeader}" FontWeight="SemiBold" Foreground="{DynamicResource Text2Brush}" />
             <Run Text="{Binding PeersCountText}" Foreground="{DynamicResource Text3Brush}" />
           </TextBlock>
-          <Button Grid.Column="1" Classes="link" Command="{Binding Pair}" IsVisible="{Binding !DragOver}">
+          <Button x:Name="PairLink" Grid.Column="1" Classes="link" Command="{Binding Pair}" IsVisible="{Binding !DragOver}">
             <StackPanel Orientation="Horizontal" Spacing="6">
               <c:IconView Kind="Plus" Width="16" Height="16" />
               <TextBlock Text="{x:Static l:S.PairShort}" />
@@ -242,7 +269,7 @@
       </Border>
 
       <!-- Quién puede enviarte -->
-      <StackPanel Spacing="12" Classes="muteable" Classes.muted="{Binding DragOver}">
+      <StackPanel x:Name="ModeSection" Spacing="12" Classes="muteable" Classes.muted="{Binding DragOver}">
         <Border Classes="divider" Margin="0,0,0,4" />
         <Grid ColumnDefinitions="*,Auto">
           <TextBlock Text="{x:Static l:S.WhoCanSend}" Classes="label" VerticalAlignment="Center" />
@@ -276,5 +303,7 @@
         <TextBlock Text="{Binding ModeHint}" Classes="body2" TextWrapping="Wrap" />
       </StackPanel>
     </StackPanel>
+    <c:TourOverlay x:Name="TourLayer" />
+    </Panel>
   </Border>
 </Window>

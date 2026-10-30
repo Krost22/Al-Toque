@@ -78,6 +78,7 @@ public sealed class MainViewModel : ViewModelBase
             FirewallStatus = ok ? "✓" : "—";
         });
         ResetIdentity = new RelayCommand(() => _app.ConfirmResetIdentity());
+        ReplayTour = new RelayCommand(_app.ReplayTour);
         SelectTab = new RelayCommand(p => Tab = p switch { int i => i, string str when int.TryParse(str, out var i) => i, _ => 0 });
         ToggleAvatarPicker = new RelayCommand(() => ShowAvatarPicker = !ShowAvatarPicker);
         OpenFolder = new RelayCommand(() => Opener.OpenFolder(Folder));
@@ -111,6 +112,9 @@ public sealed class MainViewModel : ViewModelBase
     public bool IsSettingsTab => Tab == 2;
     public bool IsAboutTab => Tab == 3;
     public RelayCommand SelectTab { get; }
+    public UpdateViewModel Updater => _app.Update;
+    public RelayCommand ReplayTour { get; } = null!;
+    public string Credits => S.Credits;
     public RelayCommand OpenFolder { get; }
 
     // ── Avatar ───────────────────────────────────────────────────────────────────

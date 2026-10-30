@@ -29,6 +29,7 @@ public sealed class QuickPanelViewModel : ViewModelBase
     private DateTimeOffset _searchStarted = DateTimeOffset.Now;
     private int _trustedCount;
     private ReceiveMode _mode = ReceiveMode.TrustedOnly;
+    private UpdateViewModel? _update;
 
     public QuickPanelViewModel(AppController app)
     {
@@ -67,6 +68,9 @@ public sealed class QuickPanelViewModel : ViewModelBase
     public RelayCommand AllowPublicNetwork { get; }
     public RelayCommand PeerClicked { get; }
     public RelayCommand ChooseFiles { get; }
+
+    /// <summary>Aviso de versión nueva arriba del panel.</summary>
+    public UpdateViewModel? Update { get => _update; set => Set(ref _update, value); }
 
     public ChasquiState Chasqui { get => _chasqui; set => Set(ref _chasqui, value); }
     public double ChasquiProgress { get => _chasquiProgress; set => Set(ref _chasquiProgress, value); }

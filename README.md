@@ -49,8 +49,9 @@ inglés revisado, macOS e integración con gestores de archivos de Linux, IPv6 e
 
 ## Instalar
 
-Descarga el instalador o la versión portable desde **Actions → Compilar y probar → Artifacts** (o desde
-*Releases*). Las instrucciones paso a paso están en [`docs/INSTALAR.md`](docs/INSTALAR.md).
+Descarga el instalador o la versión portable desde *Releases* (o desde **Actions → Compilar y probar → Artifacts**).
+La versión instalada se actualiza sola desde la app cada vez que se publica una versión nueva. Las instrucciones paso
+a paso están en [`docs/INSTALAR.md`](docs/INSTALAR.md).
 
 ## Uso
 
@@ -93,7 +94,22 @@ New-Item publish/portable.flag   # opcional: modo portable, guarda todo junto al
 
 El flujo de GitHub Actions ([`.github/workflows/build.yml`](.github/workflows/build.yml)) corre las pruebas en Linux y
 Windows, publica `win-x64` y `win-arm64` con NativeAOT, hace una prueba de humo del `.exe` en Windows (agente, menú
-contextual, "Enviar a" y CLI) y sube como artefactos el `.zip` portable y el instalador de Velopack. Al publicar una etiqueta `v*` crea la versión en GitHub, desde donde la app se actualiza sola.
+contextual, "Enviar a" y CLI) y sube como artefactos el `.zip` portable y el instalador de Velopack.
+
+### Publicar una versión
+
+Las copias instaladas buscan versiones nuevas en *Releases* y se actualizan solas (Velopack, canales `win-x64` y
+`win-arm64`). Para publicar una:
+
+1. **Actions → Compilar y probar → Run workflow**, elige la rama y escribe la versión (por ejemplo `0.2.0`), o bien
+   sube una etiqueta: `git tag v0.2.0 && git push origin v0.2.0`.
+2. El flujo compila, prueba y crea la versión `v0.2.0` en GitHub con los instaladores, los paquetes de actualización
+   de los dos canales y los `.zip` portables.
+3. En las próximas horas cada Al Toque instalado la descarga y avisa con **Reiniciar y actualizar** (o se instala al
+   cerrar la app).
+
+Cada versión debe ser mayor que la anterior. Las compilaciones sin versión usan `0.1.<n.º de ejecución>`, así que
+conviene publicar a partir de `0.2.0`.
 
 Para desarrollar con dos instancias en el mismo equipo, cada una con sus propios datos:
 
@@ -154,3 +170,5 @@ repositorio.
 ## Licencia
 
 Código abierto bajo la [licencia MIT](LICENSE).
+
+**KrostGames • Eduardo Mogollon Salcedo 2026**

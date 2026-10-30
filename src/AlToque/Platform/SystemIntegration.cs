@@ -105,6 +105,19 @@ public static class Opener
         OpenFile(path);
     }
 
+    /// <summary>Abre una página web en el navegador predeterminado.</summary>
+    public static void OpenUrl(string url)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo(url) { UseShellExecute = true })?.Dispose();
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            AgentLog.Write("No se pudo abrir la página: " + ex.Message);
+        }
+    }
+
     public static void OpenFile(string path)
     {
         try

@@ -19,7 +19,8 @@ red (el mismo Wi-Fi o cable).
 > ¿No sabes cuál es tu procesador? *Configuración → Sistema → Información → Tipo de sistema*. Si dice
 > "procesador basado en x64", usa **x64**.
 
-Cuando haya versiones publicadas, también estarán en la pestaña **Releases** del repositorio.
+Las versiones publicadas también están en la pestaña **Releases** del repositorio (`AlToque-win-x64-Setup.exe` o el
+`.zip` portable). Instalar desde ahí es lo más cómodo: esa copia se actualiza sola.
 
 ## 2a. Instalar (recomendado)
 
@@ -29,7 +30,7 @@ Cuando haya versiones publicadas, también estarán en la pestaña **Releases** 
    **Más información → Ejecutar de todas formas**. Solo pasa la primera vez.
 4. Se instala para tu usuario, crea accesos directos en el escritorio y en el menú Inicio, y se abre sola.
 
-Las actualizaciones se descargan en segundo plano y se aplican al cerrar la app.
+Las actualizaciones son automáticas: mira el apartado [Actualizar](#actualizar).
 
 ## 2b. Versión portable (sin instalar)
 
@@ -45,6 +46,8 @@ Las actualizaciones se descargan en segundo plano y se aplican al cerrar la app.
    ícono de la bandeja → *Historial y ajustes* → *Ajustes* → **Permitir en el firewall**.
 3. Comprueba que tu red esté marcada como **privada**: *Configuración → Red e Internet → Wi-Fi/Ethernet →
    Tipo de perfil de red → Privada*. En redes públicas Al Toque no recibe archivos, por seguridad.
+4. La primera vez que abres el panel en esa PC, Chasqui te da un **recorrido guiado** de medio minuto. Puedes
+   saltarlo con *Saltar* (o Esc) y repetirlo cuando quieras desde *Ajustes → Acerca de → Ver el tutorial otra vez*.
 
 ## 4. Emparejar con un compañero (una sola vez)
 
@@ -86,6 +89,16 @@ solicitud llega marcada como **No verificado**.
    por código** (también acepta la dirección IP).
 5. **Wi-Fi de cafeterías, hoteles o invitados:** muchas aíslan los equipos entre sí y ninguna app de red local puede
    funcionar ahí. Conecten las dos PC al **punto de acceso del celular** o a otra red.
+
+## Actualizar
+
+- **Versión instalada (con `Setup.exe`):** Al Toque revisa GitHub al poco de abrirse y luego cada 6 horas. Si hay una
+  versión nueva, la descarga en segundo plano y te avisa en el panel: pulsa **Reiniciar y actualizar** y en unos
+  segundos vuelve a abrirse ya actualizado. Si no lo pulsas, se instala sola la próxima vez que cierres la app. Nunca
+  se reinicia en medio de un envío sin preguntarte. Puedes desactivarlo en *Ajustes → Acerca de → Actualizar
+  automáticamente* (entonces descarga solo cuando pulsas **Actualizar**).
+- **Versión portable:** te avisa de que hay una versión nueva y el botón **Descargar** abre la página de GitHub;
+  descomprime el `.zip` nuevo encima de la carpeta anterior (tu configuración en `AlToque.data` se conserva).
 
 ## Desinstalar
 

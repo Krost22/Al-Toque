@@ -1,6 +1,7 @@
 using AlToque.Chasqui;
 using AlToque.Controls;
 using AlToque.Controls.Avatars;
+using AlToque.Localization;
 using AlToque.ViewModels;
 using Avalonia;
 using Avalonia.Controls;
@@ -29,6 +30,16 @@ public partial class QuickPanelWindow : Window
         // archivos hasta aquí. Se cierra con la X, con Esc o con el ícono de la bandeja.
         KeyDown += (_, e) =>
         {
+            if (Tour.IsRunning)
+            {
+                // Durante el tutorial: Esc lo salta, Entrar o → avanza.
+                if (e.Key == Key.Escape)
+                    Tour.Finish();
+                else if (e.Key is Key.Enter or Key.Right)
+                    Tour.Next();
+                e.Handled = true;
+                return;
+            }
             if (e.Key == Key.Escape)
                 HideRequested?.Invoke();
         };
@@ -44,6 +55,37 @@ public partial class QuickPanelWindow : Window
     public event Action? HideRequested;
 
     private QuickPanelViewModel? Vm => DataContext as QuickPanelViewModel;
+
+    private TourOverlay Tour => this.FindControl<TourOverlay>("TourLayer")!;
+
+    public bool IsTourRunning => Tour.IsRunning;
+
+    /// <summary>Tutorial guiado: el panel paso a paso. <paramref name="done"/> se llama al terminar o saltarlo.</summary>
+    public void StartTour(Action done)
+    {
+        if (Tour.IsRunning)
+            return;
+        var hasPeers = Vm?.HasPeers == true;
+        TourStep[] steps =
+        [
+            new([], S.TourHelloTitle, S.TourHelloBody, ChasquiState.Incoming),
+            new(["PendingCard", "ReadyCard", "NobodyView"], S.TourSendTitle, S.TourSendBody, ChasquiState.Attentive),
+            new(["PeerList", "NobodyView"], S.TourPeersTitle, hasPeers ? S.TourPeersBody : S.TourNobodyBody, ChasquiState.Searching),
+            new(["PairLink", "NobodyPair"], S.TourPairTitle, S.TourPairBody, ChasquiState.Waiting),
+            new(["ModeSection"], S.TourModeTitle, S.TourModeBody, ChasquiState.Idle),
+            new(["SettingsButton"], S.TourSettingsTitle, S.TourSettingsBody, ChasquiState.Received),
+            new([], S.TourEndTitle, S.TourEndBody, ChasquiState.Success),
+        ];
+        void OnFinished()
+        {
+            Tour.Finished -= OnFinished;
+            done();
+        }
+        Tour.Finished += OnFinished;
+        Tour.Start(steps, name => this.FindControl<Control>(name));
+    }
+
+    public void StopTour() => Tour.Finish();
 
     public void PlaceNearTray() => FloatingWindow.PlaceBottomRight(this, 0);
 

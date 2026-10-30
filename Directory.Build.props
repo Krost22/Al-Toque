@@ -6,8 +6,9 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Version>0.1.0</Version>
     <Product>Al Toque</Product>
-    <Company>Al Toque</Company>
-    <Copyright>© 2026 Al Toque</Copyright>
+    <Company>KrostGames</Company>
+    <Authors>KrostGames • Eduardo Mogollon Salcedo</Authors>
+    <Copyright>© 2026 KrostGames • Eduardo Mogollon Salcedo</Copyright>
     <NeutralLanguage>es</NeutralLanguage>
     <SatelliteResourceLanguages>es;en</SatelliteResourceLanguages>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>

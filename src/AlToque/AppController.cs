@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using AlToque.Chasqui;
 using AlToque.Controls;
+using AlToque.Core;
 using AlToque.Core.Agent;
 using AlToque.Core.Pairing;
 using AlToque.Core.Storage;
@@ -44,6 +45,8 @@ public sealed class AppController
     private string? _integrationSignature;
     private bool _systemReduceMotion;
     private Updates? _updates;
+    private NativeMenuItem? _updateItem;
+    private bool _restartingForUpdate;
 
     public AppController(App app, IClassicDesktopStyleApplicationLifetime desktop)
     {
@@ -59,6 +62,7 @@ public sealed class AppController
     public MainViewModel? Main { get; private set; }
     public PairingViewModel? Pairing { get; private set; }
     public ConnectViewModel? Connect { get; private set; }
+    public UpdateViewModel Update { get; private set; } = null!;
 
     /// <summary>Movimiento reducido: por ajuste ("Animaciones") o, en "Como en Windows", por el sistema.</summary>
     public bool ReduceMotion => Agent.Settings.Current.AnimationMode switch
@@ -102,7 +106,13 @@ public sealed class AppController
         _slowTimer.Tick += (_, _) => SlowTick();
         _slowTimer.Start();
         _desktop.ShutdownRequested += (_, _) => Cleanup();
-        _updates = new Updates();
+        _updates = new Updates(() => Agent.Settings.Current.AutoUpdate);
+        Update = new UpdateViewModel(_updates, () => Agent.Settings.Current.AutoUpdate,
+            v => Agent.Settings.Update(s => s.AutoUpdate = v), InstallUpdate);
+        Update.PropertyChanged += (_, _) => RefreshUpdateItem();
+        Panel.Update = Update;
+        RefreshUpdateItem();
+        CelebrateUpdate();
 
         if (!Agent.Settings.Current.WelcomeDone)
             ShowWelcome();
@@ -156,6 +166,9 @@ public sealed class AppController
     private void BuildTray()
     {
         var menu = new NativeMenu();
+        _updateItem = Item(S.UpdateNow, InstallUpdate);
+        _updateItem.IsVisible = false;
+        menu.Add(_updateItem);
         menu.Add(Item(S.TrayOpen, () => ShowPanel()));
         menu.Add(new NativeMenuItemSeparator());
         var modes = new NativeMenu();
@@ -295,10 +308,33 @@ public sealed class AppController
         if (!wasVisible)
             _panelWindow.PlayEntrance();
         LayoutToasts();
+        // Primera vez en esta PC: tutorial guiado (cuando el panel ya terminó de entrar).
+        if (!Agent.Settings.Current.TutorialDone && !_panelWindow.IsTourRunning)
+            DispatcherTimer.RunOnce(StartTour, TimeSpan.FromMilliseconds(700));
+    }
+
+    private void StartTour()
+    {
+        if (_panelWindow is not { IsVisible: true } panel)
+            return;
+        panel.StartTour(() =>
+        {
+            if (!Agent.Settings.Current.TutorialDone)
+                Agent.Settings.Update(s => s.TutorialDone = true);
+        });
+    }
+
+    /// <summary>"Ver el tutorial otra vez" desde Acerca de.</summary>
+    public void ReplayTour()
+    {
+        ShowPanel();
+        DispatcherTimer.RunOnce(StartTour, TimeSpan.FromMilliseconds(500));
     }
 
     public void HidePanel()
     {
+        if (_panelWindow?.IsTourRunning == true)
+            _panelWindow.StopTour();
         _panelWindow?.Hide();
         Panel.SetPending(null);
         LayoutToasts();
@@ -698,6 +734,53 @@ public sealed class AppController
         window.Show();
     }
 
+    // ── Actualizaciones ──────────────────────────────────────────────────────────
+
+    private void RefreshUpdateItem()
+    {
+        if (_updateItem is null || Update is null)
+            return;
+        _updateItem.IsVisible = Update.HasNews && _updates?.CanInstall == true;
+        _updateItem.Header = S.TrayUpdate(_updates?.AvailableVersion ?? "");
+    }
+
+    /// <summary>"Actualizar": descarga si hace falta y reinicia en la versión nueva.</summary>
+    public async void InstallUpdate()
+    {
+        if (_updates is null)
+            return;
+        if (_updates.Status == UpdateStatus.Available)
+        {
+            if (!_updates.CanInstall)
+            {
+                Opener.OpenUrl(Updates.ReleasesUrl);
+                return;
+            }
+            await _updates.DownloadAsync();
+        }
+        if (_updates.Status != UpdateStatus.Ready)
+            return;
+        if (Transfers.Items.Any(t => t.IsActive) && !await ConfirmWindow.AskAsync(S.UpdateCutsTransfers))
+            return;
+        AgentLog.Write("Reiniciando para actualizar a " + _updates.AvailableVersion);
+        _restartingForUpdate = true;
+        IsQuitting = true;
+        Cleanup();
+        _updates.ApplyAndRestart(Program.StartedInBackground ? ["--background"] : []);
+        _desktop.Shutdown();
+    }
+
+    /// <summary>Primera ejecución tras actualizar: Chasqui lo celebra en el panel.</summary>
+    private void CelebrateUpdate()
+    {
+        var last = Agent.Settings.Current.LastVersion;
+        if (last == AppInfo.Version)
+            return;
+        Agent.Settings.Update(s => s.LastVersion = AppInfo.Version);
+        if (last is not null && Updates.IsNewer(AppInfo.Version, last))
+            Panel.Flash(ChasquiState.Success, S.UpdatedTo(AppInfo.Version));
+    }
+
     public async void ConfirmResetIdentity()
     {
         if (!await ConfirmWindow.AskAsync(S.ResetIdentityConfirm))
@@ -735,6 +818,10 @@ public sealed class AppController
         _fastTimer.Stop();
         _slowTimer.Stop();
         _tray?.Dispose();
+        // Con una versión ya descargada, se instala al terminar este proceso (sin volver a abrirse).
+        if (!_restartingForUpdate)
+            _updates?.ApplyOnExit();
+        _updates?.Dispose();
         try
         {
             Agent.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(2));

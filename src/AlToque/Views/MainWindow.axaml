@@ -378,7 +378,7 @@
         </StackPanel>
 
         <!-- ═══ Acerca de ═══ -->
-        <StackPanel x:Name="AboutPage" IsVisible="{Binding IsAboutTab}" Spacing="16" HorizontalAlignment="Center" Margin="0,24,0,0" MaxWidth="560">
+        <StackPanel x:Name="AboutPage" IsVisible="{Binding IsAboutTab}" Spacing="16" HorizontalAlignment="Stretch" Margin="0,24,0,0" MaxWidth="600">
           <ch:ChasquiView x:Name="AboutChasqui" Width="160" Height="160" State="Idle" HorizontalAlignment="Center" />
           <StackPanel Spacing="4">
             <TextBlock Text="Al Toque" Classes="title" HorizontalAlignment="Center" />
@@ -397,7 +397,43 @@
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>
-          <TextBlock Text="{x:Static l:S.License}" Classes="meta" HorizontalAlignment="Center" />
+          <StackPanel Spacing="2" HorizontalAlignment="Center">
+            <TextBlock Text="{x:Static l:S.License}" Classes="meta" HorizontalAlignment="Center" />
+            <TextBlock Text="{Binding Credits}" Classes="strong" HorizontalAlignment="Center" />
+          </StackPanel>
+
+          <!-- Actualizaciones -->
+          <Border Classes="setting" Margin="0,8,0,0">
+            <StackPanel Spacing="12">
+              <Grid ColumnDefinitions="40,*,Auto">
+                <c:IconView Kind="Download" Width="22" Height="22" VerticalAlignment="Center" />
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2" Margin="8,0">
+                  <TextBlock Text="{x:Static l:S.UpdatesTitle}" FontSize="15" />
+                  <TextBlock Text="{Binding Updater.StatusText}" Classes="meta" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+                </StackPanel>
+                <Button Grid.Column="2" Classes.accent="{Binding Updater.HasNews}" Content="{Binding Updater.ActionText}"
+                        Command="{Binding Updater.Act}" VerticalAlignment="Center" />
+              </Grid>
+              <ProgressBar Classes="update" Minimum="0" Maximum="100" Value="{Binding Updater.Progress}" IsVisible="{Binding Updater.IsDownloading}"
+                           Margin="48,0,0,0" />
+              <Border Classes="divider" />
+              <Grid ColumnDefinitions="40,*,Auto">
+                <c:IconView Kind="Sparkles" Width="22" Height="22" VerticalAlignment="Center" />
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2" Margin="8,0">
+                  <TextBlock Text="{x:Static l:S.AutoUpdate}" FontSize="15" />
+                  <TextBlock Text="{x:Static l:S.AutoUpdateHint}" Classes="meta" TextWrapping="Wrap" />
+                </StackPanel>
+                <ToggleSwitch Grid.Column="2" IsChecked="{Binding Updater.AutoUpdate}" AutomationProperties.Name="{x:Static l:S.AutoUpdate}" />
+              </Grid>
+            </StackPanel>
+          </Border>
+
+          <Button HorizontalAlignment="Center" Command="{Binding ReplayTour}">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <c:IconView Kind="Help" Width="18" Height="18" />
+              <TextBlock Text="{x:Static l:S.TourAgain}" />
+            </StackPanel>
+          </Button>
         </StackPanel>
       </Panel>
     </ScrollViewer>

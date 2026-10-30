@@ -505,6 +505,14 @@
     <Setter Property="CornerRadius" Value="0" />
   </Style>
 
+  <Style Selector="ProgressBar.update">
+    <Setter Property="MinHeight" Value="5" />
+    <Setter Property="Height" Value="5" />
+    <Setter Property="CornerRadius" Value="3" />
+    <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+    <Setter Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+  </Style>
+
   <!-- ===== Campos ===== -->
   <Style Selector="TextBox">
     <Setter Property="MinHeight" Value="36" />

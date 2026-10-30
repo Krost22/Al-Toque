@@ -5,7 +5,14 @@ on:
     branches: [main, Windows]
     tags: ["v*"]
   pull_request:
+  # Publicar una versión: Actions → "Compilar y probar" → Run workflow → versión (por ejemplo 0.2.0).
+  # Las copias instaladas la detectan y se actualizan desde la app.
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Versión a publicar (por ejemplo 0.2.0). Vacío = solo compilar."
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -50,7 +57,11 @@ jobs:
         id: version
         shell: pwsh
         run: |
-          if ("${{ github.ref_type }}" -eq "tag") { $v = "${{ github.ref_name }}".TrimStart("v") } else { $v = "0.1.${{ github.run_number }}" }
+          $manual = "${{ github.event.inputs.version }}".Trim().TrimStart("v")
+          if ("${{ github.ref_type }}" -eq "tag") { $v = "${{ github.ref_name }}".TrimStart("v") }
+          elseif ($manual) { $v = $manual }
+          else { $v = "0.1.${{ github.run_number }}" }
+          if ($v -notmatch '^\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$') { throw "Versión inválida: $v (usa el formato 1.2.3)" }
           "value=$v" >> $env:GITHUB_OUTPUT
 
       - name: Publicar con NativeAOT
@@ -112,9 +123,42 @@ jobs:
           name: AlToque-${{ matrix.rid }}-instalador
           path: releases/${{ matrix.rid }}
 
-      - name: Publicar versión en GitHub
-        if: github.ref_type == 'tag' && matrix.rid == 'win-x64' && steps.velopack.outcome == 'success'
+  # Publica la versión en GitHub Releases con los dos canales (x64 y ARM64): es de donde la app se actualiza sola.
+  publicar:
+    name: Publicar versión
+    needs: windows
+    if: github.ref_type == 'tag' || github.event.inputs.version != ''
+    runs-on: windows-latest
+    steps:
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "10.0.x"
+      - name: Versión
+        id: version
         shell: pwsh
         run: |
-          vpk upload github -o releases/${{ matrix.rid }} --repoUrl https://github.com/${{ github.repository }} `
-            --token ${{ secrets.GITHUB_TOKEN }} --publish --releaseName "Al Toque ${{ steps.version.outputs.value }}" --tag ${{ github.ref_name }}
+          if ("${{ github.ref_type }}" -eq "tag") { $v = "${{ github.ref_name }}".TrimStart("v") } else { $v = "${{ github.event.inputs.version }}".Trim().TrimStart("v") }
+          "value=$v" >> $env:GITHUB_OUTPUT
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: AlToque-*-instalador
+          path: releases
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: AlToque-*-portable
+          path: portable
+          merge-multiple: true
+      - name: Subir a GitHub Releases
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $v = "${{ steps.version.outputs.value }}"
+          dotnet tool install -g vpk --version 1.2.161
+          $common = @("--repoUrl", "https://github.com/${{ github.repository }}", "--token", "${{ secrets.GITHUB_TOKEN }}",
+                      "--publish", "--releaseName", "Al Toque $v", "--tag", "v$v", "--targetCommitish", "${{ github.sha }}")
+          vpk upload github -o releases/AlToque-win-x64-instalador -c win-x64 @common
+          if ($LASTEXITCODE -ne 0) { throw "No se pudo publicar el canal win-x64" }
+          vpk upload github -o releases/AlToque-win-arm64-instalador -c win-arm64 --merge @common
+          if ($LASTEXITCODE -ne 0) { throw "No se pudo publicar el canal win-arm64" }
+          gh release upload "v$v" (Get-ChildItem portable/*.zip).FullName --repo "${{ github.repository }}" --clobber

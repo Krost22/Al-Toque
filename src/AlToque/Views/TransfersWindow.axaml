@@ -48,7 +48,10 @@
               </Grid>
               <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding CanOpen}">
                 <Button Classes="accent" Content="{x:Static l:S.OpenFolder}" Command="{Binding OpenFolder}" MinHeight="38" />
-                <Button Content="{Binding OpenFileText}" Command="{Binding OpenFile}" IsVisible="{Binding CanOpenFile}" MinHeight="38" />
+                <!-- TextBlock: un "_" del nombre del archivo no se toma como tecla de acceso. -->
+                <Button Command="{Binding OpenFile}" IsVisible="{Binding CanOpenFile}" MinHeight="38">
+                  <TextBlock Text="{Binding OpenFileText}" TextTrimming="CharacterEllipsis" />
+                </Button>
               </StackPanel>
               <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding ShowErrorActions}" Margin="66,0,0,0">
                 <Button Classes="accent" Command="{Binding Retry}" MinHeight="38">

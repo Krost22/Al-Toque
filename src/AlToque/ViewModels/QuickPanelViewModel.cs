@@ -3,6 +3,7 @@ using AlToque.Chasqui;
 using AlToque.Core.Discovery;
 using AlToque.Core.Storage;
 using AlToque.Core.Transfer;
+using AlToque.Controls;
 using AlToque.Localization;
 
 namespace AlToque.ViewModels;
@@ -57,9 +58,13 @@ public sealed class QuickPanelViewModel : ViewModelBase
         {
             if (p is not PeerViewModel peer)
                 return;
-            // A un compañero de confianza se le abre el chat; con archivos pendientes (clic derecho), se le envían.
+            // A un compañero de confianza se le abre el chat (el fijado en la esquina, si lo está); con archivos
+            // pendientes (clic derecho), se le envían.
             if (peer.IsTrusted && !HasPending)
-                OpenChat(peer.DeviceId);
+            {
+                if (!_app.FocusPinned(peer.DeviceId))
+                    OpenChat(peer.DeviceId);
+            }
             else
                 _app.OnPeerClicked(peer, PendingPaths, MessageOrNull);
         });
@@ -116,6 +121,7 @@ public sealed class QuickPanelViewModel : ViewModelBase
             var summary = summaries.FirstOrDefault(s => s.PeerId == peer.DeviceId);
             var last = summary?.Last;
             var preview = last is null || last.Author == me ? null
+                : last.IsFiles && last.Files is { Count: > 0 } photos && photos.All(p => ImageThumbnails.IsImage(p.Name)) ? S.ChatPhotos(Math.Max(1, last.FileCount))
                 : last.IsFiles ? S.ItemsNamed(last.Files is { Count: > 0 } f ? f[0].Name : "", Math.Max(1, last.FileCount))
                 : last.Text;
             peer.SetChat(summary?.Unread ?? 0, preview);

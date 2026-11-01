@@ -120,6 +120,8 @@ public sealed class AppController
             ShowPanel();
         else
             ShowPanelMinimized();
+        RestorePinned();
+        CleanPastedImages();
     }
 
     private void WireAgent()
@@ -300,11 +302,8 @@ public sealed class AppController
         {
             _panelWindow = new QuickPanelWindow { DataContext = Panel };
             _panelWindow.MinimizeRequested += MinimizePanel;
-            _panelWindow.SizeChanged += (_, _) =>
-            {
-                _panelWindow.PlaceNearTray();
-                LayoutToasts();
-            };
+            _panelWindow.TrayOffset = PinnedWidth();
+            _panelWindow.SizeChanged += (_, _) => LayoutCorner();
             _panelWindow.PropertyChanged += (_, e) =>
             {
                 if (e.Property == Window.WindowStateProperty)
@@ -314,7 +313,8 @@ public sealed class AppController
                 }
             };
             _panelWindow.Activated += (_, _) => UpdateChatVisibility();
-            _panelWindow.ChatFilesDropped += (peerId, paths) => _ = SendToPeerAsync(peerId, Agent.Trust.Find(peerId)?.DisplayName ?? "", paths, null);
+            _panelWindow.ChatFilesDropped += (peerId, paths) => _ = SendToPeerAsync(peerId, NameOf(peerId), paths, null);
+            _panelWindow.ChatImagePasted += (peerId, bitmap) => _ = SendPastedImageAsync(peerId, bitmap);
             _panelWindow.Deactivated += (_, _) => UpdateChatVisibility();
         }
         return _panelWindow;
@@ -340,6 +340,7 @@ public sealed class AppController
         if (_panelWindow.IsMinimized)
             _panelWindow.WindowState = WindowState.Normal;
         _panelWindow.Show();
+        _panelWindow.TrayOffset = PinnedWidth();
         _panelWindow.PlaceNearTray();
         _panelWindow.Activate();
         if (!wasVisible)
@@ -387,6 +388,11 @@ public sealed class AppController
             if (!await ConfirmWindow.AskAsync(S.RemovePeerConfirm(peer.Name)))
                 return;
             Agent.Trust.Remove(peer.DeviceId);
+            if (_pinned.ContainsKey(peer.DeviceId))
+            {
+                ClosePinned(peer.DeviceId);
+                SavePinned();
+            }
         }
         else
         {
@@ -441,9 +447,9 @@ public sealed class AppController
                 Panel.SetNetworkName(t.Result);
         }, TaskScheduler.FromCurrentSynchronizationContext());
 
-    public async Task<IReadOnlyList<string>> PickFilesAsync()
+    public async Task<IReadOnlyList<string>> PickFilesAsync(Window? owner = null)
     {
-        var owner = (Window?)_panelWindow ?? _mainWindow;
+        owner ??= (Window?)_panelWindow ?? _mainWindow;
         if (owner is null)
             return [];
         var files = await owner.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions { AllowMultiple = true, Title = "Al Toque" });
@@ -677,8 +683,8 @@ public sealed class AppController
     /// </summary>
     private void LayoutToasts()
     {
-        // Las tarjetas se ponen al lado de la ventana principal si está en su sitio junto a la bandeja.
-        var left = _panelWindow is { IsVisible: true, IsMinimized: false, UserPlaced: false } p ? p.Bounds.Width : 0;
+        // Las tarjetas van a la izquierda de los chats fijados y de la ventana principal si está junto a la bandeja.
+        var left = PinnedWidth() + (_panelWindow is { IsVisible: true, IsMinimized: false, UserPlaced: false } p ? p.Bounds.Width : 0);
         var offset = 0.0;
         var overlap = OperatingSystem.IsWindows() ? FloatingWindow.ShadowMargin : -8;
         if (_transfersWindow is { IsVisible: true } tw)
@@ -701,26 +707,115 @@ public sealed class AppController
     // ── Chats ────────────────────────────────────────────────────────────────────
 
     private readonly List<(MessageToastWindow Window, MessageToastViewModel Vm)> _messageToasts = [];
+    private readonly Dictionary<string, ChatWindow> _pinned = new(StringComparer.Ordinal);
+    private ImageViewerWindow? _viewer;
+    private DispatcherTimer? _pinSaveTimer;
 
+    /// <summary>El chat dentro del panel; «volver» regresa a la lista de compañeros.</summary>
     public ChatViewModel CreateChat(string peerId, Action back) =>
-        new(Agent, peerId, () => PickAndSendAsync(peerId), Opener.OpenFile, Opener.ShowInFolder, back, ConfirmWindow.AskAsync)
+        new(Agent, peerId, ChatActionsFor(peerId, () => _panelWindow, back, pinned: false))
         {
             IsVisible = _panelWindow is { IsActive: true, IsMinimized: false },
         };
 
-    private async Task PickAndSendAsync(string peerId)
+    private ChatActions ChatActionsFor(string peerId, Func<Window?> owner, Action? back, bool pinned) => new()
     {
-        var paths = await PickFilesAsync();
+        Attach = () => PickAndSendAsync(peerId, owner()),
+        OpenPath = Opener.OpenFile,
+        ShowInFolder = Opener.ShowInFolder,
+        Back = back,
+        Confirm = ConfirmWindow.AskAsync,
+        ViewPhotos = (paths, index) => ViewPhotos(paths, index, owner()),
+        TogglePin = pinned ? () => UnpinChat(peerId) : () => PinChat(peerId),
+        Minimize = pinned ? () => MinimizePinned(peerId) : null,
+    };
+
+    private string NameOf(string peerId) => Agent.Peers.Find(peerId)?.DisplayName ?? Agent.Trust.Find(peerId)?.DisplayName ?? "";
+
+    private async Task PickAndSendAsync(string peerId, Window? owner = null)
+    {
+        var paths = await PickFilesAsync(owner);
         if (paths.Count > 0)
-            await SendToPeerAsync(peerId, Agent.Trust.Find(peerId)?.DisplayName ?? "", paths, null);
+            await SendToPeerAsync(peerId, NameOf(peerId), paths, null);
     }
 
-    /// <summary>El chat a la vista y con la ventana activa: lo que llega cuenta como leído.</summary>
+    /// <summary>
+    /// Una imagen pegada en el chat (una captura): se guarda como PNG en la carpeta de la app y se envía como
+    /// cualquier archivo; así queda en la conversación de los dos.
+    /// </summary>
+    private async Task SendPastedImageAsync(string peerId, Avalonia.Media.Imaging.Bitmap bitmap)
+    {
+        string path;
+        try
+        {
+            var dir = Agent.Paths.PastedDir;
+            Directory.CreateDirectory(dir);
+            path = Path.Combine(dir, S.PastedImageName(DateTime.Now));
+            for (var i = 2; File.Exists(path); i++)
+                path = Path.Combine(dir, Path.GetFileNameWithoutExtension(S.PastedImageName(DateTime.Now)) + $" ({i}).png");
+            var target = path;
+            await Task.Run(() => bitmap.Save(target, new Avalonia.Media.Imaging.PngBitmapEncoderOptions()));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or NotSupportedException)
+        {
+            AgentLog.Write("No se pudo guardar la imagen pegada: " + ex.Message);
+            Panel.Flash(ChasquiState.Error, S.ErrorText("E_IO", NameOf(peerId), null));
+            return;
+        }
+        await SendToPeerAsync(peerId, NameOf(peerId), [path], null);
+    }
+
+    /// <summary>Las imágenes pegadas se guardan dos meses; después solo queda su registro en el chat.</summary>
+    private void CleanPastedImages() => _ = Task.Run(() =>
+    {
+        try
+        {
+            var dir = new DirectoryInfo(Agent.Paths.PastedDir);
+            if (!dir.Exists)
+                return;
+            foreach (var file in dir.EnumerateFiles("*.png").Where(f => DateTime.UtcNow - f.LastWriteTimeUtc > TimeSpan.FromDays(60)))
+                file.Delete();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            AgentLog.Write("Limpieza de imágenes pegadas: " + ex.Message);
+        }
+    });
+
+    private void ViewPhotos(IReadOnlyList<string> paths, int index, Window? near)
+    {
+        if (paths.Count == 0)
+            return;
+        _viewer?.Close();
+        var viewer = new ImageViewerWindow();
+        viewer.DataContext = new ImageViewerViewModel(paths, index, ImageViewerWindow.MaxSideFor(near ?? _panelWindow), Opener.OpenFile, Opener.ShowInFolder,
+            viewer.Close);
+        viewer.CoverScreenOf(near ?? _panelWindow);
+        viewer.Closed += (_, _) =>
+        {
+            if (_viewer == viewer)
+                _viewer = null;
+        };
+        _viewer = viewer;
+        viewer.Show();
+        viewer.Activate();
+    }
+
+    /// <summary>El chat a la vista: lo que llega cuenta como leído (el del panel, con la ventana activa; el fijado, sin minimizar).</summary>
     private void UpdateChatVisibility()
     {
         if (Panel.Chat is { } chat)
             chat.IsVisible = _panelWindow is { IsActive: true, IsMinimized: false, IsVisible: true };
+        foreach (var window in _pinned.Values)
+        {
+            if (window.Vm is { } vm)
+                vm.IsVisible = window is { IsVisible: true, IsMinimized: false };
+        }
     }
+
+    private bool IsBeingRead(string peerId) =>
+        Panel.Chat is { IsVisible: true } chat && chat.PeerId == peerId
+        || _pinned.TryGetValue(peerId, out var pinned) && pinned.Vm is { IsVisible: true };
 
     private void OnChatChanged(string peerId, Core.Chat.ChatMessage? message)
     {
@@ -729,10 +824,15 @@ public sealed class AppController
         if (_panelWindow is not null)
             _panelWindow.Title = unread > 0 ? $"({unread}) Al Toque" : "Al Toque";
         UpdateTray();
-        // Un mensaje nuevo que no se está viendo: aviso flotante.
-        var beingRead = Panel.Chat is { IsVisible: true } chat && chat.PeerId == peerId;
-        if (message is { IsFiles: false } m && m.Author == peerId && DateTimeOffset.UtcNow - m.ReceivedAt < TimeSpan.FromSeconds(15) && !beingRead)
-            ShowMessageToast(peerId, m.Text ?? "");
+        var fresh = message is { } m && m.Author == peerId && DateTimeOffset.UtcNow - m.ReceivedAt < TimeSpan.FromSeconds(15);
+        if (fresh && message is { IsFiles: false } text)
+        {
+            if (!IsBeingRead(peerId))
+                ShowMessageToast(peerId, text.Text ?? "");
+            // El chat fijado ya lo muestra; si no se está usando esa ventana, un sonido avisa.
+            else if (_pinned.TryGetValue(peerId, out var pinned) && !pinned.IsActive && Agent.Settings.Current.Sounds)
+                SystemPrefs.Play(SystemPrefs.Sound.Incoming);
+        }
         // Lo que ya se leyó deja de avisar.
         foreach (var (_, vm) in _messageToasts.Where(t => Agent.Chats.Unread(t.Vm.PeerId) == 0).ToList())
             CloseMessageToast(vm);
@@ -761,8 +861,16 @@ public sealed class AppController
     private void ReplyFromToast(MessageToastViewModel vm)
     {
         CloseMessageToast(vm);
+        OpenChat(vm.PeerId);
+    }
+
+    /// <summary>Abre la conversación: la fijada en la esquina si existe; si no, dentro del panel.</summary>
+    public void OpenChat(string peerId)
+    {
+        if (FocusPinned(peerId))
+            return;
         ShowPanel();
-        Panel.OpenChat(vm.PeerId);
+        Panel.OpenChat(peerId);
         UpdateChatVisibility();
     }
 
@@ -774,6 +882,178 @@ public sealed class AppController
         _messageToasts.Remove(toast);
         toast.Window.Close();
         LayoutToasts();
+    }
+
+    // ── Chats fijados en la esquina ──────────────────────────────────────────────
+
+    /// <summary>Si ese chat está fijado, lo trae a la vista (y devuelve true).</summary>
+    public bool FocusPinned(string peerId)
+    {
+        if (!_pinned.TryGetValue(peerId, out var window))
+            return false;
+        if (window.IsMinimized)
+            window.WindowState = WindowState.Normal;
+        window.Show();
+        window.Activate();
+        window.FocusComposer();
+        return true;
+    }
+
+    /// <summary>«Fijar en la esquina»: el chat sale del panel a su propia ventana, siempre encima.</summary>
+    public void PinChat(string peerId)
+    {
+        if (Agent.Trust.Find(peerId) is null)
+            return;
+        if (Panel.Chat?.PeerId == peerId)
+            Panel.CloseChat();
+        if (!_pinned.ContainsKey(peerId) && _pinned.Count >= PinnedChat.Max)
+            ClosePinned(_pinned.Keys.First());
+        OpenPinned(peerId, state: null);
+        FocusPinned(peerId);
+        SavePinned();
+    }
+
+    /// <summary>«Devolver al panel»: se cierra la ventana fijada y la conversación sigue en el panel.</summary>
+    private void UnpinChat(string peerId)
+    {
+        ClosePinned(peerId);
+        SavePinned();
+        ShowPanel();
+        Panel.OpenChat(peerId);
+        UpdateChatVisibility();
+    }
+
+    private void MinimizePinned(string peerId)
+    {
+        if (_pinned.TryGetValue(peerId, out var window))
+            window.WindowState = WindowState.Minimized;
+    }
+
+    private void ClosePinned(string peerId)
+    {
+        if (!_pinned.Remove(peerId, out var window))
+            return;
+        window.AllowClose = true;
+        window.Close();
+        window.Vm?.Dispose();
+        LayoutCorner();
+    }
+
+    private void OpenPinned(string peerId, PinnedChat? state)
+    {
+        if (_pinned.ContainsKey(peerId))
+            return;
+        ChatWindow? window = null;
+        var vm = new ChatViewModel(Agent, peerId, ChatActionsFor(peerId, () => window, back: null, pinned: true), pinned: true);
+        window = new ChatWindow { DataContext = vm };
+        if (state is { Width: { } width, Height: { } height })
+        {
+            window.Width = Math.Clamp(width, window.MinWidth, 900);
+            window.Height = Math.Clamp(height, window.MinHeight, 1200);
+        }
+        window.MinimizeRequested += () => MinimizePinned(peerId);
+        window.PlacementChanged += () =>
+        {
+            LayoutCorner();
+            SavePinnedSoon();
+        };
+        window.FilesDropped += paths => _ = SendToPeerAsync(peerId, NameOf(peerId), paths, null);
+        window.ImagePasted += bitmap => _ = SendPastedImageAsync(peerId, bitmap);
+        window.PropertyChanged += (_, e) =>
+        {
+            if (e.Property != Window.WindowStateProperty)
+                return;
+            UpdateChatVisibility();
+            LayoutCorner();
+            SavePinnedSoon();
+        };
+        window.Opened += (_, _) =>
+        {
+            LayoutCorner();
+            UpdateChatVisibility();
+        };
+        _pinned[peerId] = window;
+        if (state is { X: { } x, Y: { } y } && IsOnAScreen(window, new Avalonia.PixelPoint(x, y)))
+        {
+            window.UserPlaced = true;
+            window.Position = new Avalonia.PixelPoint(x, y);
+        }
+        else
+        {
+            FloatingWindow.PlaceBottomRight(window, 0, PinnedWidth());
+        }
+        if (state is { Minimized: true })
+            window.WindowState = WindowState.Minimized;
+        window.Show();
+    }
+
+    /// <summary>Que la ventana no quede fuera de la pantalla (se desconectó el monitor donde estaba).</summary>
+    private static bool IsOnAScreen(Window window, Avalonia.PixelPoint point) =>
+        window.Screens.All.Any(s => s.WorkingArea.Contains(new Avalonia.PixelPoint(point.X + 40, point.Y + 20)));
+
+    /// <summary>Al iniciar: los chats que estaban fijados vuelven a su sitio.</summary>
+    private void RestorePinned()
+    {
+        foreach (var state in Agent.Settings.Current.PinnedChats ?? [])
+        {
+            if (Agent.Trust.Find(state.PeerId) is not null)
+                OpenPinned(state.PeerId, state);
+        }
+    }
+
+    /// <summary>Lo que ocupan, desde la esquina, los chats fijados que están en su sitio (no movidos a mano).</summary>
+    private double PinnedWidth()
+    {
+        var gap = OperatingSystem.IsWindows() ? FloatingWindow.ShadowMargin : -8;
+        return _pinned.Values.Where(w => w is { IsVisible: true, IsMinimized: false, UserPlaced: false }).Sum(w => w.Bounds.Width - gap);
+    }
+
+    /// <summary>De la esquina hacia la izquierda: chats fijados, el panel (si está junto a la bandeja) y las tarjetas.</summary>
+    private void LayoutCorner()
+    {
+        var gap = OperatingSystem.IsWindows() ? FloatingWindow.ShadowMargin : -8;
+        var offset = 0.0;
+        foreach (var window in _pinned.Values.Where(w => w is { IsVisible: true, IsMinimized: false, UserPlaced: false }))
+        {
+            FloatingWindow.PlaceBottomRight(window, 0, offset);
+            offset += window.Bounds.Width - gap;
+        }
+        if (_panelWindow is { } panel)
+        {
+            panel.TrayOffset = offset;
+            if (panel is { IsVisible: true, IsMinimized: false })
+                panel.PlaceNearTray();
+        }
+        LayoutToasts();
+    }
+
+    private void SavePinnedSoon()
+    {
+        if (_pinSaveTimer is null)
+        {
+            _pinSaveTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+            _pinSaveTimer.Tick += (_, _) =>
+            {
+                _pinSaveTimer.Stop();
+                SavePinned();
+            };
+        }
+        _pinSaveTimer.Stop();
+        _pinSaveTimer.Start();
+    }
+
+    private void SavePinned()
+    {
+        var list = _pinned.Select(kv => new PinnedChat
+        {
+            PeerId = kv.Key,
+            X = kv.Value.UserPlaced ? kv.Value.Position.X : null,
+            Y = kv.Value.UserPlaced ? kv.Value.Position.Y : null,
+            Width = kv.Value.ClientSize.Width >= kv.Value.MinWidth ? kv.Value.ClientSize.Width : null,
+            Height = kv.Value.ClientSize.Height >= kv.Value.MinHeight ? kv.Value.ClientSize.Height : null,
+            Minimized = kv.Value.IsMinimized,
+        }).ToList();
+        Agent.Settings.Update(s => s.PinnedChats = list.Count > 0 ? list : null);
     }
 
     // ── Emparejamiento ───────────────────────────────────────────────────────────
@@ -949,6 +1229,9 @@ public sealed class AppController
     {
         if (IsQuitting)
             return;
+        // Antes de que se cierren las ventanas: los chats fijados vuelven así la próxima vez.
+        if (_pinned.Count > 0)
+            SavePinned();
         IsQuitting = true;
         Cleanup();
         _desktop.Shutdown();

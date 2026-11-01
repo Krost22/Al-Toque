@@ -75,6 +75,9 @@ public sealed class AppSettings
     /// <summary>El historial de envíos ya se copió a los chats de cada compañero.</summary>
     public bool ChatsImported { get; set; }
 
+    /// <summary>Chats fijados en la esquina de la pantalla: se vuelven a abrir donde estaban al iniciar.</summary>
+    public List<PinnedChat>? PinnedChats { get; set; }
+
     /// <summary>Descargar las versiones nuevas en segundo plano e instalarlas al cerrar o reiniciar.</summary>
     public bool AutoUpdate { get; set; } = true;
 
@@ -90,7 +93,12 @@ public sealed class AppSettings
         return name.Length > 1 ? char.ToUpperInvariant(name[0]) + name[1..].ToLowerInvariant() : name;
     }
 
-    public AppSettings Clone() => (AppSettings)MemberwiseClone();
+    public AppSettings Clone()
+    {
+        var copy = (AppSettings)MemberwiseClone();
+        copy.PinnedChats = PinnedChats?.Select(p => p with { }).ToList();
+        return copy;
+    }
 
     public void Normalize()
     {
@@ -105,5 +113,26 @@ public sealed class AppSettings
             Language = "auto";
         if (TcpPort is < 1024 or > 65535)
             TcpPort = AppInfo.DefaultTcpPort;
+        PinnedChats = PinnedChats?
+            .Where(p => Security.PeerKeys.IsValidDeviceId(p.PeerId))
+            .DistinctBy(p => p.PeerId)
+            .Take(PinnedChat.Max)
+            .ToList();
     }
+}
+
+/// <summary>Un chat fijado en la esquina: con quién, dónde (si se movió) y si quedó minimizado.</summary>
+public sealed record PinnedChat
+{
+    public const int Max = 4;
+
+    public required string PeerId { get; init; }
+
+    /// <summary>Posición en píxeles de la pantalla si se movió a mano; sin valor, va en la esquina.</summary>
+    public int? X { get; init; }
+
+    public int? Y { get; init; }
+    public double? Width { get; init; }
+    public double? Height { get; init; }
+    public bool Minimized { get; init; }
 }

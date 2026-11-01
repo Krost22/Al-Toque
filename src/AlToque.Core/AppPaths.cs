@@ -28,6 +28,9 @@ public sealed class AppPaths
     public string ChatDir => Path.Combine(ConfigDir, "chats");
     public string ChatKeyFile => Path.Combine(ConfigDir, "chat.key");
 
+    /// <summary>Imágenes pegadas en un chat (Ctrl+V): se guardan aquí para enviarlas y verlas después.</summary>
+    public string PastedDir => Path.Combine(ConfigDir, "pasted");
+
     public static AppPaths Resolve()
     {
         var overrideDir = Environment.GetEnvironmentVariable(HomeOverrideVariable);

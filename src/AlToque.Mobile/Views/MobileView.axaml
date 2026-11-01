@@ -126,7 +126,9 @@
                     <TextBlock Grid.Column="1" Text="{Binding FootRight}" Classes="meta num" FontWeight="SemiBold" />
                   </Grid>
                   <WrapPanel IsVisible="{Binding CanOpen}">
-                    <Button Classes="accent" Content="{Binding OpenFileText}" Command="{Binding OpenFile}" IsVisible="{Binding CanOpenFile}" Margin="0,0,10,0" />
+                    <Button Classes="accent" Command="{Binding OpenFile}" IsVisible="{Binding CanOpenFile}" Margin="0,0,10,0">
+                      <TextBlock Text="{Binding OpenFileText}" TextTrimming="CharacterEllipsis" />
+                    </Button>
                     <Button Content="{x:Static l:S.MobileOpenDownloads}" Command="{Binding OpenFolder}" />
                   </WrapPanel>
                   <WrapPanel IsVisible="{Binding ShowErrorActions}">

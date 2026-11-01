@@ -1,0 +1,71 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:AlToque.ViewModels"
+        xmlns:c="using:AlToque.Controls"
+        xmlns:l="using:AlToque.Localization"
+        x:Class="AlToque.Views.ImageViewerWindow"
+        x:DataType="vm:ImageViewerViewModel"
+        Title="{Binding Name}"
+        WindowDecorations="None"
+        ShowInTaskbar="True"
+        Topmost="True"
+        Icon="avares://AlToque/Assets/altoque.ico"
+        Background="#F0101014">
+  <Window.Styles>
+    <Style Selector="Button.viewer">
+      <Setter Property="Foreground" Value="White" />
+      <Setter Property="Background" Value="#26FFFFFF" />
+      <Setter Property="Width" Value="40" />
+      <Setter Property="Height" Value="40" />
+      <Setter Property="CornerRadius" Value="20" />
+    </Style>
+    <Style Selector="Button.viewer c|IconView">
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="Button.viewer:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#40FFFFFF" />
+    </Style>
+    <Style Selector="Button.viewer.nav">
+      <Setter Property="Width" Value="48" />
+      <Setter Property="Height" Value="48" />
+      <Setter Property="CornerRadius" Value="24" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+  </Window.Styles>
+  <!-- Clic en el fondo (fuera de la foto y de los botones) cierra el visor. -->
+  <Grid x:Name="Backdrop" RowDefinitions="Auto,*" Background="Transparent">
+    <Grid ColumnDefinitions="*,Auto" Margin="24,16">
+      <StackPanel VerticalAlignment="Center" Spacing="2">
+        <TextBlock Text="{Binding Name}" Foreground="White" Classes="strong" TextTrimming="CharacterEllipsis" />
+        <TextBlock Text="{Binding Counter}" Foreground="#B3FFFFFF" Classes="meta num" IsVisible="{Binding HasMany}" />
+      </StackPanel>
+      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+        <Button Classes="icon viewer" Command="{Binding OpenWith}" ToolTip.Tip="{x:Static l:S.ViewerOpenWith}"
+                AutomationProperties.Name="{x:Static l:S.ViewerOpenWith}">
+          <c:IconView Kind="External" />
+        </Button>
+        <Button Classes="icon viewer" Command="{Binding ShowInFolder}" ToolTip.Tip="{x:Static l:S.ChatShowInFolder}"
+                AutomationProperties.Name="{x:Static l:S.ChatShowInFolder}">
+          <c:IconView Kind="Folder" />
+        </Button>
+        <Button Classes="icon viewer" Command="{Binding Close}" ToolTip.Tip="{x:Static l:S.Close}" AutomationProperties.Name="{x:Static l:S.Close}">
+          <c:IconView Kind="Close" />
+        </Button>
+      </StackPanel>
+    </Grid>
+    <Panel Grid.Row="1" Margin="0,0,0,24">
+      <Image x:Name="Picture" Source="{Binding Image}" Stretch="Uniform" StretchDirection="DownOnly" Margin="88,0" />
+      <ProgressBar Classes="update" IsIndeterminate="True" IsVisible="{Binding IsLoading}" Width="140" VerticalAlignment="Center" />
+      <TextBlock Text="{x:Static l:S.ViewerUnreadable}" Foreground="#CCFFFFFF" IsVisible="{Binding IsUnreadable}"
+                 HorizontalAlignment="Center" VerticalAlignment="Center" />
+      <Button Classes="icon viewer nav" HorizontalAlignment="Left" Margin="24,0" Command="{Binding Previous}" IsVisible="{Binding HasMany}"
+              ToolTip.Tip="{x:Static l:S.ViewerPrevious}" AutomationProperties.Name="{x:Static l:S.ViewerPrevious}">
+        <c:IconView Kind="ChevronLeft" />
+      </Button>
+      <Button Classes="icon viewer nav" HorizontalAlignment="Right" Margin="24,0" Command="{Binding Next}" IsVisible="{Binding HasMany}"
+              ToolTip.Tip="{x:Static l:S.ViewerNext}" AutomationProperties.Name="{x:Static l:S.ViewerNext}">
+        <c:IconView Kind="ChevronRight" />
+      </Button>
+    </Panel>
+  </Grid>
+</Window>

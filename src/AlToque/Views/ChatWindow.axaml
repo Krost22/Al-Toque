@@ -1,0 +1,28 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:AlToque.ViewModels"
+        xmlns:cv="clr-namespace:AlToque.Views;assembly=AlToque.UI"
+        x:Class="AlToque.Views.ChatWindow"
+        x:DataType="vm:ChatViewModel"
+        Title="{Binding WindowTitle}"
+        Width="380" Height="560" MinWidth="320" MinHeight="360"
+        WindowDecorations="None"
+        ShowInTaskbar="True"
+        CanMinimize="True"
+        CanResize="True"
+        Topmost="True"
+        Icon="avares://AlToque/Assets/altoque.ico"
+        Background="Transparent">
+  <!-- Chat fijado en la esquina: siempre encima, con su botón en la barra de tareas; «—» lo minimiza. -->
+  <Border x:Name="Root" Classes="panel" Padding="16,14,16,16">
+    <Panel>
+      <cv:ChatView x:Name="Chat" />
+      <!-- La ventana no tiene marco del sistema: se agranda desde los bordes de arriba y de la izquierda,
+           que son los que quedan libres en la esquina. -->
+      <Border x:Name="GripTop" Height="6" VerticalAlignment="Top" Margin="0,-14,0,0" Background="Transparent" Cursor="SizeNorthSouth" />
+      <Border x:Name="GripLeft" Width="6" HorizontalAlignment="Left" Margin="-16,0,0,0" Background="Transparent" Cursor="SizeWestEast" />
+      <Border x:Name="GripCorner" Width="14" Height="14" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="-16,-14,0,0"
+              Background="Transparent" Cursor="TopLeftCorner" />
+    </Panel>
+  </Border>
+</Window>

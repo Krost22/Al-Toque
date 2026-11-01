@@ -274,7 +274,9 @@ public sealed class ChatStore
             TransferState.Cancelled => ChatResults.Cancelled,
             _ => ChatResults.Failed,
         };
-        var paths = mine ? info.SourcePaths : info.CompletedPaths;
+        // En orden de nombre: los dos lados ven lo mismo, sin importar qué archivo terminó de llegar primero.
+        var paths = (mine ? info.SourcePaths : info.CompletedPaths)
+            .OrderBy(p => Path.GetFileName(Path.TrimEndingDirectorySeparator(p)), StringComparer.CurrentCultureIgnoreCase);
         var files = paths.Take(MaxFilesListed).Select(p => new ChatFile { Name = Path.GetFileName(Path.TrimEndingDirectorySeparator(p)), Path = p }).ToList();
         if (files.Count == 0 && info.FirstName.Length > 0)
             files.Add(new ChatFile { Name = info.FirstName });

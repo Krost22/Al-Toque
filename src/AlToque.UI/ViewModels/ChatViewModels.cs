@@ -6,40 +6,63 @@ using AlToque.Core.Chat;
 using AlToque.Core.Discovery;
 using AlToque.Core.Security;
 using AlToque.Localization;
+using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 
 namespace AlToque.ViewModels;
+
+/// <summary>Lo que la conversación le pide a la app que la muestra; cada plataforma lo resuelve a su manera.</summary>
+public sealed class ChatActions
+{
+    /// <summary>Elegir archivos y mandárselos (cada plataforma tiene su selector).</summary>
+    public Func<Task>? Attach { get; init; }
+
+    public Action<string>? OpenPath { get; init; }
+    public Action<string>? ShowInFolder { get; init; }
+
+    /// <summary>Volver a la lista de compañeros (no lo tiene el chat fijado en la esquina).</summary>
+    public Action? Back { get; init; }
+
+    /// <summary>Pregunta antes de borrar la conversación.</summary>
+    public Func<string, Task<bool>>? Confirm { get; init; }
+
+    /// <summary>Ver las fotos en grande: todas las de la conversación y la que se tocó.</summary>
+    public Action<IReadOnlyList<string>, int>? ViewPhotos { get; init; }
+
+    /// <summary>Fijar la conversación en la esquina de la pantalla, o devolverla al panel si ya lo está.</summary>
+    public Action? TogglePin { get; init; }
+
+    public Action? Minimize { get; init; }
+}
 
 /// <summary>Una conversación abierta: mensajes y archivos con ese compañero, y el cuadro para escribir.</summary>
 public sealed class ChatViewModel : ViewModelBase, IDisposable
 {
     private readonly AgentHost _agent;
-    private readonly Action<string>? _openPath;
-    private readonly Action<string>? _showInFolder;
+    private readonly ChatActions _actions;
     private string _draft = "";
     private string _name = "";
     private string _avatarId;
     private bool _isVisible;
     private bool _disposed;
 
-    /// <param name="attach">Elegir archivos y mandárselos (cada plataforma tiene su selector).</param>
-    /// <param name="back">Volver a la lista de compañeros.</param>
-    /// <param name="confirm">Pregunta antes de borrar la conversación.</param>
-    public ChatViewModel(AgentHost agent, string peerId, Func<Task>? attach, Action<string>? openPath, Action<string>? showInFolder, Action? back,
-        Func<string, Task<bool>>? confirm = null)
+    /// <param name="pinned">Vive en su propia ventana en la esquina, no en el panel.</param>
+    public ChatViewModel(AgentHost agent, string peerId, ChatActions actions, bool pinned = false)
     {
         _agent = agent;
-        _openPath = openPath;
-        _showInFolder = showInFolder;
+        _actions = actions;
+        IsPinned = pinned;
         PeerId = peerId;
         ColorHex = IdentityVisuals.ColorHex(peerId);
         _avatarId = AvatarCatalog.DefaultFor(peerId);
         SendCommand = new RelayCommand(SendDraft, () => ChatStore.Clean(Draft).Length > 0);
-        Attach = new RelayCommand(() => _ = attach?.Invoke(), () => attach is not null);
-        Back = new RelayCommand(() => back?.Invoke());
+        Attach = new RelayCommand(() => _ = actions.Attach?.Invoke(), () => actions.Attach is not null);
+        Back = new RelayCommand(() => actions.Back?.Invoke());
+        TogglePin = new RelayCommand(() => actions.TogglePin?.Invoke(), () => actions.TogglePin is not null);
+        Minimize = new RelayCommand(() => actions.Minimize?.Invoke(), () => actions.Minimize is not null);
         Clear = new RelayCommand(async () =>
         {
-            if (confirm is null || await confirm(S.ChatClearConfirm(Name)))
+            if (actions.Confirm is null || await actions.Confirm(S.ChatClearConfirm(Name)))
                 _agent.Chats.Clear(PeerId);
         });
         _agent.Chats.Changed += OnChatsChanged;
@@ -65,6 +88,25 @@ public sealed class ChatViewModel : ViewModelBase, IDisposable
     public RelayCommand Attach { get; }
     public RelayCommand Back { get; }
     public RelayCommand Clear { get; }
+    public RelayCommand TogglePin { get; }
+    public RelayCommand Minimize { get; }
+
+    public bool IsPinned { get; }
+    public bool ShowBack => !IsPinned && _actions.Back is not null;
+    public bool CanPin => _actions.TogglePin is not null;
+    public bool CanMinimize => _actions.Minimize is not null;
+    public Ic PinIcon => IsPinned ? Ic.PinOff : Ic.Pin;
+    public string PinTip => IsPinned ? S.ChatUnpin : S.ChatPin;
+
+    /// <summary>Título de la ventana del chat fijado (con los no leídos, que se ven en la barra de tareas).</summary>
+    public string WindowTitle
+    {
+        get
+        {
+            var unread = _agent.Chats.Unread(PeerId);
+            return unread > 0 ? $"({unread}) {S.ChatWindowTitle(Name)}" : S.ChatWindowTitle(Name);
+        }
+    }
 
     public string Draft
     {
@@ -102,7 +144,29 @@ public sealed class ChatViewModel : ViewModelBase, IDisposable
     private void OnChatsChanged(string peerId, ChatMessage? message)
     {
         if (peerId == PeerId)
-            Dispatcher.UIThread.Post(Sync);
+            Dispatcher.UIThread.Post(() =>
+            {
+                Sync();
+                Raise(nameof(WindowTitle));
+            });
+    }
+
+    /// <summary>Tocaron una foto: el visor recibe todas las de la conversación, en orden, para pasar de una a otra.</summary>
+    private void ViewPhoto(string path)
+    {
+        if (_actions.ViewPhotos is not { } view)
+        {
+            _actions.OpenPath?.Invoke(path);
+            return;
+        }
+        var all = Items.Where(i => i.IsPhotos).SelectMany(i => i.PhotoPaths).Where(File.Exists).ToList();
+        var index = all.IndexOf(path);
+        if (index < 0)
+        {
+            all = [path];
+            index = 0;
+        }
+        view(all, index);
     }
 
     private void OnPeerChanged(string peerId)
@@ -125,6 +189,7 @@ public sealed class ChatViewModel : ViewModelBase, IDisposable
         Raise(nameof(IsOnline));
         Raise(nameof(StatusText));
         Raise(nameof(EmptyText));
+        Raise(nameof(WindowTitle));
     }
 
     /// <summary>Lleva la lista al estado del almacén: casi siempre solo cambia el final.</summary>
@@ -156,7 +221,7 @@ public sealed class ChatViewModel : ViewModelBase, IDisposable
             }
             else
             {
-                Items.Insert(i, new ChatItemViewModel(m, _agent.DeviceId, _openPath, _showInFolder));
+                Items.Insert(i, new ChatItemViewModel(m, _agent.DeviceId, _actions.OpenPath, _actions.ShowInFolder, ViewPhoto));
                 added = true;
             }
         }
@@ -207,16 +272,25 @@ public sealed class ChatViewModel : ViewModelBase, IDisposable
 /// <summary>Una burbuja del chat: un mensaje o un envío de archivos.</summary>
 public sealed class ChatItemViewModel : ViewModelBase
 {
+    /// <summary>Lado mayor de las miniaturas, en píxeles (el doble de lo que ocupan, para pantallas de alta densidad).</summary>
+    private const int SinglePhotoPixels = 560;
+    private const int GridPhotoPixels = 260;
+    private const int MaxGridPhotos = 4;
+
     private readonly Action<string>? _openPath;
     private readonly Action<string>? _showInFolder;
+    private readonly Action<string>? _viewPhoto;
     private ChatMessage _message;
     private string? _dayHeader;
+    private string _photoKey = "";
+    private IReadOnlyList<ChatPhotoViewModel> _photos = [];
 
-    public ChatItemViewModel(ChatMessage message, string me, Action<string>? openPath, Action<string>? showInFolder)
+    public ChatItemViewModel(ChatMessage message, string me, Action<string>? openPath, Action<string>? showInFolder, Action<string>? viewPhoto = null)
     {
         _message = message;
         _openPath = openPath;
         _showInFolder = showInFolder;
+        _viewPhoto = viewPhoto;
         Id = message.Id;
         IsMine = message.Author == me;
         var local = message.Time.ToLocalTime();
@@ -228,6 +302,7 @@ public sealed class ChatItemViewModel : ViewModelBase
             if (FirstPath is { } p)
                 _showInFolder?.Invoke(p);
         });
+        UpdatePhotos();
     }
 
     public string Id { get; }
@@ -252,6 +327,9 @@ public sealed class ChatItemViewModel : ViewModelBase
 
     public bool IsText => !_message.IsFiles;
     public bool IsFiles => _message.IsFiles;
+
+    /// <summary>Archivos que no son solo fotos (o que no llegaron): la tarjeta de archivo de siempre.</summary>
+    public bool IsFileCard => _message.IsFiles && !IsPhotos;
     public string? Text => _message.Text;
     public bool HasText => !string.IsNullOrEmpty(_message.Text);
 
@@ -305,9 +383,115 @@ public sealed class ChatItemViewModel : ViewModelBase
             _showInFolder?.Invoke(path);
     }
 
+    // ── Fotos ───────────────────────────────────────────────────────────────────
+
+    /// <summary>Solo imágenes (hasta 20) que llegaron bien o están viajando: se ven como fotos, no como archivos.</summary>
+    public bool IsPhotos { get; private set; }
+
+    public IReadOnlyList<ChatPhotoViewModel> Photos => _photos;
+    public ChatPhotoViewModel? FirstPhoto => _photos.Count > 0 ? _photos[0] : null;
+    public bool IsSinglePhoto => IsPhotos && _photos.Count == 1;
+    public bool IsPhotoGrid => IsPhotos && _photos.Count > 1;
+
+    /// <summary>Las rutas de todas las fotos del envío (para el visor), no solo las cuatro que se muestran.</summary>
+    public IEnumerable<string> PhotoPaths => IsPhotos && _message.Files is { } files
+        ? files.OrderBy(f => f.Name, StringComparer.CurrentCultureIgnoreCase).Select(f => f.Path).OfType<string>()
+        : [];
+
+    /// <summary>La hora sobre la foto; mientras viaja, también el estado.</summary>
+    public string PhotoMeta => IsFileActive ? $"{(IsMine ? S.ChatSending : S.ChatReceiving)} · {TimeText}" : TimeText;
+
+    private void UpdatePhotos()
+    {
+        var files = _message.Files;
+        var photos = _message.IsFiles && !IsFileError && files is { Count: > 0 } && files.Count == Math.Max(1, _message.FileCount)
+                     && files.All(f => ImageThumbnails.IsImage(f.Name));
+        var key = photos ? string.Join('|', files!.Select(f => f.Path ?? "")) : "";
+        if (key == _photoKey && photos == IsPhotos)
+            return;
+        _photoKey = key;
+        IsPhotos = photos;
+        if (!photos || files is null)
+        {
+            _photos = [];
+            return;
+        }
+        // En orden de nombre también para lo guardado antes de que el almacén los ordenara.
+        files = [.. files.OrderBy(f => f.Name, StringComparer.CurrentCultureIgnoreCase)];
+        var shown = files.Take(MaxGridPhotos).ToList();
+        _photos = shown.Select((f, i) => new ChatPhotoViewModel(f.Path, f.Name,
+            i == shown.Count - 1 ? files.Count - shown.Count : 0, _viewPhoto)).ToList();
+        var pixels = _photos.Count == 1 ? SinglePhotoPixels : GridPhotoPixels;
+        foreach (var photo in _photos)
+            photo.Load(pixels);
+    }
+
     public void Refresh(ChatMessage message)
     {
         _message = message;
+        UpdatePhotos();
         RaiseAll();
+    }
+}
+
+/// <summary>Una foto dentro de una burbuja: su miniatura se carga aparte, sin trabar la conversación.</summary>
+public sealed class ChatPhotoViewModel : ViewModelBase
+{
+    private Bitmap? _thumb;
+    private bool _isMissing;
+
+    /// <param name="extra">Cuántas fotos más hay detrás de esta (se muestra "+N" sobre la última).</param>
+    public ChatPhotoViewModel(string? path, string name, int extra, Action<string>? view)
+    {
+        Path = path;
+        Name = name;
+        Extra = extra;
+        View = new RelayCommand(() =>
+        {
+            if (Path is { } p && Thumb is not null)
+                view?.Invoke(p);
+        });
+    }
+
+    public string? Path { get; }
+    public string Name { get; }
+    public int Extra { get; }
+    public bool HasExtra => Extra > 0;
+    public string ExtraText => "+" + Extra;
+    public RelayCommand View { get; }
+
+    public Bitmap? Thumb
+    {
+        get => _thumb;
+        private set
+        {
+            if (Set(ref _thumb, value))
+            {
+                Raise(nameof(HasThumb));
+                Raise(nameof(IsPlaceholder));
+            }
+        }
+    }
+
+    public bool HasThumb => Thumb is not null;
+    public bool IsPlaceholder => Thumb is null;
+
+    /// <summary>Ya no está en el disco (se borró o se movió) o no se pudo leer.</summary>
+    public bool IsMissing
+    {
+        get => _isMissing;
+        private set => Set(ref _isMissing, value);
+    }
+
+    public async void Load(int maxSide)
+    {
+        if (Path is null)
+            return;
+        var bitmap = await ImageThumbnails.LoadAsync(Path, maxSide);
+        Dispatcher.UIThread.Post(() =>
+        {
+            Thumb = bitmap;
+            IsMissing = bitmap is null;
+        });
     }
 }

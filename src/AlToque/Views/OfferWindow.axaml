@@ -126,7 +126,9 @@
             </SplitButton.Flyout>
           </SplitButton>
           <TextBlock Grid.Column="1" Text="{Binding Countdown}" Classes="meta num" VerticalAlignment="Center" Margin="12,0" FontSize="13" />
-          <Button Grid.Column="2" Classes="accent" Content="{Binding AcceptLabel}" Command="{Binding Accept}" MinHeight="40" Padding="16,0" />
+          <Button Grid.Column="2" Classes="accent" Command="{Binding Accept}" MinHeight="40" Padding="16,0">
+            <TextBlock Text="{Binding AcceptLabel}" />
+          </Button>
         </Grid>
 
         <!-- ═══ Tarjeta compacta (compañero de confianza) ═══ -->

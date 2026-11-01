@@ -53,7 +53,9 @@
             <TextBlock Text="{Binding FoundSymbols}" Foreground="{Binding FoundColor}" FontSize="16" />
           </StackPanel>
         </Grid>
-        <Button Classes="accent big" Content="{Binding SendLabel}" Command="{Binding Send}" HorizontalAlignment="Stretch" />
+        <Button Classes="accent big" Command="{Binding Send}" HorizontalAlignment="Stretch">
+          <TextBlock Text="{Binding SendLabel}" TextTrimming="CharacterEllipsis" />
+        </Button>
       </StackPanel>
     </Border>
 

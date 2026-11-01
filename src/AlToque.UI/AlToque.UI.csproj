@@ -8,6 +8,8 @@
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="12.1.4" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.4" />
+    <!-- La misma versión que usa Avalonia para dibujar: miniaturas de fotos con su orientación. -->
+    <PackageReference Include="SkiaSharp" Version="3.119.4" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\AlToque.Core\AlToque.Core.csproj" />

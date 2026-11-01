@@ -26,11 +26,17 @@ public partial class QuickPanelWindow : Window
         root.AddHandler(DragDrop.DragOverEvent, OnDragOver);
         root.AddHandler(DragDrop.DragLeaveEvent, OnDragLeave);
         root.AddHandler(DragDrop.DropEvent, OnDrop);
-        // Archivos soltados sobre un chat abierto: van a ese compañero.
-        this.FindControl<ChatView>("ChatPane")!.FilesDropped += paths =>
+        // Archivos soltados (o pegados) sobre un chat abierto: van a ese compañero.
+        var chatPane = this.FindControl<ChatView>("ChatPane")!;
+        chatPane.FilesDropped += paths =>
         {
             if (Vm?.Chat is { } chat)
                 ChatFilesDropped?.Invoke(chat.PeerId, paths);
+        };
+        chatPane.ImagePasted += bitmap =>
+        {
+            if (Vm?.Chat is { } chat)
+                ChatImagePasted?.Invoke(chat.PeerId, bitmap);
         };
         // Se mueve arrastrando el encabezado; desde ese momento ya no se recoloca junto a la bandeja.
         var header = this.FindControl<Grid>("Header")!;
@@ -76,6 +82,9 @@ public partial class QuickPanelWindow : Window
 
     /// <summary>Soltaron archivos sobre el chat abierto con ese compañero.</summary>
     public event Action<string, IReadOnlyList<string>>? ChatFilesDropped;
+
+    /// <summary>Pegaron una imagen en el chat abierto con ese compañero.</summary>
+    public event Action<string, Avalonia.Media.Imaging.Bitmap>? ChatImagePasted;
 
     /// <summary>El usuario pidió cerrar la ventana (Esc, Alt+F4 o «Cerrar ventana» en la barra de tareas): se minimiza.</summary>
     public event Action? MinimizeRequested;
@@ -129,10 +138,13 @@ public partial class QuickPanelWindow : Window
 
     public void StopTour() => Tour.Finish();
 
+    /// <summary>Lo que ocupan los chats fijados en la esquina: el panel se pone a su izquierda.</summary>
+    public double TrayOffset { get; set; }
+
     public void PlaceNearTray()
     {
         if (!UserPlaced)
-            FloatingWindow.PlaceBottomRight(this, 0);
+            FloatingWindow.PlaceBottomRight(this, 0, TrayOffset);
     }
 
     /// <summary>Entrada del panel: las secciones suben en cascada y los avatares saltan uno tras otro.</summary>

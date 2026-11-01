@@ -166,9 +166,12 @@ public class TransferIntegrationTests
         Assert.Equal("pinguino", b.Host.Trust.Find(a.Host.DeviceId)!.Avatar);
         Assert.False(b.Host.Pairing.IsWindowOpen);
 
-        // Ya en "Solo confianza", con la clave fijada.
+        // Ya en "Solo confianza", con la clave fijada: recién emparejados, sus envíos llegan sin preguntar…
+        Assert.True(b.Host.Trust.Find(a.Host.DeviceId)!.AutoAccept);
+        var asked = 0;
         b.Host.OfferReceived += o =>
         {
+            asked++;
             Assert.True(o.Trusted);
             o.Accept();
         };
@@ -177,15 +180,63 @@ public class TransferIntegrationTests
         await WaitFinished(info);
         Assert.Equal(TransferState.Completed, info.State);
         Assert.True(info.PeerTrusted);
-
-        // Con aceptación automática ni siquiera se pregunta.
-        b.Host.Trust.Update(a.Host.DeviceId, p => p.AutoAccept = true);
-        var asked = 0;
-        b.Host.OfferReceived += _ => asked++;
-        var auto = a.Host.BeginSend(target, [a.WriteFile("auto.txt", 100)]);
-        await WaitFinished(auto);
-        Assert.Equal(TransferState.Completed, auto.State);
         Assert.Equal(0, asked);
+
+        // …salvo los programas, que siempre se confirman.
+        var program = a.Host.BeginSend(target, [a.WriteFile("instalador.exe", 2048)]);
+        await WaitFinished(program);
+        Assert.Equal(TransferState.Completed, program.State);
+        Assert.Equal(1, asked);
+
+        // Si se apaga, vuelve a preguntar por todo; y volver a emparejar respeta esa elección.
+        b.Host.Trust.Update(a.Host.DeviceId, p => p.AutoAccept = false);
+        var manual = a.Host.BeginSend(target, [a.WriteFile("manual.txt", 100)]);
+        await WaitFinished(manual);
+        Assert.Equal(TransferState.Completed, manual.State);
+        Assert.Equal(2, asked);
+        b.Host.Trust.AddOrReplace(b.Host.Trust.Find(a.Host.DeviceId)! is var old
+            ? new TrustedPeer { DeviceId = old.DeviceId, PublicKey = old.PublicKey, Alias = old.Alias, PairedAt = DateTimeOffset.UtcNow }
+            : throw new InvalidOperationException());
+        Assert.False(b.Host.Trust.Find(a.Host.DeviceId)!.AutoAccept);
+    }
+
+    [Fact]
+    public async Task PeersPairedBeforeGetAutoAcceptOnceOnly()
+    {
+        await using var peer = TestAgent.Create("Andrés");
+        using var dir = new TempDir();
+        var paths = AppPaths.Create(Path.Combine(dir.Path, "config"), false);
+        AgentHost Open() => AgentHost.Create(new AgentOptions
+        {
+            Paths = paths,
+            Protector = new FilePermissionSecretProtector(),
+            EnableIpc = false,
+            EnableDiscovery = false,
+        });
+
+        // Un perfil de una versión anterior: compañero sin aceptación automática y sin la migración hecha.
+        var host = Open();
+        host.Trust.AddOrReplace(new TrustedPeer
+        {
+            DeviceId = peer.Host.DeviceId,
+            PublicKey = Convert.ToBase64String(peer.Host.Identity.PublicKey),
+            Alias = "Andrés",
+            PairedAt = DateTimeOffset.UtcNow,
+        });
+        host.Trust.Update(peer.Host.DeviceId, p => p.AutoAccept = false);
+        host.Settings.Update(s => s.AutoAcceptMigrated = false);
+        await host.DisposeAsync();
+
+        host = Open();
+        Assert.True(host.Trust.Find(peer.Host.DeviceId)!.AutoAccept);
+        Assert.True(host.Settings.Current.AutoAcceptMigrated);
+
+        // Si después lo apagan, se queda apagado.
+        host.Trust.Update(peer.Host.DeviceId, p => p.AutoAccept = false);
+        await host.DisposeAsync();
+        host = Open();
+        Assert.False(host.Trust.Find(peer.Host.DeviceId)!.AutoAccept);
+        await host.DisposeAsync();
     }
 
     [Fact]

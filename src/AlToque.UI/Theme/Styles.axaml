@@ -335,6 +335,44 @@
     <Setter Property="Width" Value="16" />
     <Setter Property="Height" Value="16" />
   </Style>
+  <!-- Botón de ícono encendido (por ejemplo, "mantener encima"). -->
+  <Style Selector="Button.icon.on c|IconView">
+    <Setter Property="Foreground" Value="{DynamicResource AccentTextBrush}" />
+  </Style>
+
+  <!-- ★ y × en las esquinas de la tarjeta de un compañero: aparecen al pasar el ratón o con el teclado. -->
+  <Style Selector="Button.corner">
+    <Setter Property="Width" Value="28" />
+    <Setter Property="Height" Value="28" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="MinWidth" Value="0" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="CornerRadius" Value="14" />
+    <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource StrokeBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Opacity" Value="0" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <DoubleTransition Property="Opacity" Duration="0:0:0.12" />
+      </Transitions>
+    </Setter>
+  </Style>
+  <Style Selector="Button.corner c|IconView">
+    <Setter Property="Width" Value="14" />
+    <Setter Property="Height" Value="14" />
+  </Style>
+  <Style Selector=":is(Panel).peercard:pointerover Button.corner, Button.corner:focus-visible, Button.corner.on">
+    <Setter Property="Opacity" Value="1" />
+  </Style>
+  <Style Selector="Button.corner.on c|IconView">
+    <Setter Property="Foreground" Value="{DynamicResource WarningBrush}" />
+  </Style>
+  <Style Selector="Button.corner.danger:pointerover c|IconView">
+    <Setter Property="Foreground" Value="{DynamicResource ErrorBrush}" />
+  </Style>
 
   <!-- Navegación lateral de la ventana principal -->
   <Style Selector="Button.nav">

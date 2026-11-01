@@ -193,7 +193,7 @@ public sealed class PairingViewModel : ViewModelBase
         Confirmed = false;
         Connecting = false;
         _pairedId = null;
-        _autoAccept = false;
+        _autoAccept = true;
         Raise(nameof(AutoAccept));
         Status = S.PairWaiting;
     }
@@ -240,6 +240,9 @@ public sealed class PairingViewModel : ViewModelBase
     {
         Connecting = false;
         _pairedId = outcome == PairingOutcome.Paired ? Prompt?.PeerId : null;
+        // Recién emparejado, "recibir sin preguntar" viene activado; aquí se puede apagar.
+        _autoAccept = _pairedId is { } id ? _app.Agent.Trust.Find(id)?.AutoAccept ?? true : true;
+        Raise(nameof(AutoAccept));
         ResultOk = outcome == PairingOutcome.Paired;
         Result = ResultOk ? S.PairDone(peerName) : S.PairOutcome(outcome.ToString());
     }

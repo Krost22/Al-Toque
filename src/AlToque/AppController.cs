@@ -118,6 +118,8 @@ public sealed class AppController
             ShowWelcome();
         else if (!Program.StartedInBackground)
             ShowPanel();
+        else
+            ShowPanelMinimized();
     }
 
     private void WireAgent()
@@ -254,6 +256,9 @@ public sealed class AppController
                     WindowsShell.Install(exe, peers);
                 else
                     WindowsShell.Uninstall();
+                // Clic derecho en el botón de la barra de tareas › «Salir de Al Toque».
+                if (exe.Length > 0)
+                    JumpList.SetQuitTask(exe, S.QuitApp);
             }
             StartupRegistration.Set(settings.StartWithSystem);
         });
@@ -276,32 +281,54 @@ public sealed class AppController
 
     // ── Panel rápido ─────────────────────────────────────────────────────────────
 
+    /// <summary>Clic en el ícono de la bandeja: trae la ventana al frente o, si ya está delante, la minimiza.</summary>
     public void TogglePanel()
     {
-        if (_panelWindow is { IsVisible: true })
-            HidePanel();
+        if (_panelWindow is { IsVisible: true, IsMinimized: false, IsActive: true })
+            MinimizePanel();
         else
             ShowPanel();
     }
 
-    public void ShowPanel(IReadOnlyList<string>? pendingPaths = null)
+    private QuickPanelWindow EnsurePanelWindow()
     {
         if (_panelWindow is null)
         {
             _panelWindow = new QuickPanelWindow { DataContext = Panel };
-            _panelWindow.HideRequested += HidePanel;
+            _panelWindow.MinimizeRequested += MinimizePanel;
             _panelWindow.SizeChanged += (_, _) =>
             {
                 _panelWindow.PlaceNearTray();
                 LayoutToasts();
             };
+            _panelWindow.PropertyChanged += (_, e) =>
+            {
+                if (e.Property == Window.WindowStateProperty)
+                    LayoutToasts();
+            };
         }
+        return _panelWindow;
+    }
+
+    /// <summary>Al iniciar con la sesión: la ventana espera minimizada en la barra de tareas, a un clic.</summary>
+    private void ShowPanelMinimized()
+    {
+        var window = EnsurePanelWindow();
+        window.WindowState = WindowState.Minimized;
+        window.Show();
+    }
+
+    public void ShowPanel(IReadOnlyList<string>? pendingPaths = null)
+    {
+        EnsurePanelWindow();
         if (pendingPaths is not null)
             Panel.SetPending(pendingPaths);
         Panel.BeginSearch();
         Agent.Discovery?.Query();
         DispatcherTimer.RunOnce(() => Panel.EndSearch(), TimeSpan.FromSeconds(2.5));
-        var wasVisible = _panelWindow.IsVisible;
+        var wasVisible = _panelWindow!.IsVisible && !_panelWindow.IsMinimized;
+        if (_panelWindow.IsMinimized)
+            _panelWindow.WindowState = WindowState.Normal;
         _panelWindow.Show();
         _panelWindow.PlaceNearTray();
         _panelWindow.Activate();
@@ -331,13 +358,33 @@ public sealed class AppController
         DispatcherTimer.RunOnce(StartTour, TimeSpan.FromMilliseconds(500));
     }
 
-    public void HidePanel()
+    /// <summary>«—», Esc o cerrar la ventana: se minimiza a la barra de tareas y Al Toque sigue recibiendo.</summary>
+    public void MinimizePanel()
     {
         if (_panelWindow?.IsTourRunning == true)
             _panelWindow.StopTour();
-        _panelWindow?.Hide();
+        if (_panelWindow is { IsVisible: true } window)
+            window.WindowState = WindowState.Minimized;
         Panel.SetPending(null);
         LayoutToasts();
+    }
+
+    /// <summary>× en la tarjeta: un compañero de confianza deja de serlo; a otro equipo se lo oculta en esta sesión.</summary>
+    public async void RemovePeer(PeerViewModel peer)
+    {
+        if (peer.IsTrusted)
+        {
+            if (!await ConfirmWindow.AskAsync(S.RemovePeerConfirm(peer.Name)))
+                return;
+            Agent.Trust.Remove(peer.DeviceId);
+        }
+        else
+        {
+            if (!await ConfirmWindow.AskAsync(S.HidePeerConfirm(peer.Name)))
+                return;
+            Agent.Block(peer.DeviceId);
+        }
+        RefreshPeers();
     }
 
     /// <summary>Clic en un compañero: envía lo pendiente, pide archivos o, si quiere emparejar, empareja.</summary>
@@ -361,7 +408,7 @@ public sealed class AppController
         Panel.SetPending(null);
         await SendToPeerAsync(peer.DeviceId, peer.Name, paths, message);
         if (fromContextMenu)
-            HidePanel();
+            MinimizePanel();
     }
 
     private async Task SendToPeerAsync(string deviceId, string name, IReadOnlyList<string> paths, string? message)
@@ -436,7 +483,7 @@ public sealed class AppController
 
     private void RefreshPeers()
     {
-        var snapshot = Agent.Peers.Snapshot();
+        var snapshot = Agent.Peers.Snapshot().Where(p => !Agent.IsBlocked(p.DeviceId)).ToList();
         Panel.SyncPeers(snapshot);
         Pairing?.SyncCandidates(snapshot);
     }
@@ -616,7 +663,8 @@ public sealed class AppController
     /// </summary>
     private void LayoutToasts()
     {
-        var left = _panelWindow is { IsVisible: true } p ? p.Bounds.Width : 0;
+        // Las tarjetas se ponen al lado de la ventana principal si está en su sitio junto a la bandeja.
+        var left = _panelWindow is { IsVisible: true, IsMinimized: false, UserPlaced: false } p ? p.Bounds.Width : 0;
         var offset = 0.0;
         var overlap = OperatingSystem.IsWindows() ? FloatingWindow.ShadowMargin : -8;
         if (_transfersWindow is { IsVisible: true } tw)
@@ -708,9 +756,9 @@ public sealed class AppController
             };
         }
         Main!.Tab = tab;
+        // Ajustes abre su propia ventana: la principal sigue donde estaba.
         _mainWindow.Show();
         _mainWindow.Activate();
-        HidePanel();
     }
 
     private void ShowWelcome()

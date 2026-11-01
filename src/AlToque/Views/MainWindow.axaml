@@ -428,12 +428,20 @@
             </StackPanel>
           </Border>
 
-          <Button HorizontalAlignment="Center" Command="{Binding ReplayTour}">
-            <StackPanel Orientation="Horizontal" Spacing="8">
-              <c:IconView Kind="Help" Width="18" Height="18" />
-              <TextBlock Text="{x:Static l:S.TourAgain}" />
-            </StackPanel>
-          </Button>
+          <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Spacing="10">
+            <Button Command="{Binding ReplayTour}">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <c:IconView Kind="Help" Width="18" Height="18" />
+                <TextBlock Text="{x:Static l:S.TourAgain}" />
+              </StackPanel>
+            </Button>
+            <Button Command="{Binding QuitApp}" ToolTip.Tip="{x:Static l:S.QuitAppHint}">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <c:IconView Kind="Power" Width="18" Height="18" />
+                <TextBlock Text="{x:Static l:S.QuitApp}" />
+              </StackPanel>
+            </Button>
+          </StackPanel>
         </StackPanel>
       </Panel>
     </ScrollViewer>

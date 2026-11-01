@@ -10,25 +10,31 @@
         Title="Al Toque"
         Width="440" SizeToContent="Height"
         WindowDecorations="None"
-        ShowInTaskbar="False"
-        Topmost="True"
+        ShowInTaskbar="True"
+        CanMinimize="True"
+        Topmost="{Binding KeepOnTop}"
+        Icon="avares://AlToque/Assets/altoque.ico"
         Background="Transparent">
   <Border x:Name="Root" Classes="panel" DragDrop.AllowDrop="True" ClipToBounds="True">
     <Panel>
     <StackPanel x:Name="Sections" Spacing="18" Margin="20,16,20,20">
-      <!-- Encabezado -->
-      <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+      <!-- Encabezado: se arrastra para mover la ventana -->
+      <Grid x:Name="Header" ColumnDefinitions="Auto,*,Auto,Auto,Auto" Background="Transparent">
         <Border Width="30" Height="30" CornerRadius="7" Background="{StaticResource AccentBrush}">
           <c:IconView Kind="Send" Width="17" Height="17" Foreground="White" />
         </Border>
         <TextBlock Grid.Column="1" Text="Al Toque" Classes="subtitle" Margin="12,0" VerticalAlignment="Center" />
-        <Button x:Name="SettingsButton" Grid.Column="2" Classes="icon" Command="{Binding OpenSettings}" ToolTip.Tip="{x:Static l:S.Settings}"
+        <Button Grid.Column="2" Classes="icon" Classes.on="{Binding KeepOnTop}" Command="{Binding ToggleKeepOnTop}"
+                ToolTip.Tip="{x:Static l:S.KeepOnTop}" AutomationProperties.Name="{x:Static l:S.KeepOnTop}">
+          <c:IconView Kind="Pin" />
+        </Button>
+        <Button x:Name="SettingsButton" Grid.Column="3" Classes="icon" Command="{Binding OpenSettings}" ToolTip.Tip="{x:Static l:S.Settings}"
                 AutomationProperties.Name="{x:Static l:S.Settings}">
           <c:IconView Kind="Settings" />
         </Button>
-        <Button Grid.Column="3" Classes="icon" Command="{Binding Close}" ToolTip.Tip="{x:Static l:S.Close}"
-                AutomationProperties.Name="{x:Static l:S.Close}">
-          <c:IconView Kind="Close" />
+        <Button x:Name="MinimizeButton" Grid.Column="4" Classes="icon" Command="{Binding Minimize}" ToolTip.Tip="{x:Static l:S.Minimize}"
+                AutomationProperties.Name="{x:Static l:S.Minimize}">
+          <c:IconView Kind="Minus" />
         </Button>
       </Grid>
 
@@ -188,7 +194,7 @@
           </ItemsControl.ItemsPanel>
           <ItemsControl.ItemTemplate>
             <DataTemplate x:DataType="vm:PeerViewModel">
-              <Panel Margin="2">
+              <Panel Margin="2" Classes="peercard">
                 <c:DashedBorder IsVisible="{Binding ShowDashedOutline}" Radius="8" Marching="True" />
                 <Button Classes="peer" Classes.dropover="{Binding IsDropTarget}" HorizontalAlignment="Stretch"
                         Command="{Binding $parent[ItemsControl].((vm:QuickPanelViewModel)DataContext).PeerClicked}"
@@ -204,6 +210,18 @@
                     <TextBlock Text="{Binding StatusLine}" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" MaxWidth="124"
                                Classes="meta" Classes.accent="{Binding IsDropTarget}" />
                   </StackPanel>
+                </Button>
+                <!-- ★ favorito (solo compañeros de confianza) y × quitar u ocultar -->
+                <Button Classes="corner" Classes.on="{Binding IsFavorite}" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="6"
+                        IsVisible="{Binding IsTrusted}"
+                        Command="{Binding $parent[ItemsControl].((vm:QuickPanelViewModel)DataContext).ToggleFavorite}" CommandParameter="{Binding}"
+                        ToolTip.Tip="{Binding FavoriteTip}" AutomationProperties.Name="{Binding FavoriteTip}">
+                  <c:IconView Kind="Star" />
+                </Button>
+                <Button Classes="corner danger" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="6"
+                        Command="{Binding $parent[ItemsControl].((vm:QuickPanelViewModel)DataContext).RemovePeer}" CommandParameter="{Binding}"
+                        ToolTip.Tip="{Binding RemoveTip}" AutomationProperties.Name="{Binding RemoveTip}">
+                  <c:IconView Kind="Close" />
                 </Button>
               </Panel>
             </DataTemplate>

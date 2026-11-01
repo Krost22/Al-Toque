@@ -87,6 +87,23 @@ public sealed class AgentHost : IAsyncDisposable
                 options.DiscoveryPort, AgentLog.Write);
         }
         WireEvents();
+        EnableAutoAcceptForExistingPeers();
+    }
+
+    /// <summary>
+    /// "Recibir sin preguntar" pasó a estar activado por defecto: los compañeros emparejados con versiones anteriores
+    /// lo reciben una sola vez (quien lo apague después lo deja apagado).
+    /// </summary>
+    private void EnableAutoAcceptForExistingPeers()
+    {
+        if (Settings.Current.AutoAcceptMigrated)
+            return;
+        foreach (var peer in Trust.All)
+        {
+            if (!peer.AutoAccept)
+                Trust.Update(peer.DeviceId, p => p.AutoAccept = true);
+        }
+        Settings.Update(s => s.AutoAcceptMigrated = true);
     }
 
     public AppPaths Paths { get; }
@@ -322,13 +339,14 @@ public sealed class AgentHost : IAsyncDisposable
             Trust.Update(deviceId, t => t.Avatar = avatar);
     }
 
-    private bool IsBlocked(string deviceId)
+    /// <summary>Bloqueado en esta sesión: no puede conectarse ni aparece en la lista.</summary>
+    public bool IsBlocked(string deviceId)
     {
         lock (_lock)
             return _blocked.Contains(deviceId);
     }
 
-    private void Block(string deviceId)
+    public void Block(string deviceId)
     {
         lock (_lock)
             _blocked.Add(deviceId);

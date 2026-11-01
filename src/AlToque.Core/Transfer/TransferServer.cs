@@ -371,7 +371,8 @@ public sealed class TransferServer : IAsyncDisposable
         try
         {
             OfferResponse response;
-            if (trustedPeer is { AutoAccept: true })
+            // De un compañero de confianza se acepta sin preguntar, salvo que traiga programas: esos siempre se confirman.
+            if (trustedPeer is { AutoAccept: true } && !plan.HasDangerous)
             {
                 response = new OfferResponse(OfferResponseKind.Accept);
             }

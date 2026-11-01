@@ -21,7 +21,8 @@ public sealed class TrustedPeer
 
     public DateTimeOffset PairedAt { get; set; }
 
-    public bool AutoAccept { get; set; }
+    /// <summary>Recibir sus envíos sin preguntar (activado por defecto; los programas siempre preguntan).</summary>
+    public bool AutoAccept { get; set; } = true;
 
     public bool Favorite { get; set; }
 

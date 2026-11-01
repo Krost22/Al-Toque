@@ -39,6 +39,7 @@ public sealed class PeerViewModel : ViewModelBase
     private bool _isChecking;
     private bool _isDropTarget;
     private bool _isDragging;
+    private bool _isFavorite;
     private string _os = "";
     private string _avatarId;
 
@@ -84,6 +85,20 @@ public sealed class PeerViewModel : ViewModelBase
     }
 
     public bool IsTrusted { get => _isTrusted; private set => Set(ref _isTrusted, value); }
+
+    /// <summary>Favorito: aparece primero y su estrella queda siempre a la vista.</summary>
+    public bool IsFavorite
+    {
+        get => _isFavorite;
+        private set
+        {
+            if (Set(ref _isFavorite, value))
+                Raise(nameof(FavoriteTip));
+        }
+    }
+
+    public string FavoriteTip => IsFavorite ? S.Unfavorite(Name) : S.MakeFavorite(Name);
+    public string RemoveTip => IsTrusted ? S.RemovePeerTip(Name) : S.HidePeerTip(Name);
     public bool IsPairing { get => _isPairing; private set => Set(ref _isPairing, value); }
 
     public bool IsDropTarget
@@ -134,6 +149,7 @@ public sealed class PeerViewModel : ViewModelBase
         Name = info.DisplayName;
         IsOnline = info.Presence == PeerPresence.Online;
         IsTrusted = info.IsTrusted;
+        IsFavorite = info.IsTrusted && info.IsFavorite;
         IsPairing = info.Pairing && !info.IsTrusted;
         _isBusy = info.Busy;
         _isChecking = info.Presence == PeerPresence.Checking;
@@ -155,6 +171,8 @@ public sealed class PeerViewModel : ViewModelBase
             _ => Os.Length > 0 ? Os : S.Available,
         };
         Raise(nameof(AccessibleName));
+        Raise(nameof(FavoriteTip));
+        Raise(nameof(RemoveTip));
         Raise(nameof(Dimmed));
         Raise(nameof(Mood));
         RaiseVisuals();

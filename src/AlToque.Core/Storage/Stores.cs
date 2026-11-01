@@ -209,6 +209,7 @@ public sealed class TrustStore
                 peer.LocalName ??= old.LocalName;
                 peer.Avatar ??= old.Avatar;
                 peer.Favorite |= old.Favorite;
+                peer.AutoAccept = old.AutoAccept;
                 _peers[existing] = Copy(peer);
             }
             else

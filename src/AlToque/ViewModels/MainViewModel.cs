@@ -44,6 +44,7 @@ public sealed class MainViewModel : ViewModelBase
         });
         ResetIdentity = new RelayCommand(() => _app.ConfirmResetIdentity());
         ReplayTour = new RelayCommand(_app.ReplayTour);
+        QuitApp = new RelayCommand(_app.Quit);
         SelectTab = new RelayCommand(p => Tab = p switch { int i => i, string str when int.TryParse(str, out var i) => i, _ => 0 });
         ToggleAvatarPicker = new RelayCommand(() => ShowAvatarPicker = !ShowAvatarPicker);
         OpenFolder = new RelayCommand(() => Opener.OpenFolder(Folder));
@@ -79,6 +80,7 @@ public sealed class MainViewModel : ViewModelBase
     public RelayCommand SelectTab { get; }
     public UpdateViewModel Updater => _app.Update;
     public RelayCommand ReplayTour { get; } = null!;
+    public RelayCommand QuitApp { get; } = null!;
     public string Credits => S.Credits;
     public RelayCommand OpenFolder { get; }
 

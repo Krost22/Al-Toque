@@ -36,7 +36,18 @@ public sealed class QuickPanelViewModel : ViewModelBase
         _app = app;
         OpenSettings = new RelayCommand(() => _app.ShowMain(2));
         OpenHistory = new RelayCommand(() => _app.ShowMain(1));
-        Close = new RelayCommand(_app.HidePanel);
+        Minimize = new RelayCommand(_app.MinimizePanel);
+        ToggleKeepOnTop = new RelayCommand(() => KeepOnTop = !KeepOnTop);
+        ToggleFavorite = new RelayCommand(p =>
+        {
+            if (p is PeerViewModel { IsTrusted: true } peer)
+                _app.Agent.Trust.Update(peer.DeviceId, t => t.Favorite = !t.Favorite);
+        });
+        RemovePeer = new RelayCommand(p =>
+        {
+            if (p is PeerViewModel peer)
+                _app.RemovePeer(peer);
+        });
         Pair = new RelayCommand(_app.ShowPairing);
         Connect = new RelayCommand(() => _app.ShowConnect(PendingPaths, showMyCode: false));
         ShowMyCode = new RelayCommand(() => _app.ShowConnect(null, showMyCode: true));
@@ -60,7 +71,23 @@ public sealed class QuickPanelViewModel : ViewModelBase
 
     public RelayCommand OpenSettings { get; }
     public RelayCommand OpenHistory { get; }
-    public RelayCommand Close { get; }
+    public RelayCommand Minimize { get; }
+    public RelayCommand ToggleKeepOnTop { get; }
+    public RelayCommand ToggleFavorite { get; }
+    public RelayCommand RemovePeer { get; }
+
+    /// <summary>La ventana principal se queda encima de las demás (se recuerda).</summary>
+    public bool KeepOnTop
+    {
+        get => _app.Agent.Settings.Current.KeepOnTop;
+        set
+        {
+            if (value == KeepOnTop)
+                return;
+            _app.Agent.Settings.Update(s => s.KeepOnTop = value);
+            Raise();
+        }
+    }
     public RelayCommand Pair { get; }
     public RelayCommand Connect { get; }
     public RelayCommand ShowMyCode { get; }
@@ -262,7 +289,12 @@ public sealed class QuickPanelViewModel : ViewModelBase
 
     public void SyncPeers(IReadOnlyList<PeerInfo> snapshot)
     {
-        var visible = snapshot.Where(p => p.IsTrusted || p.Presence == PeerPresence.Online).ToList();
+        // Favoritos primero, luego los que están en línea; el resto por nombre.
+        var visible = snapshot.Where(p => p.IsTrusted || p.Presence == PeerPresence.Online)
+            .OrderByDescending(p => p.IsTrusted && p.IsFavorite)
+            .ThenByDescending(p => p.Presence == PeerPresence.Online)
+            .ThenBy(p => p.DisplayName, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
         for (int i = Peers.Count - 1; i >= 0; i--)
         {
             if (visible.All(v => v.DeviceId != Peers[i].DeviceId))

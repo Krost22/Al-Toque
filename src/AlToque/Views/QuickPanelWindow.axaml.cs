@@ -26,8 +26,23 @@ public partial class QuickPanelWindow : Window
         root.AddHandler(DragDrop.DragOverEvent, OnDragOver);
         root.AddHandler(DragDrop.DragLeaveEvent, OnDragLeave);
         root.AddHandler(DragDrop.DropEvent, OnDrop);
-        // El panel no se oculta al perder el foco: hay que poder hacer clic en el Explorador y arrastrar
-        // archivos hasta aquí. Se cierra con la X, con Esc o con el ícono de la bandeja.
+        // Se mueve arrastrando el encabezado; desde ese momento ya no se recoloca junto a la bandeja.
+        var header = this.FindControl<Grid>("Header")!;
+        header.PointerPressed += (_, e) =>
+        {
+            if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed || (e.Source as Visual)?.FindAncestorOfType<Button>(includeSelf: true) is not null)
+                return;
+            _moving = true;
+            BeginMoveDrag(e);
+        };
+        header.PointerReleased += (_, _) => _moving = false;
+        PositionChanged += (_, _) =>
+        {
+            if (_moving)
+                UserPlaced = true;
+        };
+        // La ventana no se oculta al perder el foco: hay que poder hacer clic en el Explorador y arrastrar
+        // archivos hasta aquí. Esc y «—» la minimizan; sigue en la barra de tareas.
         KeyDown += (_, e) =>
         {
             if (Tour.IsRunning)
@@ -41,7 +56,7 @@ public partial class QuickPanelWindow : Window
                 return;
             }
             if (e.Key == Key.Escape)
-                HideRequested?.Invoke();
+                MinimizeRequested?.Invoke();
         };
         // Los compañeros que aparecen entran con un saltito.
         this.FindControl<ItemsControl>("PeerList")!.ContainerPrepared += (_, e) =>
@@ -51,8 +66,15 @@ public partial class QuickPanelWindow : Window
         };
     }
 
-    /// <summary>El usuario pidió cerrar el panel (Esc o Alt+F4): el controlador lo oculta y limpia lo pendiente.</summary>
-    public event Action? HideRequested;
+    private bool _moving;
+
+    /// <summary>El usuario pidió cerrar la ventana (Esc, Alt+F4 o «Cerrar ventana» en la barra de tareas): se minimiza.</summary>
+    public event Action? MinimizeRequested;
+
+    /// <summary>El usuario la movió: se respeta su posición en lugar de pegarla a la bandeja.</summary>
+    public bool UserPlaced { get; private set; }
+
+    public bool IsMinimized => WindowState == WindowState.Minimized;
 
     private QuickPanelViewModel? Vm => DataContext as QuickPanelViewModel;
 
@@ -68,13 +90,9 @@ public partial class QuickPanelWindow : Window
         var hasPeers = Vm?.HasPeers == true;
         TourStep[] steps =
         [
-            new([], S.TourHelloTitle, S.TourHelloBody, ChasquiState.Incoming),
-            new(["PendingCard", "ReadyCard", "NobodyView"], S.TourSendTitle, S.TourSendBody, ChasquiState.Attentive),
-            new(["PeerList", "NobodyView"], S.TourPeersTitle, hasPeers ? S.TourPeersBody : S.TourNobodyBody, ChasquiState.Searching),
-            new(["PairLink", "NobodyPair"], S.TourPairTitle, S.TourPairBody, ChasquiState.Waiting),
-            new(["ModeSection"], S.TourModeTitle, S.TourModeBody, ChasquiState.Idle),
-            new(["SettingsButton"], S.TourSettingsTitle, S.TourSettingsBody, ChasquiState.Received),
-            new([], S.TourEndTitle, S.TourEndBody, ChasquiState.Success),
+            new(["PeerList", "NobodyView"], S.Tour1Title, hasPeers ? S.Tour1Body : S.Tour1Nobody, ChasquiState.Attentive),
+            new(["PairLink", "NobodyPair"], S.Tour2Title, S.Tour2Body, ChasquiState.Waiting),
+            new(["MinimizeButton"], S.Tour3Title, S.Tour3Body, ChasquiState.Success),
         ];
         void OnFinished()
         {
@@ -87,7 +105,11 @@ public partial class QuickPanelWindow : Window
 
     public void StopTour() => Tour.Finish();
 
-    public void PlaceNearTray() => FloatingWindow.PlaceBottomRight(this, 0);
+    public void PlaceNearTray()
+    {
+        if (!UserPlaced)
+            FloatingWindow.PlaceBottomRight(this, 0);
+    }
 
     /// <summary>Entrada del panel: las secciones suben en cascada y los avatares saltan uno tras otro.</summary>
     public void PlayEntrance()
@@ -193,11 +215,12 @@ public partial class QuickPanelWindow : Window
 
     protected override void OnClosing(WindowClosingEventArgs e)
     {
-        // Se oculta en lugar de cerrarse: la UI se crea una vez y se reutiliza.
+        // Cerrar la ventana la minimiza: Al Toque sigue en la barra de tareas y recibiendo. Para salir está
+        // «Salir de Al Toque» (clic derecho en su botón de la barra de tareas o en el ícono de la bandeja).
         if (!AppController.IsQuitting)
         {
             e.Cancel = true;
-            HideRequested?.Invoke();
+            MinimizeRequested?.Invoke();
         }
         base.OnClosing(e);
     }

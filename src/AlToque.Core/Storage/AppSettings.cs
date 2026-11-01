@@ -66,6 +66,12 @@ public sealed class AppSettings
     /// <summary>Ya se mostró el tutorial guiado en esta PC.</summary>
     public bool TutorialDone { get; set; }
 
+    /// <summary>Ya se activó "recibir sin preguntar" para los compañeros emparejados antes de que fuera lo normal.</summary>
+    public bool AutoAcceptMigrated { get; set; }
+
+    /// <summary>La ventana principal se mantiene encima de las demás.</summary>
+    public bool KeepOnTop { get; set; }
+
     /// <summary>Descargar las versiones nuevas en segundo plano e instalarlas al cerrar o reiniciar.</summary>
     public bool AutoUpdate { get; set; } = true;
 

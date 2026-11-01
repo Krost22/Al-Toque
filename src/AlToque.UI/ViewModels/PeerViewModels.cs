@@ -40,6 +40,8 @@ public sealed class PeerViewModel : ViewModelBase
     private bool _isDropTarget;
     private bool _isDragging;
     private bool _isFavorite;
+    private int _unread;
+    private string? _preview;
     private string _os = "";
     private string _avatarId;
 
@@ -133,7 +135,23 @@ public sealed class PeerViewModel : ViewModelBase
 
     public AvatarMood Mood => IsPairing ? AvatarMood.Surprised : _isBusy ? AvatarMood.Focused : AvatarMood.Idle;
 
-    public string StatusLine => IsDropTarget ? S.DropToSend : Status;
+    /// <summary>Con mensajes sin leer, la tarjeta muestra el último en lugar del estado.</summary>
+    public string StatusLine => IsDropTarget ? S.DropToSend : HasUnread && _preview is { Length: > 0 } preview ? preview : Status;
+
+    public bool HasUnread => _unread > 0;
+    public string UnreadText => _unread > 9 ? "9+" : _unread.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    /// <summary>Mensajes sin leer de su chat y el último de ellos.</summary>
+    public void SetChat(int unread, string? preview)
+    {
+        if (_unread == unread && _preview == preview)
+            return;
+        _unread = unread;
+        _preview = preview is { Length: > 60 } ? preview[..57] + "…" : preview;
+        Raise(nameof(HasUnread));
+        Raise(nameof(UnreadText));
+        Raise(nameof(StatusLine));
+    }
 
     public string AccessibleName => $"{Name}, {Status}{(IsTrusted ? ", " + S.Trusted : ", " + S.Unverified)}";
 

@@ -580,13 +580,16 @@ internal sealed class TestAgent : IAsyncDisposable
 {
     private readonly TempDir _dir;
 
-    private TestAgent(TempDir dir, AgentHost host)
+    private readonly bool _publicNetwork;
+
+    private TestAgent(TempDir dir, AgentHost host, bool publicNetwork)
     {
         _dir = dir;
         Host = host;
+        _publicNetwork = publicNetwork;
     }
 
-    public AgentHost Host { get; }
+    public AgentHost Host { get; private set; }
     public string Source => Path.Combine(_dir.Path, "src");
     public string Inbox => Path.Combine(_dir.Path, "inbox");
     public IPEndPoint EndPoint => new(IPAddress.Loopback, Host.Server.Port);
@@ -597,6 +600,17 @@ internal sealed class TestAgent : IAsyncDisposable
         var dir = new TempDir();
         Directory.CreateDirectory(Path.Combine(dir.Path, "src"));
         Directory.CreateDirectory(Path.Combine(dir.Path, "inbox"));
+        var host = Open(dir, publicNetwork, s =>
+        {
+            s.Alias = alias;
+            s.TcpPort = Random.Shared.Next(46000, 60000);
+            s.ReceiveFolder = Path.Combine(dir.Path, "inbox");
+        });
+        return new TestAgent(dir, host, publicNetwork);
+    }
+
+    private static AgentHost Open(TempDir dir, bool publicNetwork, Action<AppSettings>? configure = null)
+    {
         var host = AgentHost.Create(new AgentOptions
         {
             Paths = AppPaths.Create(Path.Combine(dir.Path, "config"), false),
@@ -605,15 +619,30 @@ internal sealed class TestAgent : IAsyncDisposable
             EnableDiscovery = false,
             IsPublicNetwork = () => publicNetwork,
         });
-        host.Settings.Update(s =>
-        {
-            s.Alias = alias;
-            s.TcpPort = Random.Shared.Next(46000, 60000);
-            s.ReceiveFolder = Path.Combine(dir.Path, "inbox");
-        });
+        if (configure is not null)
+            host.Settings.Update(configure);
         host.Start();
-        return new TestAgent(dir, host);
+        return host;
     }
+
+    /// <summary>Cierra el agente y lo vuelve a abrir con sus mismos datos (como reiniciar la PC); opcionalmente en otro puerto.</summary>
+    public async Task RestartAsync(int? port = null)
+    {
+        await StopAsync();
+        _stopped = false;
+        Host = Open(_dir, _publicNetwork, port is { } p ? s => s.TcpPort = p : null);
+    }
+
+    /// <summary>Solo cierra el agente (equipo apagado); <see cref="RestartAsync"/> lo vuelve a abrir.</summary>
+    public async Task StopAsync()
+    {
+        if (_stopped)
+            return;
+        _stopped = true;
+        await Host.DisposeAsync();
+    }
+
+    private bool _stopped;
 
     public PeerTarget TargetFor(TestAgent other) => new() { EndPoint = other.EndPoint, DisplayName = "destino" };
 
@@ -637,7 +666,7 @@ internal sealed class TestAgent : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        await Host.DisposeAsync();
+        await StopAsync();
         _dir.Dispose();
     }
 }

@@ -72,6 +72,9 @@ public sealed class AppSettings
     /// <summary>La ventana principal se mantiene encima de las demás.</summary>
     public bool KeepOnTop { get; set; }
 
+    /// <summary>El historial de envíos ya se copió a los chats de cada compañero.</summary>
+    public bool ChatsImported { get; set; }
+
     /// <summary>Descargar las versiones nuevas en segundo plano e instalarlas al cerrar o reiniciar.</summary>
     public bool AutoUpdate { get; set; } = true;
 

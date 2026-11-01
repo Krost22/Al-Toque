@@ -139,6 +139,8 @@ public sealed class AppController
         Agent.ShowRequested += () => Post(() => ShowPanel());
         Agent.QuitRequested += () => Post(Quit);
         Agent.Peers.Changed += () => Post(RefreshPeers);
+        Agent.Links.PresenceChanged += _ => Post(RefreshPeers);
+        Agent.Chats.Changed += (peerId, message) => Post(() => OnChatChanged(peerId, message));
         Agent.Pairing.PromptRequested += p => Post(() => OnPairingPrompt(p));
         Agent.Pairing.Finished += (id, outcome) => Post(() => OnPairingFinished(id, outcome));
         Agent.Trust.Changed += () => Post(() =>
@@ -221,7 +223,9 @@ public sealed class AppController
             using var stream = AssetLoader.Open(new Uri($"avares://AlToque/Assets/{icon}.ico"));
             _tray.Icon = new WindowIcon(stream);
         }
-        _tray.ToolTipText = paused ? S.TrayTooltipPaused : mode == ReceiveMode.Everyone && Agent.EveryoneUntil is { } u
+        var unread = Agent.Chats.TotalUnread();
+        _tray.ToolTipText = unread > 0 ? "Al Toque · " + S.ChatUnread(unread)
+            : paused ? S.TrayTooltipPaused : mode == ReceiveMode.Everyone && Agent.EveryoneUntil is { } u
             ? "Al Toque · " + S.EveryoneRemaining(u - DateTimeOffset.UtcNow)
             : S.TrayTooltipIdle;
         if (_modeNobody is not null)
@@ -304,8 +308,14 @@ public sealed class AppController
             _panelWindow.PropertyChanged += (_, e) =>
             {
                 if (e.Property == Window.WindowStateProperty)
+                {
                     LayoutToasts();
+                    UpdateChatVisibility();
+                }
             };
+            _panelWindow.Activated += (_, _) => UpdateChatVisibility();
+            _panelWindow.ChatFilesDropped += (peerId, paths) => _ = SendToPeerAsync(peerId, Agent.Trust.Find(peerId)?.DisplayName ?? "", paths, null);
+            _panelWindow.Deactivated += (_, _) => UpdateChatVisibility();
         }
         return _panelWindow;
     }
@@ -485,6 +495,7 @@ public sealed class AppController
     {
         var snapshot = Agent.Peers.Snapshot().Where(p => !Agent.IsBlocked(p.DeviceId)).ToList();
         Panel.SyncPeers(snapshot);
+        Panel.SyncChats(Agent.Chats.Summaries(), Agent.DeviceId);
         Pairing?.SyncCandidates(snapshot);
     }
 
@@ -593,6 +604,9 @@ public sealed class AppController
 
     private void SlowTick()
     {
+        // Los avisos de mensajes se retiran solos a los 8 s (salvo con el ratón encima).
+        foreach (var (window, vm) in _messageToasts.Where(t => DateTimeOffset.Now - t.Vm.ShownAt > TimeSpan.FromSeconds(8) && !t.Window.IsHovered).ToList())
+            CloseMessageToast(vm);
         Panel.Tick();
         foreach (var (_, vm) in _offers)
             vm.Tick();
@@ -677,6 +691,89 @@ public sealed class AppController
             FloatingWindow.PlaceBottomRight(window, Math.Max(0, offset), left);
             offset += window.Bounds.Height - overlap;
         }
+        foreach (var (window, _) in _messageToasts)
+        {
+            FloatingWindow.PlaceBottomRight(window, Math.Max(0, offset), left);
+            offset += window.Bounds.Height - overlap;
+        }
+    }
+
+    // ── Chats ────────────────────────────────────────────────────────────────────
+
+    private readonly List<(MessageToastWindow Window, MessageToastViewModel Vm)> _messageToasts = [];
+
+    public ChatViewModel CreateChat(string peerId, Action back) =>
+        new(Agent, peerId, () => PickAndSendAsync(peerId), Opener.OpenFile, Opener.ShowInFolder, back, ConfirmWindow.AskAsync)
+        {
+            IsVisible = _panelWindow is { IsActive: true, IsMinimized: false },
+        };
+
+    private async Task PickAndSendAsync(string peerId)
+    {
+        var paths = await PickFilesAsync();
+        if (paths.Count > 0)
+            await SendToPeerAsync(peerId, Agent.Trust.Find(peerId)?.DisplayName ?? "", paths, null);
+    }
+
+    /// <summary>El chat a la vista y con la ventana activa: lo que llega cuenta como leído.</summary>
+    private void UpdateChatVisibility()
+    {
+        if (Panel.Chat is { } chat)
+            chat.IsVisible = _panelWindow is { IsActive: true, IsMinimized: false, IsVisible: true };
+    }
+
+    private void OnChatChanged(string peerId, Core.Chat.ChatMessage? message)
+    {
+        Panel.SyncChats(Agent.Chats.Summaries(), Agent.DeviceId);
+        var unread = Agent.Chats.TotalUnread();
+        if (_panelWindow is not null)
+            _panelWindow.Title = unread > 0 ? $"({unread}) Al Toque" : "Al Toque";
+        UpdateTray();
+        // Un mensaje nuevo que no se está viendo: aviso flotante.
+        var beingRead = Panel.Chat is { IsVisible: true } chat && chat.PeerId == peerId;
+        if (message is { IsFiles: false } m && m.Author == peerId && DateTimeOffset.UtcNow - m.ReceivedAt < TimeSpan.FromSeconds(15) && !beingRead)
+            ShowMessageToast(peerId, m.Text ?? "");
+        // Lo que ya se leyó deja de avisar.
+        foreach (var (_, vm) in _messageToasts.Where(t => Agent.Chats.Unread(t.Vm.PeerId) == 0).ToList())
+            CloseMessageToast(vm);
+    }
+
+    private void ShowMessageToast(string peerId, string text)
+    {
+        var existing = _messageToasts.FirstOrDefault(t => t.Vm.PeerId == peerId);
+        if (existing.Vm is not null)
+        {
+            existing.Vm.Add(text);
+            return;
+        }
+        var info = Agent.Peers.Find(peerId);
+        var name = info?.DisplayName ?? Agent.Trust.Find(peerId)?.DisplayName ?? "";
+        var vm = new MessageToastViewModel(peerId, name, info?.Avatar, text, ReplyFromToast, CloseMessageToast);
+        var window = new MessageToastWindow { DataContext = vm };
+        window.LayoutChanged += LayoutToasts;
+        _messageToasts.Add((window, vm));
+        window.Show();
+        LayoutToasts();
+        if (Agent.Settings.Current.Sounds)
+            SystemPrefs.Play(SystemPrefs.Sound.Incoming);
+    }
+
+    private void ReplyFromToast(MessageToastViewModel vm)
+    {
+        CloseMessageToast(vm);
+        ShowPanel();
+        Panel.OpenChat(vm.PeerId);
+        UpdateChatVisibility();
+    }
+
+    private void CloseMessageToast(MessageToastViewModel vm)
+    {
+        var toast = _messageToasts.FirstOrDefault(t => t.Vm == vm);
+        if (toast.Window is null)
+            return;
+        _messageToasts.Remove(toast);
+        toast.Window.Close();
+        LayoutToasts();
     }
 
     // ── Emparejamiento ───────────────────────────────────────────────────────────

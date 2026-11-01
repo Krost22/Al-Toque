@@ -25,6 +25,9 @@ public sealed class ServerContext
 
     public Func<bool> IsPublicNetwork { get; init; } = () => false;
     public Action<string>? Log { get; init; }
+
+    /// <summary>Enlace permanente de un compañero de confianza (chats); vuelve cuando el enlace termina.</summary>
+    public Func<PeerConnection, CancellationToken, Task>? AcceptLink { get; init; }
 }
 
 /// <summary>
@@ -37,7 +40,8 @@ public sealed class TransferServer : IAsyncDisposable
     public static readonly TimeSpan IdleTimeout = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan FirstFrameTimeout = TimeSpan.FromSeconds(10);
     private const int MaxActiveSessions = 3;
-    private const int MaxConnections = 48;
+    // Los enlaces de chat ocupan una conexión por compañero en línea.
+    private const int MaxConnections = 96;
     private const int MaxOffersPerMinute = 5;
 
     private readonly ServerContext _ctx;
@@ -251,6 +255,9 @@ public sealed class TransferServer : IAsyncDisposable
                         break;
                     case Purposes.Transfer:
                         await HandleOfferAsync(conn, hello, trusted, ct).ConfigureAwait(false);
+                        break;
+                    case Purposes.Link when trusted && _ctx.AcceptLink is { } acceptLink:
+                        await acceptLink(conn, ct).ConfigureAwait(false);
                         break;
                 }
             }

@@ -55,7 +55,12 @@ public sealed class QuickPanelViewModel : ViewModelBase
         AllowPublicNetwork = new RelayCommand(_app.AllowPublicNetwork);
         PeerClicked = new RelayCommand(p =>
         {
-            if (p is PeerViewModel peer)
+            if (p is not PeerViewModel peer)
+                return;
+            // A un compañero de confianza se le abre el chat; con archivos pendientes (clic derecho), se le envían.
+            if (peer.IsTrusted && !HasPending)
+                OpenChat(peer.DeviceId);
+            else
                 _app.OnPeerClicked(peer, PendingPaths, MessageOrNull);
         });
         ChooseFiles = new RelayCommand(async () =>
@@ -67,6 +72,55 @@ public sealed class QuickPanelViewModel : ViewModelBase
     }
 
     public ObservableCollection<PeerViewModel> Peers { get; } = [];
+
+    // ── Chat abierto ────────────────────────────────────────────────────────────
+
+    private ChatViewModel? _chat;
+
+    /// <summary>Conversación abierta en la ventana; null muestra el inicio.</summary>
+    public ChatViewModel? Chat
+    {
+        get => _chat;
+        private set
+        {
+            if (_chat == value)
+                return;
+            _chat?.Dispose();
+            _chat = value;
+            Raise();
+            Raise(nameof(IsChatOpen));
+            Raise(nameof(IsHome));
+        }
+    }
+
+    public bool IsChatOpen => Chat is not null;
+    public bool IsHome => Chat is null;
+
+    public void OpenChat(string peerId)
+    {
+        if (Chat?.PeerId != peerId)
+            Chat = _app.CreateChat(peerId, CloseChat);
+        ChatOpened?.Invoke();
+    }
+
+    public void CloseChat() => Chat = null;
+
+    /// <summary>Se abrió un chat: la ventana pone el cursor en el cuadro para escribir.</summary>
+    public event Action? ChatOpened;
+
+    /// <summary>No leídos y último mensaje de cada compañero, para sus tarjetas.</summary>
+    public void SyncChats(IReadOnlyList<Core.Chat.ChatSummary> summaries, string me)
+    {
+        foreach (var peer in Peers)
+        {
+            var summary = summaries.FirstOrDefault(s => s.PeerId == peer.DeviceId);
+            var last = summary?.Last;
+            var preview = last is null || last.Author == me ? null
+                : last.IsFiles ? S.ItemsNamed(last.Files is { Count: > 0 } f ? f[0].Name : "", Math.Max(1, last.FileCount))
+                : last.Text;
+            peer.SetChat(summary?.Unread ?? 0, preview);
+        }
+    }
     public ObservableCollection<HistoryItemViewModel> Recent { get; } = [];
 
     public RelayCommand OpenSettings { get; }

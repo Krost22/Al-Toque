@@ -1,0 +1,161 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AlToque.ViewModels"
+             xmlns:c="using:AlToque.Controls"
+             xmlns:av="using:AlToque.Controls.Avatars"
+             xmlns:l="using:AlToque.Localization"
+             x:Class="AlToque.Views.ChatView"
+             x:DataType="vm:ChatViewModel">
+  <UserControl.Styles>
+    <!-- La lista no se ve como lista: sin selección ni resaltado. -->
+    <Style Selector="ListBox.chat">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="ListBox.chat ListBoxItem">
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    </Style>
+    <Style Selector="ListBox.chat ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter, ListBox.chat ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter, ListBox.chat ListBoxItem:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+
+    <!-- Burbujas: las mías a la derecha y en el color de acento. -->
+    <Style Selector="Border.msg">
+      <Setter Property="Background" Value="{DynamicResource Surface2Brush}" />
+      <Setter Property="CornerRadius" Value="16,16,16,4" />
+      <Setter Property="Padding" Value="12,8,12,6" />
+      <Setter Property="HorizontalAlignment" Value="Left" />
+      <Setter Property="MaxWidth" Value="320" />
+      <Setter Property="Margin" Value="0,0,40,0" />
+    </Style>
+    <Style Selector="Border.msg.mine">
+      <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+      <Setter Property="CornerRadius" Value="16,16,4,16" />
+      <Setter Property="HorizontalAlignment" Value="Right" />
+      <Setter Property="Margin" Value="40,0,0,0" />
+    </Style>
+    <Style Selector="Border.msg.mine :is(TextBlock)">
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="Border.msg.mine TextBlock.meta">
+      <Setter Property="Foreground" Value="#D9FFFFFF" />
+    </Style>
+    <Style Selector="Border.msg.mine c|IconView">
+      <Setter Property="Foreground" Value="#D9FFFFFF" />
+    </Style>
+    <Style Selector="Border.msg.mine Button.link">
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="Border.msg.mine Border.tile">
+      <Setter Property="Background" Value="#33FFFFFF" />
+    </Style>
+    <Style Selector="Border.msg.mine Border.tile c|IconView">
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="Border.daychip">
+      <Setter Property="Background" Value="{DynamicResource SunkenBrush}" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Padding" Value="10,3" />
+      <Setter Property="HorizontalAlignment" Value="Center" />
+    </Style>
+  </UserControl.Styles>
+
+  <Grid RowDefinitions="Auto,*,Auto">
+    <!-- Cabecera -->
+    <Grid ColumnDefinitions="Auto,Auto,*,Auto" Margin="0,0,0,10">
+      <Button Classes="icon" Command="{Binding Back}" ToolTip.Tip="{x:Static l:S.ChatBack}" AutomationProperties.Name="{x:Static l:S.ChatBack}">
+        <c:IconView Kind="ChevronLeft" />
+      </Button>
+      <av:AvatarView Grid.Column="1" Width="42" Height="42" Margin="4,0,0,0" AvatarId="{Binding AvatarId}" ColorHex="{Binding ColorHex}"
+                     Initial="{Binding Initial}" Ring="Verified" />
+      <StackPanel Grid.Column="2" Margin="10,0" VerticalAlignment="Center" Spacing="1">
+        <TextBlock Text="{Binding Name}" Classes="strong" FontSize="15" TextTrimming="CharacterEllipsis" />
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <Ellipse Width="8" Height="8" Fill="{DynamicResource SuccessBrush}" IsVisible="{Binding IsOnline}" VerticalAlignment="Center" />
+          <TextBlock Text="{Binding StatusText}" Classes="meta" TextTrimming="CharacterEllipsis" />
+        </StackPanel>
+      </StackPanel>
+      <StackPanel Grid.Column="3" Orientation="Horizontal">
+        <Button Classes="icon" Command="{Binding Attach}" ToolTip.Tip="{x:Static l:S.ChatAttach}"
+                AutomationProperties.Name="{x:Static l:S.ChatAttach}">
+          <c:IconView Kind="Paperclip" />
+        </Button>
+        <Button Classes="icon" ToolTip.Tip="{x:Static l:S.ChatMore}" AutomationProperties.Name="{x:Static l:S.ChatMore}">
+          <c:IconView Kind="More" />
+          <Button.Flyout>
+            <MenuFlyout Placement="BottomEdgeAlignedRight">
+              <MenuItem Header="{x:Static l:S.ChatClear}" Command="{Binding Clear}" />
+            </MenuFlyout>
+          </Button.Flyout>
+        </Button>
+      </StackPanel>
+    </Grid>
+
+    <!-- Conversación -->
+    <Panel Grid.Row="1">
+      <StackPanel IsVisible="{Binding IsEmpty}" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8" Margin="24">
+        <c:IconView Kind="Message" Width="36" Height="36" HorizontalAlignment="Center" />
+        <TextBlock Text="{Binding EmptyText}" Classes="body2" TextWrapping="Wrap" TextAlignment="Center" />
+      </StackPanel>
+      <ListBox x:Name="Messages" Classes="chat" ItemsSource="{Binding Items}" IsVisible="{Binding !IsEmpty}">
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="vm:ChatItemViewModel">
+            <StackPanel Spacing="4" Margin="0,3">
+              <Border Classes="daychip" IsVisible="{Binding HasDayHeader}" Margin="0,8,0,4">
+                <TextBlock Text="{Binding DayHeader}" Classes="meta" />
+              </Border>
+
+              <!-- Mensaje de texto -->
+              <Border Classes="msg" Classes.mine="{Binding IsMine}" IsVisible="{Binding IsText}">
+                <StackPanel Spacing="2">
+                  <SelectableTextBlock Text="{Binding Text}" TextWrapping="Wrap" />
+                  <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Right">
+                    <TextBlock Text="{Binding TimeText}" Classes="meta" FontSize="11" />
+                    <c:IconView Kind="CheckCheck" Width="14" Height="14" IsVisible="{Binding IsDelivered}" ToolTip.Tip="{Binding DeliveryTip}" />
+                    <c:IconView Kind="Clock" Width="12" Height="12" IsVisible="{Binding IsPending}" ToolTip.Tip="{Binding DeliveryTip}" />
+                  </StackPanel>
+                </StackPanel>
+              </Border>
+
+              <!-- Archivos -->
+              <Border Classes="msg" Classes.mine="{Binding IsMine}" IsVisible="{Binding IsFiles}">
+                <StackPanel Spacing="6">
+                  <Grid ColumnDefinitions="Auto,*,Auto">
+                    <Border Classes="tile" Classes.error="{Binding IsFileError}" Width="38" Height="38">
+                      <c:IconView Kind="{Binding FileIcon}" />
+                    </Border>
+                    <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center" Spacing="1">
+                      <TextBlock Text="{Binding FileTitle}" Classes="strong" TextTrimming="CharacterEllipsis" />
+                      <TextBlock Text="{Binding FileDetail}" Classes="meta num" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                    <TextBlock Grid.Column="2" Text="{Binding TimeText}" Classes="meta" FontSize="11" Margin="10,0,0,0" VerticalAlignment="Top" />
+                  </Grid>
+                  <ProgressBar Classes="update" IsIndeterminate="True" IsVisible="{Binding IsFileActive}" />
+                  <SelectableTextBlock Text="{Binding Text}" TextWrapping="Wrap" IsVisible="{Binding HasText}" />
+                  <StackPanel Orientation="Horizontal" Spacing="14" IsVisible="{Binding CanOpen}">
+                    <Button Classes="link" Padding="0,2" Content="{x:Static l:S.Open}" Command="{Binding Open}" />
+                    <Button Classes="link" Padding="0,2" Content="{x:Static l:S.ChatShowInFolder}" Command="{Binding ShowInFolder}" />
+                  </StackPanel>
+                </StackPanel>
+              </Border>
+            </StackPanel>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </Panel>
+
+    <!-- Escribir: Entrar envía, Mayús+Entrar hace un salto de línea -->
+    <Grid Grid.Row="2" ColumnDefinitions="*,Auto" Margin="0,10,0,0">
+      <TextBox x:Name="Composer" Text="{Binding Draft}" PlaceholderText="{x:Static l:S.ChatPlaceholder}" AcceptsReturn="True"
+               TextWrapping="Wrap" MaxHeight="120" MaxLength="8000" VerticalContentAlignment="Center" />
+      <Button Grid.Column="1" Classes="accent" Margin="8,0,0,0" Width="44" Height="40" Padding="0" VerticalAlignment="Bottom"
+              Command="{Binding SendCommand}" ToolTip.Tip="{x:Static l:S.ChatSend}" AutomationProperties.Name="{x:Static l:S.ChatSend}">
+        <c:IconView Kind="Send" Width="18" Height="18" Foreground="White" />
+      </Button>
+    </Grid>
+  </Grid>
+</UserControl>

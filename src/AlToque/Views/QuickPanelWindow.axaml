@@ -5,6 +5,7 @@
         xmlns:c="using:AlToque.Controls"
         xmlns:av="using:AlToque.Controls.Avatars"
         xmlns:l="using:AlToque.Localization"
+        xmlns:cv="clr-namespace:AlToque.Views;assembly=AlToque.UI"
         x:Class="AlToque.Views.QuickPanelWindow"
         x:DataType="vm:QuickPanelViewModel"
         Title="Al Toque"
@@ -37,6 +38,9 @@
           <c:IconView Kind="Minus" />
         </Button>
       </Grid>
+
+      <!-- Inicio: compañeros, recientes y quién puede enviarte. Con un chat abierto, el chat ocupa su lugar. -->
+      <StackPanel x:Name="Home" Spacing="18" IsVisible="{Binding IsHome}">
 
       <!-- Versión nueva -->
       <Border x:Name="UpdateBanner" Classes="card" Padding="14,12" Background="{DynamicResource AccentTintBrush}"
@@ -203,12 +207,19 @@
                         AutomationProperties.Name="{Binding AccessibleName}"
                         ToolTip.Tip="{Binding Symbols}">
                   <StackPanel Spacing="4" HorizontalAlignment="Center">
-                    <av:AvatarView Width="86" Height="86" HorizontalAlignment="Center" AvatarId="{Binding AvatarId}" ColorHex="{Binding ColorHex}"
-                                   Initial="{Binding Initial}" Ring="{Binding Ring}" Dimmed="{Binding Dimmed}" Mood="{Binding Mood}" />
+                    <Panel HorizontalAlignment="Center">
+                      <av:AvatarView Width="86" Height="86" AvatarId="{Binding AvatarId}" ColorHex="{Binding ColorHex}"
+                                     Initial="{Binding Initial}" Ring="{Binding Ring}" Dimmed="{Binding Dimmed}" Mood="{Binding Mood}" />
+                      <!-- Mensajes sin leer -->
+                      <Border Classes="unread" IsVisible="{Binding HasUnread}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-2,-6,0">
+                        <TextBlock Text="{Binding UnreadText}" />
+                      </Border>
+                    </Panel>
                     <TextBlock Text="{Binding Name}" HorizontalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="124"
                                FontWeight="SemiBold" FontSize="14.5" Opacity="{Binding Opacity}" />
                     <TextBlock Text="{Binding StatusLine}" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" MaxWidth="124"
-                               Classes="meta" Classes.accent="{Binding IsDropTarget}" />
+                               MaxLines="2" TextTrimming="CharacterEllipsis"
+                               Classes="meta" Classes.accent="{Binding IsDropTarget}" Classes.unreadline="{Binding HasUnread}" />
                   </StackPanel>
                 </Button>
                 <!-- ★ favorito (solo compañeros de confianza) y × quitar u ocultar -->
@@ -320,6 +331,12 @@
         </c:Segmented>
         <TextBlock Text="{Binding ModeHint}" Classes="body2" TextWrapping="Wrap" />
       </StackPanel>
+      </StackPanel>
+
+      <!-- Chat con un compañero -->
+      <Panel IsVisible="{Binding IsChatOpen}">
+        <cv:ChatView x:Name="ChatPane" DataContext="{Binding Chat}" Height="600" />
+      </Panel>
     </StackPanel>
     <c:TourOverlay x:Name="TourLayer" />
     </Panel>

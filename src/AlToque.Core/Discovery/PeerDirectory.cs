@@ -76,6 +76,7 @@ public sealed class PeerDirectory
         public string? VerifiedAvatar;
         public bool Busy;
         public bool Pairing;
+        public IReadOnlyList<string>? Caps;
         public DateTimeOffset LastSeen;
     }
 
@@ -100,6 +101,7 @@ public sealed class PeerDirectory
             peer.Avatar = hint.Avatar ?? peer.Avatar;
             peer.Busy = hint.Busy;
             peer.Pairing = hint.Pairing;
+            peer.Caps = hint.Caps;
             peer.LastSeen = DateTimeOffset.UtcNow;
         }
         if (_trust.Find(hint.DeviceId) is { } trusted)
@@ -169,6 +171,13 @@ public sealed class PeerDirectory
         }
         if (changed)
             RaiseChanged();
+    }
+
+    /// <summary>¿Su último anuncio dice que tiene chats? null si no se sabe (solo dirección guardada).</summary>
+    public bool? SupportsChat(string deviceId)
+    {
+        lock (_lock)
+            return _live.TryGetValue(deviceId, out var p) && p.Caps is { Count: > 0 } caps ? caps.Contains(Protocol.Capabilities.Chat) : null;
     }
 
     public PeerInfo? Find(string deviceId) => Snapshot(includeOfflineTrusted: true).FirstOrDefault(p => p.DeviceId == deviceId);

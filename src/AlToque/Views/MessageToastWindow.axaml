@@ -1,0 +1,39 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:AlToque.ViewModels"
+        xmlns:c="using:AlToque.Controls"
+        xmlns:av="using:AlToque.Controls.Avatars"
+        xmlns:l="using:AlToque.Localization"
+        x:Class="AlToque.Views.MessageToastWindow"
+        x:DataType="vm:MessageToastViewModel"
+        Title="Al Toque"
+        Width="380" SizeToContent="Height"
+        WindowDecorations="None"
+        ShowInTaskbar="False"
+        Topmost="True"
+        ShowActivated="False"
+        Background="Transparent">
+  <Border x:Name="Root" Classes="panel" Padding="16,14,10,14" Cursor="Hand">
+    <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto">
+      <av:AvatarView Width="46" Height="46" VerticalAlignment="Top" AvatarId="{Binding AvatarId}" ColorHex="{Binding ColorHex}"
+                     Initial="{Binding Initial}" Ring="Verified" Mood="Happy" PopOnLoad="True" />
+      <StackPanel Grid.Column="1" Margin="12,0,6,0" Spacing="2">
+        <TextBlock Text="{Binding Name}" Classes="strong" TextTrimming="CharacterEllipsis" />
+        <TextBlock Text="{Binding Text}" TextWrapping="Wrap" MaxLines="3" TextTrimming="CharacterEllipsis" />
+      </StackPanel>
+      <Button Grid.Column="2" Classes="icon small" VerticalAlignment="Top" Command="{Binding Close}"
+              ToolTip.Tip="{x:Static l:S.Close}" AutomationProperties.Name="{x:Static l:S.Close}">
+        <c:IconView Kind="Close" />
+      </Button>
+      <Grid Grid.Row="1" Grid.ColumnSpan="3" ColumnDefinitions="*,Auto" Margin="58,10,6,0">
+        <TextBlock Text="{Binding CountText}" IsVisible="{Binding HasCount}" Classes="meta" VerticalAlignment="Center" />
+        <Button Grid.Column="1" Classes="accent" Command="{Binding Reply}">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <c:IconView Kind="Message" Width="16" Height="16" Foreground="White" />
+            <TextBlock Text="{x:Static l:S.ChatReply}" />
+          </StackPanel>
+        </Button>
+      </Grid>
+    </Grid>
+  </Border>
+</Window>

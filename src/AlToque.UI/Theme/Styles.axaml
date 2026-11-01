@@ -340,6 +340,28 @@
     <Setter Property="Foreground" Value="{DynamicResource AccentTextBrush}" />
   </Style>
 
+  <!-- Insignia de mensajes sin leer sobre el avatar -->
+  <Style Selector="Border.unread">
+    <Setter Property="Background" Value="{DynamicResource ErrorBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource SurfaceBrush}" />
+    <Setter Property="BorderThickness" Value="2" />
+    <Setter Property="MinWidth" Value="24" />
+    <Setter Property="Height" Value="24" />
+    <Setter Property="CornerRadius" Value="12" />
+    <Setter Property="Padding" Value="6,0" />
+  </Style>
+  <Style Selector="Border.unread TextBlock">
+    <Setter Property="Foreground" Value="White" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="FontWeight" Value="Bold" />
+    <Setter Property="HorizontalAlignment" Value="Center" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="TextBlock.unreadline">
+    <Setter Property="Foreground" Value="{DynamicResource Text1Brush}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
   <!-- ★ y × en las esquinas de la tarjeta de un compañero: aparecen al pasar el ratón o con el teclado. -->
   <Style Selector="Button.corner">
     <Setter Property="Width" Value="28" />

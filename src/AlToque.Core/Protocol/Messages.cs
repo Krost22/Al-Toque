@@ -19,6 +19,13 @@ public enum FrameType : byte
     PairNonce = 21,
     PairReveal = 22,
     PairConfirm = 23,
+
+    // Enlace permanente entre compañeros de confianza (chats).
+    ChatSync = 30,
+    ChatMessage = 31,
+    ChatAck = 32,
+    Ping = 33,
+    Pong = 34,
 }
 
 public static class Purposes
@@ -26,6 +33,9 @@ public static class Purposes
     public const string Transfer = "transfer";
     public const string Pair = "pair";
     public const string Probe = "probe";
+
+    /// <summary>Enlace permanente entre dos compañeros de confianza: chats y presencia.</summary>
+    public const string Link = "link";
 }
 
 public static class Capabilities
@@ -34,7 +44,10 @@ public static class Capabilities
     public const string Metadata = "metadata";
     public const string Message = "message";
 
-    public static readonly List<string> Local = [Burst, Metadata, Message];
+    /// <summary>Habla el enlace permanente y sincroniza chats.</summary>
+    public const string Chat = "chat";
+
+    public static readonly List<string> Local = [Burst, Metadata, Message, Chat];
 
     /// <summary>Prefijo con el que el avatar viaja dentro de las capacidades del HELLO.</summary>
     public const string AvatarPrefix = "av:";
@@ -186,6 +199,33 @@ public sealed class PairConfirmMessage
     public required bool Ok { get; init; }
 }
 
+/// <summary>Al abrir el enlace: "tengo tus mensajes hasta el número N" (contiguo). El otro manda lo que falta.</summary>
+public sealed class ChatSyncMessage
+{
+    public required long HaveYours { get; init; }
+}
+
+/// <summary>Un mensaje de chat. El id lo pone el autor y el número de orden crece de uno en uno por conversación.</summary>
+public sealed class ChatWireMessage
+{
+    public required string Id { get; init; }
+    public required long Seq { get; init; }
+    public required DateTimeOffset Time { get; init; }
+    public required string Text { get; init; }
+}
+
+/// <summary>Acuse: "tengo tus mensajes hasta el número N".</summary>
+public sealed class ChatAckMessage
+{
+    public required long Received { get; init; }
+}
+
+/// <summary>Señal de vida del enlace (también se responde con Pong).</summary>
+public sealed class PingMessage
+{
+    public long T { get; init; }
+}
+
 [JsonSourceGenerationOptions(
     PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase,
     UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
@@ -206,4 +246,8 @@ public sealed class PairConfirmMessage
 [JsonSerializable(typeof(PairNonceMessage))]
 [JsonSerializable(typeof(PairRevealMessage))]
 [JsonSerializable(typeof(PairConfirmMessage))]
+[JsonSerializable(typeof(ChatSyncMessage))]
+[JsonSerializable(typeof(ChatWireMessage))]
+[JsonSerializable(typeof(ChatAckMessage))]
+[JsonSerializable(typeof(PingMessage))]
 public sealed partial class ProtocolJsonContext : JsonSerializerContext;

@@ -25,6 +25,8 @@ public sealed class AppPaths
     public string HistoryFile => Path.Combine(ConfigDir, "history.jsonl");
     public string PeerCacheFile => Path.Combine(ConfigDir, "peers-cache.json");
     public string LogDir => Path.Combine(ConfigDir, "logs");
+    public string ChatDir => Path.Combine(ConfigDir, "chats");
+    public string ChatKeyFile => Path.Combine(ConfigDir, "chat.key");
 
     public static AppPaths Resolve()
     {

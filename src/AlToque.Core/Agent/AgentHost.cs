@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
+using AlToque.Core.Chat;
 using AlToque.Core.Discovery;
 using AlToque.Core.Ipc;
 using AlToque.Core.Pairing;
@@ -68,6 +69,8 @@ public sealed class AgentHost : IAsyncDisposable
         PeerCache = PeerCacheStore.Load(paths);
         Peers = new PeerDirectory(Trust, PeerCache);
         Pairing = new PairingService(identity, Trust, () => Settings.Current.Alias, () => Settings.Current.Avatar);
+        Chats = ChatStore.Load(paths, protector, identity.DeviceId);
+        Links = new LinkService(identity, Trust, Peers, Chats, () => LocalHello(Purposes.Link), AgentLog.Write);
         Client = new TransferClient(identity, Trust, () => Settings.Current.Alias, () => Settings.Current.Avatar);
         Server = new TransferServer(new ServerContext
         {
@@ -80,6 +83,7 @@ public sealed class AgentHost : IAsyncDisposable
             Block = Block,
             IsPublicNetwork = () => IsReceivingPausedByNetwork,
             Log = AgentLog.Write,
+            AcceptLink = (conn, ct) => Links.AcceptAsync(conn, ct),
         });
         if (options.EnableDiscovery)
         {
@@ -118,6 +122,12 @@ public sealed class AgentHost : IAsyncDisposable
     public TransferServer Server { get; }
     public TransferClient Client { get; }
     public DiscoveryService? Discovery { get; }
+
+    /// <summary>Conversaciones con cada compañero de confianza, guardadas cifradas.</summary>
+    public ChatStore Chats { get; }
+
+    /// <summary>Enlaces permanentes con los compañeros en línea: entregan y sincronizan los chats.</summary>
+    public LinkService Links { get; }
 
     public string DeviceId => Identity.DeviceId;
 
@@ -166,6 +176,8 @@ public sealed class AgentHost : IAsyncDisposable
             _ipc.Start();
         }
         NetworkChange.NetworkAddressChanged += OnNetworkChanged;
+        ImportHistoryIntoChats();
+        Links.Start();
         _housekeeping = new Timer(_ => Housekeeping(), null, TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(15));
     }
 
@@ -176,6 +188,7 @@ public sealed class AgentHost : IAsyncDisposable
         {
             lock (_lock)
                 _active.Add(info);
+            RecordInChat(info);
             TransferStarted?.Invoke(info);
             Discovery?.AnnounceSoon();
         };
@@ -184,11 +197,18 @@ public sealed class AgentHost : IAsyncDisposable
             lock (_lock)
                 _active.Remove(info);
             RecordHistory(info);
+            RecordInChat(info);
             TransferFinished?.Invoke(info);
         };
         Server.PeerVerified += (id, alias, os, avatar) => OnPeerVerified(id, null, alias, os, avatar);
         Client.PeerVerified += (id, ep, alias, os, avatar) => OnPeerVerified(id, ep, alias, os, avatar);
-        Discovery?.HintReceived += hint => Peers.OnHint(hint);
+        Discovery?.HintReceived += hint =>
+        {
+            Peers.OnHint(hint);
+            // Un compañero que aparece (o cambió de dirección) se enlaza enseguida.
+            if (Trust.Find(hint.DeviceId) is not null && !Links.IsLinked(hint.DeviceId))
+                Links.Kick(hint.DeviceId);
+        };
         Discovery?.ByeReceived += id => Peers.OnBye(id);
         Pairing.WindowChanged += () =>
         {
@@ -359,6 +379,8 @@ public sealed class AgentHost : IAsyncDisposable
     {
         LocalNetwork.InvalidateCache();
         CheckPublicNetwork();
+        // Con otra dirección, los enlaces viejos quedan colgados: tienen que responder ya o se rehacen.
+        Links.CheckAll();
     }
 
     private bool SafeIsPublic()
@@ -531,6 +553,7 @@ public sealed class AgentHost : IAsyncDisposable
         };
         lock (_lock)
             _active.Add(info);
+        RecordInChat(info);
         TransferStarted?.Invoke(info);
 
         _ = Task.Run(async () =>
@@ -573,6 +596,7 @@ public sealed class AgentHost : IAsyncDisposable
                 lock (_lock)
                     _active.Remove(info);
                 RecordHistory(info);
+                RecordInChat(info);
                 TransferFinished?.Invoke(info);
             }
         });
@@ -586,6 +610,41 @@ public sealed class AgentHost : IAsyncDisposable
         else
             _ = Server.CancelReceiveAsync(info);
     }
+
+    // ── Chats ───────────────────────────────────────────────────────────────────
+
+    /// <summary>Escribe en el chat de ese compañero y lo entrega ya si está enlazado (si no, en cuanto se enlace).</summary>
+    public ChatMessage SendChat(string peerId, string text)
+    {
+        var message = Chats.AddOwnText(peerId, text);
+        Links.Push(peerId);
+        return message;
+    }
+
+    /// <summary>Todo lo que se manda o se recibe de un compañero de confianza queda también en su chat.</summary>
+    private void RecordInChat(TransferInfo info)
+    {
+        if (info.PeerId is { } peerId && Trust.Find(peerId) is not null)
+            Chats.RecordTransfer(peerId, info);
+    }
+
+    private void ImportHistoryIntoChats()
+    {
+        if (Settings.Current.ChatsImported)
+            return;
+        Chats.ImportHistory(History.Recent(), id => Trust.Find(id) is not null);
+        Settings.Update(s => s.ChatsImported = true);
+    }
+
+    private HelloMessage LocalHello(string purpose) => new()
+    {
+        V = AppInfo.ProtocolVersion,
+        Purpose = purpose,
+        Alias = Settings.Current.Alias,
+        Os = AppInfo.OsName,
+        AppVersion = AppInfo.Version,
+        Caps = Capabilities.ForHello(Settings.Current.Avatar),
+    };
 
     private void RecordHistory(TransferInfo info)
     {
@@ -728,6 +787,7 @@ public sealed class AgentHost : IAsyncDisposable
         _everyoneTimer?.Dispose();
         foreach (var t in ActiveTransfers)
             CancelTransfer(t);
+        await Links.DisposeAsync().ConfigureAwait(false);
         Discovery?.Dispose();
         if (_ipc is not null)
             await _ipc.DisposeAsync().ConfigureAwait(false);

@@ -43,6 +43,7 @@ y **Android** 11 o posterior con una app propia para el teléfono. Todas hablan 
 | Receptor blindado | Máquina de estados estricta, tokens de un solo uso por archivo, saneamiento de rutas (recorrido, nombres reservados, `:`/ADS, controles y bidi), `.altoque-part` + SHA-256 + renombrado atómico, Mark of the Web (`Zone.Identifier`, ZoneId=3), espacio libre, cuotas y plazos |
 | Envío | Archivos y carpetas (incluidas las vacías), 1 a 4 conexiones de datos, **modo ráfaga** para miles de archivos pequeños, hash al vuelo, fechas originales, mensaje opcional, cancelar desde cualquiera de los dos lados |
 | Emparejamiento | Código de **6 dígitos** comparado en ambas pantallas, con compromiso previo (contra intermediarios); bloqueo de 5 min tras 3 fallos |
+| Chats | Una conversación por compañero de confianza (por identidad: no se duplica al cambiar de red o de nombre); mensajes guardados en disco **cifrados** (AES-GCM, llave protegida por el sistema) antes de mostrarse; lo escrito sin conexión llega al volver; **un solo enlace por pareja** con señal de vida que se rehace solo al cambiar de red; ✓✓ entregado; los archivos que se mandan quedan en el chat; no leídos en la tarjeta, la bandeja y el título; aviso flotante con **Responder** |
 | Conexión manual | Por IP o por **código de conexión** (`K7Q2-9XM4`) para redes que bloquean el multicast |
 | Windows | Menú clásico **"Enviar con Al Toque ›"** con tus compañeros (sin firma ni DLL, en `HKCU`), **"Enviar a"**, inicio con Windows, regla de firewall solo para redes privadas, pausa en redes públicas, sonidos y "reducir movimiento" del sistema |
 | Interfaz | Sistema visual propio con tokens claro/oscuro e íconos de trazo; panel rápido (reposo, arrastrando, "no veo a nadie" con consejos y nombre de la red), tarjetas flotantes por estado con la estela de Chasqui como barra de progreso, solicitud grande o compacta con **aceptación parcial** (los programas llegan desmarcados), emparejamiento en 3 pasos, ajustes por tarjetas, historial con **Reintentar** |
@@ -76,6 +77,11 @@ Las instrucciones paso a paso para cada sistema están en [`docs/INSTALAR.md`](d
 1. Abre Al Toque en las dos PC. Elige cómo te verán tus compañeros.
 2. **Emparejen sus equipos**: en ambos, panel → *Emparejar*; uno elige al otro y los dos confirman que ven el mismo código.
 3. Desde entonces: **clic derecho** sobre archivos o carpetas → *Mostrar más opciones* (Windows 11) → **Enviar con Al Toque** → tu compañero.
+4. Clic en un compañero de confianza abre **su chat**: escríbele, arrastra archivos a la conversación o usa el clip.
+   Lo que se manden queda ahí, también tras reiniciar.
+
+La ventana no se pierde: **—** y **×** la minimizan a la barra de tareas, y para cerrar Al Toque del todo está
+*Salir de Al Toque* (clic derecho en su botón de la barra de tareas, en el ícono de la bandeja o en Ajustes).
 
 Para alguien que todavía no es de confianza, el receptor activa **Recibir de: Todos (10 min)**; la solicitud llega
 marcada como *No verificado*. Si la red no deja que los equipos se encuentren (Wi-Fi de invitados), usa *Mi código* y
@@ -169,6 +175,7 @@ src/AlToque.Core      Núcleo sin interfaz (compatible con NativeAOT)
   Discovery/          Anuncios UDP, directorio de compañeros, código de conexión
   Protocol/           Tramas [u32 longitud][u8 tipo][contenido], mensajes JSON estrictos, conexión TLS mutua
   Transfer/           Emisor, servidor receptor, saneamiento de nombres, plan de recepción, escritura segura
+  Chat/               Conversaciones cifradas en disco y el enlace permanente con cada compañero
   Pairing/            Emparejamiento con compromiso y código de 6 dígitos
   Ipc/                Tubería local entre el CLI y el agente
   Agent/              AgentHost: orquesta todo lo anterior
@@ -199,6 +206,9 @@ en macOS, la carpeta privada de la app en Android (o `AlToque.data` junto al eje
 2. Control: `HELLO` → `OFFER` (manifiesto) → `DECISION` (con un token aleatorio por archivo aceptado).
 3. Datos: 1 a 4 conexiones TLS del mismo emisor; cada archivo es `STREAM_OPEN` (token) → `CHUNK`… → `FILE_END`
    (SHA-256) → `FILE_RESULT`. Los archivos pequeños van seguidos por el mismo flujo, sin esperar respuesta.
+4. Enlace de chat (solo entre compañeros de confianza): `HELLO` con propósito `link` → cada lado manda `CHAT_SYNC`
+   ("tengo tus mensajes hasta el N") → `CHAT_MESSAGE` con id y número de orden del autor → `CHAT_ACK`. `PING`/`PONG`
+   cada 15 s; si los dos marcan a la vez, queda la conexión que inició el `deviceId` menor.
 
 ### Decisiones respecto a la especificación
 

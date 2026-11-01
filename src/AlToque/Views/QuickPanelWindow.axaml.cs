@@ -26,6 +26,12 @@ public partial class QuickPanelWindow : Window
         root.AddHandler(DragDrop.DragOverEvent, OnDragOver);
         root.AddHandler(DragDrop.DragLeaveEvent, OnDragLeave);
         root.AddHandler(DragDrop.DropEvent, OnDrop);
+        // Archivos soltados sobre un chat abierto: van a ese compañero.
+        this.FindControl<ChatView>("ChatPane")!.FilesDropped += paths =>
+        {
+            if (Vm?.Chat is { } chat)
+                ChatFilesDropped?.Invoke(chat.PeerId, paths);
+        };
         // Se mueve arrastrando el encabezado; desde ese momento ya no se recoloca junto a la bandeja.
         var header = this.FindControl<Grid>("Header")!;
         header.PointerPressed += (_, e) =>
@@ -68,6 +74,9 @@ public partial class QuickPanelWindow : Window
 
     private bool _moving;
 
+    /// <summary>Soltaron archivos sobre el chat abierto con ese compañero.</summary>
+    public event Action<string, IReadOnlyList<string>>? ChatFilesDropped;
+
     /// <summary>El usuario pidió cerrar la ventana (Esc, Alt+F4 o «Cerrar ventana» en la barra de tareas): se minimiza.</summary>
     public event Action? MinimizeRequested;
 
@@ -77,6 +86,21 @@ public partial class QuickPanelWindow : Window
     public bool IsMinimized => WindowState == WindowState.Minimized;
 
     private QuickPanelViewModel? Vm => DataContext as QuickPanelViewModel;
+
+    protected override void OnDataContextChanged(EventArgs e)
+    {
+        base.OnDataContextChanged(e);
+        if (Vm is { } vm)
+            vm.ChatOpened += () => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                if (this.FindControl<ChatView>("ChatPane") is not { } pane)
+                    return;
+                // En una pantalla baja (portátil de 768 px) el chat se acorta para que la ventana quepa entera.
+                if ((Screens.ScreenFromWindow(this) ?? Screens.Primary) is { } screen)
+                    pane.Height = Math.Clamp(screen.WorkingArea.Height / screen.Scaling - 190, 360, 600);
+                pane.FocusComposer();
+            });
+    }
 
     private TourOverlay Tour => this.FindControl<TourOverlay>("TourLayer")!;
 

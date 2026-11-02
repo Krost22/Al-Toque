@@ -158,7 +158,7 @@
               <!-- Mensaje de texto -->
               <Border Classes="msg" Classes.mine="{Binding IsMine}" IsVisible="{Binding IsText}">
                 <StackPanel Spacing="2">
-                  <SelectableTextBlock Text="{Binding Text}" TextWrapping="Wrap" />
+                  <SelectableTextBlock c:LinkText.Text="{Binding Text}" TextWrapping="Wrap" />
                   <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Right">
                     <TextBlock Text="{Binding TimeText}" Classes="meta" FontSize="11" />
                     <c:IconView Kind="CheckCheck" Width="14" Height="14" IsVisible="{Binding IsDelivered}" ToolTip.Tip="{Binding DeliveryTip}" />
@@ -216,7 +216,7 @@
                       <TextBlock Text="{Binding PhotoMeta}" />
                     </Border>
                   </Panel>
-                  <SelectableTextBlock Text="{Binding Text}" TextWrapping="Wrap" IsVisible="{Binding HasText}" Margin="8,2,8,4" />
+                  <SelectableTextBlock c:LinkText.Text="{Binding Text}" TextWrapping="Wrap" IsVisible="{Binding HasText}" Margin="8,2,8,4" />
                 </StackPanel>
               </Border>
 
@@ -234,7 +234,7 @@
                     <TextBlock Grid.Column="2" Text="{Binding TimeText}" Classes="meta" FontSize="11" Margin="10,0,0,0" VerticalAlignment="Top" />
                   </Grid>
                   <ProgressBar Classes="update" IsIndeterminate="True" IsVisible="{Binding IsFileActive}" />
-                  <SelectableTextBlock Text="{Binding Text}" TextWrapping="Wrap" IsVisible="{Binding HasText}" />
+                  <SelectableTextBlock c:LinkText.Text="{Binding Text}" TextWrapping="Wrap" IsVisible="{Binding HasText}" />
                   <StackPanel Orientation="Horizontal" Spacing="14" IsVisible="{Binding CanOpen}">
                     <Button Classes="link" Padding="0,2" Content="{x:Static l:S.Open}" Command="{Binding Open}" />
                     <Button Classes="link" Padding="0,2" Content="{x:Static l:S.ChatShowInFolder}" Command="{Binding ShowInFolder}" />

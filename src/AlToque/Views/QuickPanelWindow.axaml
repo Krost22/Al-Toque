@@ -183,13 +183,40 @@
             <Run Text="{x:Static l:S.PeersHeader}" FontWeight="SemiBold" Foreground="{DynamicResource Text2Brush}" />
             <Run Text="{Binding PeersCountText}" Foreground="{DynamicResource Text3Brush}" />
           </TextBlock>
-          <Button x:Name="PairLink" Grid.Column="1" Classes="link" Command="{Binding Pair}" IsVisible="{Binding !DragOver}">
-            <StackPanel Orientation="Horizontal" Spacing="6">
-              <c:IconView Kind="Plus" Width="16" Height="16" />
-              <TextBlock Text="{x:Static l:S.PairShort}" />
-            </StackPanel>
-          </Button>
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="14">
+            <Button x:Name="SelectLink" Classes="link" Command="{Binding StartSelecting}" ToolTip.Tip="{x:Static l:S.SelectManyTip}"
+                    IsVisible="{Binding ShowSelectLink}" Content="{x:Static l:S.SelectMany}" />
+            <Button x:Name="PairLink" Classes="link" Command="{Binding Pair}" IsVisible="{Binding !DragOver}">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <c:IconView Kind="Plus" Width="16" Height="16" />
+                <TextBlock Text="{x:Static l:S.PairShort}" />
+              </StackPanel>
+            </Button>
+          </StackPanel>
         </Grid>
+        <!-- Grupos: filtran la lista; se puede arrastrar un compañero sobre una ficha -->
+        <ItemsControl x:Name="GroupChipList" ItemsSource="{Binding GroupChips}" IsVisible="{Binding ShowGroupChips}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <WrapPanel />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:GroupChipViewModel">
+              <Button Classes="groupchip" Classes.on="{Binding IsSelected}" Classes.drop="{Binding IsDropTarget}" Classes.new="{Binding IsNew}"
+                      Margin="0,0,6,6" DragDrop.AllowDrop="{Binding IsGroup}"
+                      Command="{Binding $parent[ItemsControl].((vm:QuickPanelViewModel)DataContext).SelectGroupChip}" CommandParameter="{Binding}"
+                      AutomationProperties.Name="{Binding Label}">
+                <StackPanel Orientation="Horizontal" Spacing="5">
+                  <c:IconView Kind="Plus" Width="13" Height="13" IsVisible="{Binding IsNew}" />
+                  <TextBlock Text="{Binding Label}" />
+                </StackPanel>
+              </Button>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <TextBlock Text="{Binding GroupEmptyText}" IsVisible="{Binding ShowGroupEmpty}" Classes="meta" TextWrapping="Wrap" TextAlignment="Center"
+                   Margin="12,6" />
         <ItemsControl x:Name="PeerList" ItemsSource="{Binding Peers}">
           <ItemsControl.ItemsPanel>
             <ItemsPanelTemplate>
@@ -198,9 +225,9 @@
           </ItemsControl.ItemsPanel>
           <ItemsControl.ItemTemplate>
             <DataTemplate x:DataType="vm:PeerViewModel">
-              <Panel Margin="2" Classes="peercard">
+              <Panel Margin="2" Classes="peercard" IsVisible="{Binding InFilter}">
                 <c:DashedBorder IsVisible="{Binding ShowDashedOutline}" Radius="8" Marching="True" />
-                <Button Classes="peer" Classes.dropover="{Binding IsDropTarget}" HorizontalAlignment="Stretch"
+                <Button Classes="peer" Classes.dropover="{Binding IsDropTarget}" Classes.selected="{Binding IsSelected}" HorizontalAlignment="Stretch"
                         Command="{Binding $parent[ItemsControl].((vm:QuickPanelViewModel)DataContext).PeerClicked}"
                         CommandParameter="{Binding}"
                         DragDrop.AllowDrop="True"
@@ -213,6 +240,10 @@
                       <!-- Mensajes sin leer -->
                       <Border Classes="unread" IsVisible="{Binding HasUnread}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-2,-6,0">
                         <TextBlock Text="{Binding UnreadText}" />
+                      </Border>
+                      <!-- Elegido para enviar a varios -->
+                      <Border Classes="selcheck" IsVisible="{Binding IsSelected}" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="-4,0,0,-2">
+                        <c:IconView Kind="Check" Width="14" Height="14" Foreground="White" />
                       </Border>
                     </Panel>
                     <TextBlock Text="{Binding Name}" HorizontalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="124"
@@ -238,6 +269,22 @@
             </DataTemplate>
           </ItemsControl.ItemTemplate>
         </ItemsControl>
+        <!-- Elegir a varios: se envía lo mismo a todos -->
+        <Border Classes="selectbar" IsVisible="{Binding IsSelecting}">
+          <Grid ColumnDefinitions="*,Auto,Auto">
+            <StackPanel VerticalAlignment="Center" Spacing="1">
+              <TextBlock Text="{Binding SelectedText}" FontWeight="SemiBold" />
+              <TextBlock Text="{x:Static l:S.SelectHint}" Classes="meta" TextWrapping="Wrap" />
+            </StackPanel>
+            <Button Grid.Column="1" Content="{x:Static l:S.SelectCancel}" Command="{Binding CancelSelecting}" Margin="8,0" MinHeight="36" />
+            <Button Grid.Column="2" Classes="accent" Command="{Binding SendSelected}" MinHeight="36">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <c:IconView Kind="Send" Width="16" Height="16" Foreground="White" />
+                <TextBlock Text="{Binding SendSelectedText}" />
+              </StackPanel>
+            </Button>
+          </Grid>
+        </Border>
       </StackPanel>
 
       <!-- Cerca de ti: equipos en esta red que todavía no son compañeros; un clic pide conectarse -->

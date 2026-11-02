@@ -84,6 +84,9 @@ public sealed class AppSettings
     /// <summary>Chats fijados en la esquina de la pantalla: se vuelven a abrir donde estaban al iniciar.</summary>
     public List<PinnedChat>? PinnedChats { get; set; }
 
+    /// <summary>Grupos de compañeros (listas locales de este equipo).</summary>
+    public List<ContactGroup>? ContactGroups { get; set; }
+
     /// <summary>Descargar las versiones nuevas en segundo plano e instalarlas al cerrar o reiniciar.</summary>
     public bool AutoUpdate { get; set; } = true;
 
@@ -103,6 +106,7 @@ public sealed class AppSettings
     {
         var copy = (AppSettings)MemberwiseClone();
         copy.PinnedChats = PinnedChats?.Select(p => p with { }).ToList();
+        copy.ContactGroups = ContactGroups?.Select(g => g with { Members = [.. g.Members] }).ToList();
         return copy;
     }
 
@@ -124,6 +128,7 @@ public sealed class AppSettings
             .DistinctBy(p => p.PeerId)
             .Take(PinnedChat.Max)
             .ToList();
+        ContactGroups = Storage.ContactGroups.Normalize(ContactGroups);
     }
 }
 

@@ -621,7 +621,7 @@ public sealed class TransferServer : IAsyncDisposable
         string? openError = null;
         try
         {
-            file = IncomingFile.Create(planned, session.Plan.Root, session.Policy);
+            file = IncomingFile.Create(planned, session.Plan.Root, session.Policy, session.SessionId[..10]);
         }
         catch (TransferException ex) when (ex.Code != ErrorCodes.DiskFull)
         {

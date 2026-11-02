@@ -15,6 +15,70 @@
         ShowActivated="False"
         Background="Transparent">
   <Border x:Name="Root" Background="Transparent">
+    <StackPanel Spacing="12">
+    <!-- Envíos a varios: una tarjeta con todos los destinatarios -->
+    <ItemsControl x:Name="GroupCards" ItemsSource="{Binding Groups}">
+      <ItemsControl.ItemsPanel>
+        <ItemsPanelTemplate>
+          <StackPanel Spacing="12" />
+        </ItemsPanelTemplate>
+      </ItemsControl.ItemsPanel>
+      <ItemsControl.ItemTemplate>
+        <DataTemplate x:DataType="vm:GroupSendViewModel">
+          <Border Classes="panel floatcard" Padding="20,16,14,18">
+            <StackPanel Spacing="10">
+              <Grid ColumnDefinitions="Auto,*,Auto">
+                <ch:ChasquiView Width="48" Height="48" State="{Binding Chasqui}" ShowRadar="False" VerticalAlignment="Top" />
+                <StackPanel Grid.Column="1" Margin="14,2,8,0" Spacing="2" VerticalAlignment="Center">
+                  <TextBlock Text="{Binding Title}" Classes="strong" FontSize="16" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+                  <TextBlock Text="{Binding Detail}" Classes="body2 num" TextWrapping="Wrap" />
+                </StackPanel>
+                <Button Grid.Column="2" Classes="icon small" Command="{Binding Dismiss}" VerticalAlignment="Top"
+                        ToolTip.Tip="{x:Static l:S.Close}" AutomationProperties.Name="{x:Static l:S.Close}">
+                  <c:IconView Kind="Close" />
+                </Button>
+              </Grid>
+              <!-- Quién ya lo tiene: avatares con una marca -->
+              <ItemsControl ItemsSource="{Binding Recipients}" Margin="62,0,0,0">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <WrapPanel />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:GroupRecipientViewModel">
+                    <Panel Width="40" Height="40" Margin="0,0,8,6" ToolTip.Tip="{Binding Tip}" AutomationProperties.Name="{Binding Tip}">
+                      <av:AvatarView Width="36" Height="36" AvatarId="{Binding AvatarId}" ColorHex="{Binding ColorHex}" Initial="{Binding Initial}"
+                                     Ring="Verified" Opacity="{Binding Opacity}" HorizontalAlignment="Left" VerticalAlignment="Top" />
+                      <Border Width="18" Height="18" CornerRadius="9" Background="{DynamicResource SuccessBrush}" IsVisible="{Binding IsDone}"
+                              HorizontalAlignment="Right" VerticalAlignment="Bottom" BorderBrush="{DynamicResource SurfaceBrush}" BorderThickness="2">
+                        <c:IconView Kind="Check" Width="10" Height="10" Foreground="White" />
+                      </Border>
+                      <Border Width="18" Height="18" CornerRadius="9" Background="{DynamicResource ErrorBrush}" IsVisible="{Binding IsFailed}"
+                              HorizontalAlignment="Right" VerticalAlignment="Bottom" BorderBrush="{DynamicResource SurfaceBrush}" BorderThickness="2">
+                        <c:IconView Kind="Close" Width="10" Height="10" Foreground="White" />
+                      </Border>
+                    </Panel>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <c:TransferTrack Mode="{Binding Track}" Progress="{Binding Progress}" EndColor="{Binding ColorHex}" IsVisible="{Binding ShowTrack}"
+                               Margin="0,0,6,0" />
+              <Grid ColumnDefinitions="*,Auto" Margin="0,0,6,0">
+                <TextBlock Text="{Binding FootLeft}" Classes="meta num" />
+                <TextBlock Grid.Column="1" Text="{Binding FootRight}" Classes="meta num" FontWeight="SemiBold" />
+              </Grid>
+              <Button Classes="accent" Command="{Binding RetryFailed}" IsVisible="{Binding CanRetry}" MinHeight="38" Margin="62,0,0,0" HorizontalAlignment="Left">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <c:IconView Kind="Retry" Width="18" Height="18" />
+                  <TextBlock Text="{Binding RetryText}" />
+                </StackPanel>
+              </Button>
+            </StackPanel>
+          </Border>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
     <ItemsControl x:Name="Cards" ItemsSource="{Binding Items}">
       <ItemsControl.ItemsPanel>
         <ItemsPanelTemplate>
@@ -67,5 +131,6 @@
         </DataTemplate>
       </ItemsControl.ItemTemplate>
     </ItemsControl>
+    </StackPanel>
   </Border>
 </Window>

@@ -606,6 +606,7 @@ internal sealed class TestAgent : IAsyncDisposable
         var host = Open(dir, publicNetwork, pairRequests, s =>
         {
             s.Alias = alias;
+            s.WelcomeDone = true;
             s.TcpPort = Random.Shared.Next(46000, 60000);
             s.ReceiveFolder = Path.Combine(dir.Path, "inbox");
         });

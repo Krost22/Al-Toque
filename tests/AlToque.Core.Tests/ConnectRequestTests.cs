@@ -130,6 +130,14 @@ public class ConnectRequestTests
         cafe.Host.Settings.Update(s => s.AllowPublicNetworks = true);
         Assert.False(cafe.Host.IsVisibleNearby);
 
+        // Antes de elegir el nombre en la bienvenida no se anuncia (sería el nombre de la máquina).
+        a.Host.Settings.Update(s =>
+        {
+            s.ReceiveMode = ReceiveMode.TrustedOnly;
+            s.WelcomeDone = false;
+        });
+        Assert.False(a.Host.IsVisibleNearby);
+
         // Sin interfaz para avisos, se ve pero no acepta solicitudes.
         await using var phone = TestAgent.Create("Teléfono");
         Assert.True(phone.Host.IsVisibleNearby);

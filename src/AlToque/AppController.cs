@@ -121,6 +121,7 @@ public sealed class AppController
         else
             ShowPanelMinimized();
         RestorePinned();
+        PruneGroups();
         CleanPastedImages();
     }
 
@@ -388,6 +389,7 @@ public sealed class AppController
             if (!await ConfirmWindow.AskAsync(S.RemovePeerConfirm(peer.Name)))
                 return;
             Agent.Trust.Remove(peer.DeviceId);
+            PruneGroups();
             if (_pinned.ContainsKey(peer.DeviceId))
             {
                 ClosePinned(peer.DeviceId);
@@ -509,6 +511,7 @@ public sealed class AppController
     {
         var snapshot = Agent.Peers.Snapshot().Where(p => !Agent.IsBlocked(p.DeviceId)).ToList();
         Panel.SyncPeers(snapshot);
+        Panel.SyncGroups(Agent.Settings.Current.ContactGroups);
         Panel.SyncChats(Agent.Chats.Summaries(), Agent.DeviceId);
         Pairing?.SyncCandidates(snapshot);
     }
@@ -529,6 +532,15 @@ public sealed class AppController
     {
         if (Transfers.Items.Any(t => t.Info == info))
             return;
+        // Parte de un envío a varios: lo muestra la tarjeta conjunta.
+        if (Transfers.Groups.FirstOrDefault(g => g.Contains(info)) is { } group)
+        {
+            group.Refresh();
+            ShowTransfersWindow();
+            _fastTimer.Start();
+            UpdateTray();
+            return;
+        }
         var vm = new TransferViewModel(info, DismissTransfer, Agent.CancelTransfer, RetryTransfer, () => ShowConnect(info.SourcePaths, showMyCode: false),
             Opener.ShowInFolder);
         vm.OpenFileRequested += t => _ = OpenReceivedFileAsync(t);
@@ -540,6 +552,21 @@ public sealed class AppController
 
     private void OnTransferFinished(TransferInfo info)
     {
+        if (Transfers.Groups.FirstOrDefault(g => g.Contains(info)) is { } group)
+        {
+            group.Refresh();
+            if (_transfersWindow is not null)
+                AutoHeight.Refit(_transfersWindow);
+            // Cuando terminan todos: un solo sonido y un solo aviso de Chasqui.
+            if (!group.IsActive)
+            {
+                Panel.Flash(group.IsSuccess ? ChasquiState.Success : ChasquiState.Error, group.Title);
+                if (Agent.Settings.Current.Sounds)
+                    SystemPrefs.Play(group.IsSuccess ? SystemPrefs.Sound.Success : SystemPrefs.Sound.Error);
+            }
+            UpdateTray();
+            return;
+        }
         var vm = Transfers.Items.FirstOrDefault(t => t.Info == info);
         if (vm is null)
             return; // Ofertas rechazadas o vencidas: nunca llegaron a mostrarse como transferencia.
@@ -573,7 +600,7 @@ public sealed class AppController
         if (_transfersWindow is not null)
             await _transfersWindow.AnimateOutAsync(vm);
         Transfers.Items.Remove(vm);
-        if (Transfers.Items.Count == 0)
+        if (Transfers.IsEmpty)
             _transfersWindow?.Hide();
         else if (_transfersWindow is not null)
             AutoHeight.Refit(_transfersWindow);
@@ -609,11 +636,155 @@ public sealed class AppController
             if (t.IsActive || t.FinishedAt is null)
                 t.Refresh();
         }
+        foreach (var g in Transfers.Groups)
+        {
+            if (g.IsActive)
+                g.Refresh();
+        }
         if (_transfersWindow is { IsVisible: true } tw)
             AutoHeight.Refit(tw);
         Panel.SyncActivity(Transfers.Items);
-        if (!Transfers.Items.Any(t => t.IsActive))
+        if (!Transfers.Items.Any(t => t.IsActive) && !Transfers.Groups.Any(g => g.IsActive))
             _fastTimer.Stop();
+    }
+
+    // ── Grupos de compañeros ─────────────────────────────────────────────────────
+
+    /// <summary>Los grupos guardados en este equipo (listas locales).</summary>
+    public IReadOnlyList<ContactGroup> Groups => Agent.Settings.Current.ContactGroups ?? [];
+
+    private void SaveGroups(Func<IReadOnlyList<ContactGroup>?, List<ContactGroup>> change)
+    {
+        Agent.Settings.Update(s =>
+        {
+            var list = change(s.ContactGroups);
+            s.ContactGroups = list.Count > 0 ? list : null;
+        });
+        Panel.SyncGroups(Agent.Settings.Current.ContactGroups);
+    }
+
+    /// <summary>«+ Grupo» (con los compañeros elegidos, si había una selección).</summary>
+    public async Task CreateGroupAsync(IReadOnlyList<string> members)
+    {
+        var name = await AskTextWindow.AskAsync(S.GroupNameTitle, S.GroupCreate, placeholder: S.GroupNamePlaceholder);
+        if (name is null)
+            return;
+        ContactGroup? created = null;
+        SaveGroups(g =>
+        {
+            var (list, group) = ContactGroups.Create(g, name, members);
+            created = group;
+            return list;
+        });
+        if (created is not null && members.Count > 0)
+            Panel.IsSelecting = false;
+    }
+
+    public async Task RenameGroupAsync(string id)
+    {
+        if (Groups.FirstOrDefault(g => g.Id == id) is not { } group)
+            return;
+        var name = await AskTextWindow.AskAsync(S.GroupNameTitle, S.GroupRename.TrimEnd('…'), group.Name);
+        if (name is not null)
+            SaveGroups(g => ContactGroups.Rename(g, id, name));
+    }
+
+    public void SetGroupArchived(string id, bool archived) => SaveGroups(g => ContactGroups.SetArchived(g, id, archived));
+
+    public async Task DeleteGroupAsync(string id)
+    {
+        if (Groups.FirstOrDefault(g => g.Id == id) is { } group && await ConfirmWindow.AskAsync(S.GroupDeleteConfirm(group.Name)))
+            SaveGroups(g => ContactGroups.Delete(g, id));
+    }
+
+    /// <summary>Menú de un compañero › Grupos: lo pone o lo quita de ese grupo.</summary>
+    public void ToggleGroupMember(string id, string peerId)
+    {
+        var inGroup = Groups.FirstOrDefault(g => g.Id == id)?.Members.Contains(peerId) == true;
+        SaveGroups(g => inGroup ? ContactGroups.RemoveMember(g, id, peerId) : ContactGroups.AddMember(g, id, peerId));
+    }
+
+    /// <summary>Un compañero arrastrado sobre la ficha de un grupo.</summary>
+    public void AddToGroup(string id, string peerId)
+    {
+        if (Agent.Trust.Find(peerId) is not null)
+            SaveGroups(g => ContactGroups.AddMember(g, id, peerId));
+    }
+
+    /// <summary>
+    /// «Enviar archivos a …» (clic derecho en un grupo) o archivos soltados sobre su ficha: los mismos archivos a todos
+    /// sus miembros.
+    /// </summary>
+    public async Task SendToGroupAsync(string id, IReadOnlyList<string>? paths = null)
+    {
+        if (Groups.FirstOrDefault(g => g.Id == id) is not { } group)
+            return;
+        var members = group.Members.Where(m => Agent.Trust.Find(m) is not null).ToList();
+        if (members.Count == 0)
+            return;
+        var message = Panel.Message is { Length: > 0 } m && !string.IsNullOrWhiteSpace(m) ? m.Trim() : null;
+        paths ??= Panel.HasPending ? Panel.PendingPaths! : await PickFilesAsync();
+        if (paths.Count == 0)
+            return;
+        Panel.SetPending(null);
+        await SendToManyAsync(members, paths, message, group.Name);
+    }
+
+    /// <summary>Quien dejó de ser compañero sale de todos los grupos.</summary>
+    private void PruneGroups()
+    {
+        if (Groups.Any(g => g.Members.Any(m => Agent.Trust.Find(m) is null)))
+            SaveGroups(g => ContactGroups.Prune(g, m => Agent.Trust.Find(m) is not null));
+    }
+
+    // ── Enviar a varios ──────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Lo mismo a varios compañeros a la vez (una selección o un grupo): un envío independiente a cada uno, todos en
+    /// paralelo, y una sola tarjeta con el progreso conjunto.
+    /// </summary>
+    public async Task SendToManyAsync(IReadOnlyList<string> peerIds, IReadOnlyList<string> paths, string? message, string? groupName = null)
+    {
+        var ids = peerIds.Distinct(StringComparer.Ordinal).Where(id => Agent.Trust.Find(id) is not null).ToList();
+        if (ids.Count == 0 || paths.Count == 0)
+            return;
+        if (ids.Count == 1)
+        {
+            await SendToPeerAsync(ids[0], NameOf(ids[0]), paths, message);
+            return;
+        }
+        var recipients = ids.Select(id => (id, NameOf(id), Agent.Peers.Find(id)?.Avatar ?? Agent.Trust.Find(id)?.Avatar)).ToList();
+        var group = new GroupSendViewModel(recipients, paths, groupName, DismissGroupSend, Agent.CancelTransfer,
+            (g, failed) =>
+            {
+                DismissGroupSend(g);
+                _ = SendToManyAsync(failed, g.Paths, message, groupName);
+            });
+        Transfers.Groups.Insert(0, group);
+        ShowTransfersWindow();
+        _fastTimer.Start();
+        await Task.WhenAll(ids.Select(async id =>
+        {
+            var target = await Agent.LocateAsync(id, TimeSpan.FromSeconds(1.5));
+            // Sin dirección conocida (apagado, otra red): queda marcado como «no llegó» y se puede reintentar.
+            group.Attach(id, target is null ? null : Agent.BeginSend(target, paths, message));
+        }));
+        if (_transfersWindow is not null)
+            AutoHeight.Refit(_transfersWindow);
+    }
+
+    private async void DismissGroupSend(GroupSendViewModel group)
+    {
+        if (!Transfers.Groups.Contains(group))
+            return;
+        if (_transfersWindow is not null)
+            await _transfersWindow.AnimateOutAsync(group);
+        Transfers.Groups.Remove(group);
+        if (Transfers.IsEmpty)
+            _transfersWindow?.Hide();
+        else if (_transfersWindow is not null)
+            AutoHeight.Refit(_transfersWindow);
+        LayoutToasts();
     }
 
     private void SlowTick()
@@ -636,6 +807,8 @@ public sealed class AppController
         var now = DateTimeOffset.Now;
         foreach (var t in Transfers.Items.Where(t => !t.IsActive && t.FinishedAt is { } f && now - f > Linger(t)).ToList())
             DismissTransfer(t);
+        foreach (var g in Transfers.Groups.Where(g => !g.IsActive && g.FinishedAt is { } f && now - f > (g.IsError ? ErrorLinger : NeutralLinger)).ToList())
+            DismissGroupSend(g);
     }
 
     private static TimeSpan Linger(TransferViewModel t) =>
@@ -1223,12 +1396,17 @@ public sealed class AppController
             DataContext = new WelcomeViewModel(Agent.DeviceId, Agent.Settings.Current.Alias, Agent.Settings.Current.Avatar),
             ReduceMotion = ReduceMotion,
         };
-        window.Started += (alias, avatar) => Agent.Settings.Update(s =>
+        window.Started += (alias, avatar) =>
         {
-            s.Alias = TextLimits.CleanAlias(alias) ?? s.Alias;
-            s.Avatar = avatar;
-            s.WelcomeDone = true;
-        });
+            Agent.Settings.Update(s =>
+            {
+                s.Alias = TextLimits.CleanAlias(alias) ?? s.Alias;
+                s.Avatar = avatar;
+                s.WelcomeDone = true;
+            });
+            // Desde ahora los equipos cercanos lo ven, con el nombre elegido.
+            OnVisibilityChanged();
+        };
         window.Closed += (_, _) =>
         {
             if (!Agent.Settings.Current.WelcomeDone)

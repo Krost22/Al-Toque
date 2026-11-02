@@ -200,7 +200,7 @@ public sealed class ReceivePlan
     private static bool ExistsOnDisk(string root, string name)
     {
         var p = Path.Combine(root, name);
-        return File.Exists(p) || Directory.Exists(p) || File.Exists(p + AppInfo.PartExtension);
+        return File.Exists(p) || Directory.Exists(p) || IncomingFile.AnyPartFor(p);
     }
 
     private static string[] ApplyRename(string[] components, Dictionary<string, string> renames)

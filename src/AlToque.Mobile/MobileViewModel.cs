@@ -78,6 +78,8 @@ public sealed class MobileViewModel : ViewModelBase
         {
             ApplyName();
             _agent.Settings.Update(s => s.WelcomeDone = true);
+            // Desde ahora los equipos cercanos lo ven, con el nombre elegido.
+            _agent.Discovery?.AnnounceSoon();
             Open(MobileSheet.None);
         });
         PairWith = new RelayCommand(p => _ = PairWithAsync(p as PeerViewModel));

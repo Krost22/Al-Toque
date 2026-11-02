@@ -70,6 +70,7 @@ public partial class QuickPanelWindow : Window
             if (e.Key == Key.Escape)
                 MinimizeRequested?.Invoke();
         };
+        InitGroups();
         // Los compañeros que aparecen entran con un saltito.
         this.FindControl<ItemsControl>("PeerList")!.ContainerPrepared += (_, e) =>
         {
@@ -188,6 +189,15 @@ public partial class QuickPanelWindow : Window
 
     private void OnDragOver(object? sender, DragEventArgs e)
     {
+        // Un compañero arrastrado hacia la ficha de un grupo.
+        if (e.DataTransfer.Contains(PeerFormat))
+        {
+            var target = ChipUnder(e);
+            e.DragEffects = target is { IsGroup: true } ? DragDropEffects.Link : DragDropEffects.None;
+            HighlightChip(target);
+            e.Handled = true;
+            return;
+        }
         var hasFiles = e.DataTransfer.Contains(DataFormat.File);
         e.DragEffects = hasFiles ? DragDropEffects.Copy : DragDropEffects.None;
         if (Vm is not { } vm)
@@ -196,6 +206,8 @@ public partial class QuickPanelWindow : Window
         var over = PeerUnder(e);
         foreach (var p in vm.Peers)
             p.IsDropTarget = p == over && p.IsOnline;
+        // Archivos sobre un grupo: se envían a todos sus miembros.
+        HighlightChip(hasFiles ? ChipUnder(e) : null);
         e.Handled = true;
     }
 
@@ -206,17 +218,28 @@ public partial class QuickPanelWindow : Window
         vm.DragOver = false;
         foreach (var p in vm.Peers)
             p.IsDropTarget = false;
+        HighlightChip(null);
     }
 
     private void OnDrop(object? sender, DragEventArgs e)
     {
         var peer = PeerUnder(e);
+        var chip = ChipUnder(e);
         OnDragLeave(sender, e);
+        if (e.DataTransfer.Contains(PeerFormat))
+        {
+            if (chip is { IsGroup: true, Id: { } groupId } && e.DataTransfer.TryGetValue(PeerFormat) is { } peerId)
+                Controller?.AddToGroup(groupId, peerId);
+            e.Handled = true;
+            return;
+        }
         var paths = e.DataTransfer.TryGetFiles()?.Select(f => f.TryGetLocalPath()).OfType<string>().ToList();
         if (paths is not { Count: > 0 } || Vm is not { } vm)
             return;
-        // Soltar sobre un compañero envía; soltar en el panel deja los archivos esperando destino.
-        if (peer is null)
+        // Soltar sobre un compañero envía; sobre un grupo, a todos sus miembros; en el panel, los deja esperando destino.
+        if (chip is { IsGroup: true, Id: { } id })
+            _ = Controller?.SendToGroupAsync(id, paths);
+        else if (peer is null)
             vm.SetPending(paths);
         else
         {

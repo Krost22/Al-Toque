@@ -250,6 +250,36 @@ public class ChatTests
     }
 
     [Fact]
+    public async Task TwoPeopleSendingTheSameNameAtOnceBothArrive()
+    {
+        // Laura y Sofía mandan a Andrés un "informe.pdf" distinto en el mismo instante: ninguno pisa al otro.
+        await using var laura = TestAgent.Create("Laura");
+        await using var sofia = TestAgent.Create("Sofía");
+        await using var andres = TestAgent.Create("Andrés");
+        await PairAsync(laura, andres);
+        await PairAsync(sofia, andres);
+        // Mismo tamaño: terminan casi a la vez, también al renombrar el temporal a su nombre final.
+        var fromLaura = laura.WriteFile("informe.pdf", 2_500_000);
+        var fromSofia = sofia.WriteFile("informe.pdf", 2_500_000);
+        TransferInfo SendTo(TestAgent who, string file) =>
+            who.Host.BeginSend(who.TargetFor(andres) with { PinnedKey = andres.Host.Identity.PublicKey, ExpectedDeviceId = andres.Host.DeviceId }, [file]);
+        var a = SendTo(laura, fromLaura);
+        var b = SendTo(sofia, fromSofia);
+        await TransferIntegrationTests.WaitFinished(a);
+        await TransferIntegrationTests.WaitFinished(b);
+        Assert.Equal(TransferState.Completed, a.State);
+        Assert.Equal(TransferState.Completed, b.State);
+        var received = Directory.GetFiles(andres.Inbox).Select(Path.GetFileName).Order().ToList();
+        Assert.Equal(["informe (1).pdf", "informe.pdf"], received);
+        // Los dos contenidos llegaron enteros (no uno pisado por el otro).
+        var hashes = Directory.GetFiles(andres.Inbox).Select(f => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(f)))).ToHashSet();
+        Assert.Equal(2, hashes.Count);
+        Assert.Contains(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(fromLaura))), hashes);
+        Assert.Contains(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(fromSofia))), hashes);
+        Assert.Empty(Directory.GetFiles(andres.Inbox, "*" + AppInfo.PartExtension));
+    }
+
+    [Fact]
     public async Task FilesExchangedWithAContactAppearInBothChats()
     {
         await using var a = TestAgent.Create("Laura");

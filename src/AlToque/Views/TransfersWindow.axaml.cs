@@ -15,15 +15,16 @@ public partial class TransfersWindow : Window
         SizeChanged += (_, _) => LayoutChanged?.Invoke();
         // Cada tarjeta nueva entra desde abajo (16 px + opacidad, 250 ms).
         this.FindControl<ItemsControl>("Cards")!.ContainerPrepared += (_, e) => _ = Fx.Enter(e.Container, dy: 16);
+        this.FindControl<ItemsControl>("GroupCards")!.ContainerPrepared += (_, e) => _ = Fx.Enter(e.Container, dy: 16);
     }
 
     /// <summary>Cambió el tamaño: hay que recolocar las ventanas apiladas.</summary>
     public event Action? LayoutChanged;
 
     /// <summary>La tarjeta sale (167 ms, curva Salir) antes de quitarla de la lista.</summary>
-    public Task AnimateOutAsync(TransferViewModel vm)
+    public Task AnimateOutAsync(object vm)
     {
-        var cards = this.FindControl<ItemsControl>("Cards")!;
+        var cards = this.FindControl<ItemsControl>(vm is GroupSendViewModel ? "GroupCards" : "Cards")!;
         var container = cards.ContainerFromItem(vm);
         return container is null || !IsVisible ? Task.CompletedTask : Fx.Exit(container);
     }

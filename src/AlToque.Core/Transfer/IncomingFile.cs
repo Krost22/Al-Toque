@@ -60,6 +60,9 @@ internal sealed class IncomingFile : IAsyncDisposable
     private readonly IncrementalHash _hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
     private bool _finished;
 
+    /// <summary>Un renombrado final a la vez en todo el proceso.</summary>
+    private static readonly SemaphoreSlim FinalizeGate = new(1, 1);
+
     private IncomingFile(PlannedFile plan, string root, ConflictPolicy policy, string partPath, FileStream stream)
     {
         _plan = plan;
@@ -70,18 +73,44 @@ internal sealed class IncomingFile : IAsyncDisposable
     }
 
     public string PartPath { get; }
+
+    public static string PartPathFor(string finalPath, string sessionTag) =>
+        finalPath + "." + sessionTag.ToLowerInvariant() + AppInfo.PartExtension;
+
+    /// <summary>¿Alguien está recibiendo ahora (o dejó a medias) un archivo con ese nombre final?</summary>
+    public static bool AnyPartFor(string finalPath)
+    {
+        if (File.Exists(finalPath + AppInfo.PartExtension))
+            return true;
+        var dir = Path.GetDirectoryName(finalPath);
+        if (dir is null || !Directory.Exists(dir))
+            return false;
+        var name = Path.GetFileName(finalPath);
+        // Los nombres ya saneados no traen comodines; por si acaso, se compara a mano.
+        return Directory.EnumerateFiles(dir, "*" + AppInfo.PartExtension).Any(f =>
+        {
+            var n = Path.GetFileName(f);
+            return n.StartsWith(name + ".", StringComparison.OrdinalIgnoreCase) && n.Length > name.Length + 1 + AppInfo.PartExtension.Length;
+        });
+    }
     public long Written { get; private set; }
     public long Expected => _plan.Offer.Size;
 
-    public static IncomingFile Create(PlannedFile plan, string root, ConflictPolicy policy)
+    /// <param name="sessionTag">
+    /// Parte del id de la sesión: cada recepción tiene su propio temporal, así dos personas que mandan a la vez un
+    /// archivo con el mismo nombre no se pisan (al final, uno queda como "nombre (1)").
+    /// </param>
+    public static IncomingFile Create(PlannedFile plan, string root, ConflictPolicy policy, string sessionTag)
     {
         SafeFs.EnsureDirectories(root, plan.Components[..^1]);
-        var partPath = plan.FinalPath + AppInfo.PartExtension;
+        if (sessionTag.Length is 0 or > 16 || !sessionTag.All(char.IsAsciiLetterOrDigit))
+            throw new ArgumentException("Etiqueta de sesión inválida.", nameof(sessionTag));
+        var partPath = PartPathFor(plan.FinalPath, sessionTag);
         if (!NameSanitizer.IsInside(root, partPath))
             throw new TransferException(ErrorCodes.Io, "Ruta fuera del destino.");
         if (File.Exists(partPath))
         {
-            // Restos de un envío anterior cortado: solo se borran si es un archivo normal.
+            // Restos de esta misma sesión (un intento cortado): solo se borran si es un archivo normal.
             if (SafeFs.IsLink(partPath))
                 throw new TransferException(ErrorCodes.Io, "Hay un enlace en lugar del archivo temporal.");
             File.Delete(partPath);
@@ -139,24 +168,35 @@ internal sealed class IncomingFile : IAsyncDisposable
 
         MarkOfTheWeb.Apply(PartPath, originTag);
 
-        var final = _plan.FinalPath;
-        if (File.Exists(final) || Directory.Exists(final))
+        // Elegir el nombre libre y renombrar, de a una recepción por vez: dos que terminan en el mismo instante con el
+        // mismo nombre no se pisan (File.Move sin sobrescribir no es atómico en todos los sistemas).
+        string final;
+        await FinalizeGate.WaitAsync().ConfigureAwait(false);
+        try
         {
-            switch (_policy)
+            final = _plan.FinalPath;
+            if (File.Exists(final) || Directory.Exists(final))
             {
-                case ConflictPolicy.Replace when File.Exists(final) && !SafeFs.IsLink(final):
-                    break;
-                case ConflictPolicy.Skip:
-                    throw new TransferException(ErrorCodes.Skipped, "Ya existía.");
-                default:
-                    // Apareció entre la aceptación y el final: se busca otro nombre libre.
-                    final = NextFreeName(final);
-                    break;
+                switch (_policy)
+                {
+                    case ConflictPolicy.Replace when File.Exists(final) && !SafeFs.IsLink(final):
+                        break;
+                    case ConflictPolicy.Skip:
+                        throw new TransferException(ErrorCodes.Skipped, "Ya existía.");
+                    default:
+                        // Apareció entre la aceptación y el final: se busca otro nombre libre.
+                        final = NextFreeName(final);
+                        break;
+                }
             }
+            if (!NameSanitizer.IsInside(_root, final))
+                throw new TransferException(ErrorCodes.Io, "Ruta fuera del destino.");
+            await MoveWithRetryAsync(PartPath, final, _policy == ConflictPolicy.Replace).ConfigureAwait(false);
         }
-        if (!NameSanitizer.IsInside(_root, final))
-            throw new TransferException(ErrorCodes.Io, "Ruta fuera del destino.");
-        await MoveWithRetryAsync(PartPath, final, _policy == ConflictPolicy.Replace).ConfigureAwait(false);
+        finally
+        {
+            FinalizeGate.Release();
+        }
         _finished = true;
         ApplyTimestamps(final);
         return final;

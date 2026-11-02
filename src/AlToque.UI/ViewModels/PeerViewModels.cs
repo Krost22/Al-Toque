@@ -40,6 +40,8 @@ public sealed class PeerViewModel : ViewModelBase
     private bool _isDropTarget;
     private bool _isDragging;
     private bool _isFavorite;
+    private bool _isSelected;
+    private bool _inFilter = true;
     private int _unread;
     private string? _preview;
     private string _os = "";
@@ -102,6 +104,12 @@ public sealed class PeerViewModel : ViewModelBase
     public string FavoriteTip => IsFavorite ? S.Unfavorite(Name) : S.MakeFavorite(Name);
     public string RemoveTip => IsTrusted ? S.RemovePeerTip(Name) : S.HidePeerTip(Name);
     public bool IsPairing { get => _isPairing; private set => Set(ref _isPairing, value); }
+
+    /// <summary>Elegido para enviarle lo mismo que a otros (selección de varios).</summary>
+    public bool IsSelected { get => _isSelected; set => Set(ref _isSelected, value); }
+
+    /// <summary>Pasa el filtro de grupo elegido arriba de la lista (con «Todos», siempre).</summary>
+    public bool InFilter { get => _inFilter; set => Set(ref _inFilter, value); }
 
     /// <summary>Equipo cercano que acepta solicitudes de conexión (no hace falta que abra «Emparejar»).</summary>
     public bool AcceptsRequests { get; private set; }

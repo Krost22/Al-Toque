@@ -349,9 +349,11 @@ public sealed class AgentHost : IAsyncDisposable
 
     /// <summary>
     /// Visible para los equipos cercanos: en una red privada y recibiendo de confianza, los demás ven el nombre y el
-    /// avatar (para pedir conectarse), salvo que se apague en Ajustes. En «Nadie» y en redes públicas, nadie lo ve.
+    /// avatar (para pedir conectarse), salvo que se apague en Ajustes. En «Nadie», en redes públicas y antes de elegir
+    /// el nombre en la bienvenida (sería el de la máquina), nadie lo ve.
     /// </summary>
-    public bool IsVisibleNearby => Settings.Current.VisibleNearby && EffectiveMode != ReceiveMode.Nobody && !IsReceivingPausedByNetwork && !IsPublicNetwork;
+    public bool IsVisibleNearby => Settings.Current is { VisibleNearby: true, WelcomeDone: true } && EffectiveMode != ReceiveMode.Nobody
+        && !IsReceivingPausedByNetwork && !IsPublicNetwork;
 
     /// <summary>Se le pueden mostrar solicitudes de conexión de equipos cercanos sin abrir «Emparejar».</summary>
     public bool AcceptsPairRequests => _options.AllowPairRequests && IsVisibleNearby;

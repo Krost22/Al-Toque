@@ -58,6 +58,14 @@ public sealed class QuickPanelViewModel : ViewModelBase
         {
             if (p is not PeerViewModel peer)
                 return;
+            // Eligiendo a varios (o con Ctrl+clic): el clic marca o desmarca.
+            var selects = NextClickSelects;
+            NextClickSelects = false;
+            if (peer.IsTrusted && (IsSelecting || selects))
+            {
+                ToggleSelected(peer);
+                return;
+            }
             // A un compañero de confianza se le abre el chat (el fijado en la esquina, si lo está); con archivos
             // pendientes (clic derecho), se le envían. A un equipo cercano se le pide conectarse.
             if (peer.IsTrusted && !HasPending)
@@ -80,6 +88,7 @@ public sealed class QuickPanelViewModel : ViewModelBase
             if (paths.Count > 0)
                 SetPending(paths);
         });
+        InitGroupsAndSelection();
     }
 
     /// <summary>Compañeros de confianza (en línea o no).</summary>
@@ -170,6 +179,155 @@ public sealed class QuickPanelViewModel : ViewModelBase
     public RelayCommand AllowPublicNetwork { get; }
     public RelayCommand PeerClicked { get; }
     public RelayCommand ChooseFiles { get; }
+
+    // ── Grupos ──────────────────────────────────────────────────────────────────
+
+    private string? _groupFilter;
+
+    /// <summary>Fichas sobre la lista: «Todos» y los grupos no archivados.</summary>
+    public ObservableCollection<GroupChipViewModel> GroupChips { get; } = [];
+
+    /// <summary>Con dos compañeros o más (o algún grupo ya creado) tiene sentido agruparlos.</summary>
+    public bool ShowGroupChips => Peers.Count >= 2 || GroupChips.Any(c => c.IsGroup);
+    public bool ShowSelectLink => Peers.Count >= 2 && !IsSelecting;
+
+    public string? GroupFilter => _groupFilter;
+    public bool ShowGroupEmpty => _groupFilter is not null && Peers.All(p => !p.InFilter);
+    public string GroupEmptyText => _groupFilter is not null && GroupChips.FirstOrDefault(c => c.Id == _groupFilter) is { } chip ? S.GroupEmpty(chip.Name) : "";
+
+    public RelayCommand SelectGroupChip { get; private set; } = null!;
+    public RelayCommand NewGroup { get; private set; } = null!;
+
+    /// <summary>Los grupos guardados → fichas; el filtro se mantiene si su grupo sigue a la vista.</summary>
+    public void SyncGroups(IReadOnlyList<ContactGroup>? groups)
+    {
+        var visible = (groups ?? []).Where(g => !g.Archived).ToList();
+        if (_groupFilter is not null && visible.All(g => g.Id != _groupFilter))
+            _groupFilter = null;
+        int CountOf(ContactGroup g) => g.Members.Count(id => Peers.Any(p => p.DeviceId == id));
+        // Mismas fichas que antes: solo se actualizan los números (sin recrearlas a cada cambio de la red).
+        var same = GroupChips.Count == visible.Count + 2 && GroupChips.Skip(1).Zip(visible).All(x => x.First.Id == x.Second.Id && x.First.Name == x.Second.Name);
+        if (!same)
+        {
+            GroupChips.Clear();
+            GroupChips.Add(new GroupChipViewModel(null, S.GroupAll, 0));
+            foreach (var g in visible)
+                GroupChips.Add(new GroupChipViewModel(g.Id, g.Name, CountOf(g)));
+            GroupChips.Add(new GroupChipViewModel(null, S.GroupNew, 0, isNew: true));
+        }
+        else
+        {
+            for (int i = 0; i < visible.Count; i++)
+                GroupChips[i + 1].Count = CountOf(visible[i]);
+        }
+        foreach (var c in GroupChips)
+            c.IsSelected = !c.IsNew && c.Id == _groupFilter;
+        _groups = groups ?? [];
+        ApplyGroupFilter();
+    }
+
+    private IReadOnlyList<ContactGroup> _groups = [];
+
+    private void ApplyGroupFilter()
+    {
+        var group = _groupFilter is null ? null : _groups.FirstOrDefault(g => g.Id == _groupFilter);
+        foreach (var p in Peers)
+            p.InFilter = group is null || group.Members.Contains(p.DeviceId);
+        Raise(nameof(ShowGroupChips));
+        Raise(nameof(ShowGroupEmpty));
+        Raise(nameof(GroupEmptyText));
+        Raise(nameof(GroupFilter));
+    }
+
+    private void FilterBy(GroupChipViewModel chip)
+    {
+        _groupFilter = chip.Id;
+        foreach (var c in GroupChips)
+            c.IsSelected = c == chip;
+        ApplyGroupFilter();
+        RaiseLayout();
+    }
+
+    // ── Elegir a varios ─────────────────────────────────────────────────────────
+
+    private bool _isSelecting;
+
+    /// <summary>Modo «elegir a varios»: cada clic marca o desmarca a un compañero.</summary>
+    public bool IsSelecting
+    {
+        get => _isSelecting;
+        set
+        {
+            if (!Set(ref _isSelecting, value))
+                return;
+            if (!value)
+            {
+                foreach (var p in Peers)
+                    p.IsSelected = false;
+            }
+            RaiseSelection();
+        }
+    }
+
+    /// <summary>La ventana avisa que el próximo clic vino con Ctrl (o ⌘): marca en vez de abrir el chat.</summary>
+    public bool NextClickSelects { get; set; }
+
+    public int SelectedCount => Peers.Count(p => p.IsSelected);
+    public string SelectedText => S.SelectedCount(SelectedCount);
+    public string SendSelectedText => S.SendToSelected(SelectedCount);
+    public bool CanSendSelected => SelectedCount > 0;
+    public IReadOnlyList<string> SelectedIds => Peers.Where(p => p.IsSelected).Select(p => p.DeviceId).ToList();
+
+    public RelayCommand StartSelecting { get; private set; } = null!;
+    public RelayCommand CancelSelecting { get; private set; } = null!;
+    public RelayCommand SendSelected { get; private set; } = null!;
+
+    public void ToggleSelected(PeerViewModel peer)
+    {
+        if (!peer.IsTrusted)
+            return;
+        peer.IsSelected = !peer.IsSelected;
+        if (peer.IsSelected)
+            IsSelecting = true;
+        RaiseSelection();
+    }
+
+    private void RaiseSelection()
+    {
+        Raise(nameof(ShowSelectLink));
+        Raise(nameof(SelectedCount));
+        Raise(nameof(SelectedText));
+        Raise(nameof(SendSelectedText));
+        Raise(nameof(CanSendSelected));
+        SendSelected.NotifyCanExecuteChanged();
+    }
+
+    private void InitGroupsAndSelection()
+    {
+        SelectGroupChip = new RelayCommand(p =>
+        {
+            if (p is GroupChipViewModel { IsNew: true })
+                _ = _app.CreateGroupAsync(SelectedIds);
+            else if (p is GroupChipViewModel chip)
+                FilterBy(chip);
+        });
+        NewGroup = new RelayCommand(() => _ = _app.CreateGroupAsync(SelectedIds));
+        StartSelecting = new RelayCommand(() => IsSelecting = true);
+        CancelSelecting = new RelayCommand(() => IsSelecting = false);
+        SendSelected = new RelayCommand(async () =>
+        {
+            var ids = SelectedIds;
+            if (ids.Count == 0)
+                return;
+            var paths = HasPending ? PendingPaths! : await _app.PickFilesAsync();
+            if (paths.Count == 0)
+                return;
+            var message = MessageOrNull;
+            SetPending(null);
+            IsSelecting = false;
+            await _app.SendToManyAsync(ids, paths, message);
+        }, () => SelectedCount > 0);
+    }
 
     /// <summary>Aviso de versión nueva arriba del panel.</summary>
     public UpdateViewModel? Update { get => _update; set => Set(ref _update, value); }
@@ -380,6 +538,8 @@ public sealed class QuickPanelViewModel : ViewModelBase
             .ToList();
         SyncList(Peers, contacts);
         SyncList(Nearby, nearby);
+        ApplyGroupFilter();
+        RaiseSelection();
         if (contacts.Any(p => p.Presence == PeerPresence.Online) || nearby.Count > 0)
             _searching = false;
         Raise(nameof(HasPeers));

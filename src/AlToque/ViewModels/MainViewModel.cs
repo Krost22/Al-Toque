@@ -289,6 +289,84 @@ public sealed class MainViewModel : ViewModelBase
         }
     }
 
+    // ── Enviar lo copiado ────────────────────────────────────────────────────────
+
+    public string CopySendTitle => S.CopySendSetting(AppController.CopySendShortcut);
+    public string CopySendHint => S.CopySendSettingHint(AppController.CopySendShortcut);
+
+    public bool CopySendEnabled
+    {
+        get => _app.Agent.Settings.Current.CopySendEnabled;
+        set
+        {
+            Update(s => s.CopySendEnabled = value);
+            _app.ApplyCopySend();
+            RaiseAll();
+        }
+    }
+
+    public bool CopySendOffer
+    {
+        get => _app.Agent.Settings.Current.CopySendOffer;
+        set
+        {
+            Update(s => s.CopySendOffer = value);
+            _app.ApplyCopySend();
+            RaiseAll();
+        }
+    }
+
+    /// <summary>Por qué el atajo no funciona aquí (otro programa ya lo usa, Wayland…).</summary>
+    public string? CopySendProblem => CopySendEnabled ? _app.CopySendProblem : null;
+    public bool HasCopySendProblem => CopySendProblem is not null;
+
+    private List<(string? Id, string Name)> _copyTargets = [];
+    private IReadOnlyList<string> _copyTargetNames = [];
+
+    /// <summary>«Preguntar cada vez» y los compañeros de confianza (la lista se rehace solo si cambian).</summary>
+    public IReadOnlyList<string> CopySendTargets
+    {
+        get
+        {
+            List<(string? Id, string Name)> now = [(null, S.CopySendAskEachTime), .. _app.Agent.Trust.All
+                .OrderByDescending(p => p.Favorite)
+                .ThenBy(p => p.DisplayName, StringComparer.CurrentCultureIgnoreCase)
+                .Select(p => ((string?)p.DeviceId, p.DisplayName))];
+            if (!now.SequenceEqual(_copyTargets))
+            {
+                _copyTargets = now;
+                _copyTargetNames = now.Select(t => t.Name).ToList();
+            }
+            return _copyTargetNames;
+        }
+    }
+
+    public int CopySendTargetIndex
+    {
+        get
+        {
+            var id = _app.Agent.Settings.Current.CopySendTarget;
+            var i = _copyTargets.FindIndex(t => t.Id == id);
+            return i < 0 ? 0 : i;
+        }
+        set
+        {
+            if (value < 0 || value >= _copyTargets.Count)
+                return;
+            var id = _copyTargets[value].Id;
+            _app.Agent.Settings.Update(s => s.CopySendTarget = id);
+        }
+    }
+
+    /// <summary>Se cambió desde la bandeja (o se registró el atajo): refresca los interruptores.</summary>
+    public void RefreshCopySend()
+    {
+        Raise(nameof(CopySendEnabled));
+        Raise(nameof(CopySendOffer));
+        Raise(nameof(CopySendProblem));
+        Raise(nameof(HasCopySendProblem));
+    }
+
     public bool ExcludeVirtual
     {
         get => _app.Agent.Settings.Current.ExcludeVirtualAdapters;

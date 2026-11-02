@@ -1,30 +1,68 @@
-# Al Toque
-
-Envía cualquier archivo a otra PC o a tu teléfono con un clic derecho. El receptor confirma, la transferencia viaja
-cifrada por tu red local y **Chasqui**, un avión de papel con ojos, acompaña cada envío. Funciona en **Windows**,
-**Linux**, **macOS** y **Android**, y todos se entienden entre sí.
-
-*Clic derecho → nombre de tu compañero → listo.* Sin cuentas, sin internet y sin escribir direcciones IP.
-
-<p>
-  <img src="docs/img/panel.png" alt="Panel rápido con Chasqui y un compañero de confianza" width="330" />
-  <img src="docs/img/solicitud.png" alt="Solicitud entrante de un equipo no verificado, con el .exe desmarcado" width="345" />
+<p align="center">
+  <img src="branding/altoque.svg" alt="Logo de Al Toque: dos carpetas que se pasan archivos" width="112" />
 </p>
 
+<h1 align="center">Al Toque</h1>
+
+<p align="center">
+  <b>Pasa archivos, fotos y mensajes entre tus equipos de la red local… al toque.</b><br />
+  Sin nube, sin cuentas y cifrado de punta a punta. Windows · Linux · macOS · Android.
+</p>
+
+<p align="center">
+  <a href="https://github.com/Krost22/Al-Toque/releases/latest"><img src="https://img.shields.io/github/v/release/Krost22/Al-Toque?label=versi%C3%B3n" alt="Última versión" /></a>
+  <a href="https://github.com/Krost22/Al-Toque/actions/workflows/build.yml"><img src="https://github.com/Krost22/Al-Toque/actions/workflows/build.yml/badge.svg" alt="Compilar y probar" /></a>
+  <img src="https://img.shields.io/badge/licencia-MIT-blue" alt="Licencia MIT" />
+</p>
+
+Al Toque conecta las computadoras y teléfonos de una misma red (la casa, la oficina, el salón de clases) para que
+mandarse algo sea tan rápido como pasarlo de mano en mano: **clic derecho → nombre de tu compañero → listo**. Nada sube
+a internet: los archivos viajan directo de un equipo al otro, por TLS con claves verificadas, y los chats se guardan
+cifrados en cada equipo. No hay que crear cuentas ni escribir direcciones IP.
+
+### Lo que puedes hacer
+
+- **Enviar archivos y carpetas** con el clic derecho, arrastrando al panel o desde *Compartir* en el teléfono. Si se
+  corta el Wi-Fi a mitad, el envío **sigue solo desde donde quedó**, y nunca aparecen copias «(1)» de lo mismo.
+- **Chatear** con cada compañero: mensajes, fotos con visor, **enlaces que se abren con un clic** y todo lo que se
+  mandaron, también después de reiniciar. El chat se puede **fijar en una esquina** de la pantalla.
+- **Enviar lo copiado con `Ctrl+Alt+C`**: copias un texto, un enlace, una captura o archivos en cualquier app y llega
+  a la persona que elegiste, sin abrir nada. Opcional: un botón que aparece unos segundos cada vez que copias algo.
+- **Conectar en 3 clics**: los equipos cercanos aparecen en *Cerca de ti*; tocas uno, los dos ven el mismo código de
+  6 cifras y quedan emparejados.
+- **Grupos y enviar a varios**: arma grupos (oficina, familia, clase) y manda lo mismo a todos con una sola barra de
+  progreso.
+- **Decidir quién puede enviarte**: nadie, solo tus compañeros o todos durante 10 minutos. Lo que llega de alguien
+  desconocido se revisa antes, y los programas llegan desmarcados.
+- **Actualizarse solo**, también en las copias portables.
+
+<p align="center">
+  <img src="docs/img/panel.png" alt="Panel rápido con el nuevo Chasqui, grupos y compañeros" width="300" />
+  <img src="docs/img/chat.png" alt="Chat con un compañero: mensajes, un enlace clicable, una foto y un archivo" width="300" />
+</p>
+
+**Enviar lo copiado**: el botón al copiar (con el destinatario fijo) y la lista para elegir a quién.
+
+<p align="center"><img src="docs/img/copiar.png" alt="Tarjeta «¿Enviar lo que copiaste?» y lista «¿A quién se lo envías?»" width="620" /></p>
+
+Cuando alguien que todavía no es tu compañero te manda algo, ves quién es, sus símbolos para verificarlo, los archivos
+(los programas, desmarcados) y su mensaje antes de aceptar.
+
+<p align="center"><img src="docs/img/solicitud.png" alt="Solicitud de un equipo no verificado, con el .exe desmarcado" width="380" /></p>
+
+**Chasqui**, la carpeta con zapatillas, acompaña cada envío: saluda en reposo, se pone atento cuando arrastras algo,
+corre al enviar, da una voltereta con confeti al terminar, se pone gris si rechazan el envío y se marea si algo falla.
+
+<p align="center"><img src="docs/img/chasqui.png" alt="Chasqui en reposo, atento, buscando, enviando, con éxito, rechazado y con error" width="680" /></p>
+
 Cada equipo elige su **avatar**: un personaje que parpadea, mira, salta al pasar el ratón y celebra cuando llega algo.
-El fondo es siempre el color de su identidad.
 
-<p><img src="docs/img/avatares.png" alt="Los 24 personajes disponibles para el avatar, más la inicial" width="680" /></p>
+<p align="center"><img src="docs/img/avatares.png" alt="Los 24 personajes disponibles para el avatar, más la inicial" width="620" /></p>
 
-Y **Chasqui** tiene una cara para cada momento: se agacha antes de despegar, da una vuelta al terminar con confeti,
-se encoge de hombros si rechazan el envío y se marea si algo falla.
+En el **teléfono**, la misma app: compañeros y *Cerca de ti*, chats con fotos, grupos y enviar a varios, recibir en
+*Descargas › Al Toque* y **Mantener conectado** para recibir con la app cerrada.
 
-<p><img src="docs/img/chasqui.png" alt="Chasqui en reposo, atento, buscando, enviando, con éxito, rechazado y con error" width="680" /></p>
-
-En el teléfono, la misma app: compañeros y sus chats (con fotos), enviar desde la app o desde **Compartir** de cualquier
-otra, recibir en *Descargas › Al Toque*, conectar con los equipos cercanos en 3 toques, grupos y enviar a varios a la vez.
-
-<p><img src="docs/img/android.png" alt="Al Toque en Android: bienvenida con selector de avatar, solicitud de un equipo no verificado y archivos recibidos" width="680" /></p>
+<p align="center"><img src="docs/img/android.png" alt="Al Toque en Android: inicio con Cerca de ti, chat con fotos y enlaces, y el menú de un compañero" width="680" /></p>
 
 La especificación completa está en [`docs/especificacion.md`](docs/especificacion.md) (escrita con el nombre de trabajo
 "Pásalo"; el producto se llama **Al Toque**).
@@ -43,11 +81,12 @@ y **Android** 11 o posterior con una app propia para el teléfono. Todas hablan 
 | Receptor blindado | Máquina de estados estricta, tokens de un solo uso por archivo, saneamiento de rutas (recorrido, nombres reservados, `:`/ADS, controles y bidi), `.altoque-part` + SHA-256 + renombrado atómico, Mark of the Web (`Zone.Identifier`, ZoneId=3), espacio libre, cuotas y plazos |
 | Envío | Archivos y carpetas (incluidas las vacías), 1 a 4 conexiones de datos, **modo ráfaga** para miles de archivos pequeños, hash al vuelo, fechas originales, mensaje opcional, cancelar desde cualquiera de los dos lados. **Se reanuda solo tras un corte** (cambio de Wi-Fi, suspensión breve): se reconecta en la dirección nueva y cada archivo sigue desde donde quedó, verificado de punta a punta con SHA-256. **Sin copias "(1)"** cuando llega exactamente lo mismo que ya estaba |
 | Emparejamiento | Código de **6 dígitos** comparado en ambas pantallas, con compromiso previo (contra intermediarios); bloqueo de 5 min tras 3 fallos. **Conectar en 3 clics**: en redes privadas los equipos cercanos se ven por nombre en **«Cerca de ti»**; tocas uno, la otra persona pulsa «Conectar» en el aviso con el código y tú confirmas que coincide, sin abrir «Emparejar» en ninguno. Lo que tenías para enviar sale al quedar conectados. Con límites: 3 solicitudes por minuto, 10 min de espera tras «Ahora no», nada en «Nadie» ni en redes públicas, y se puede apagar en Ajustes |
-| Chats | Una conversación por compañero de confianza (por identidad: no se duplica al cambiar de red o de nombre; si reinstaló, se ofrece unir su chat anterior); mensajes guardados en disco **cifrados** (AES-GCM, llave protegida por el sistema) antes de mostrarse; lo escrito sin conexión llega al volver; **un solo enlace por pareja** con señal de vida que se rehace solo al cambiar de red; ✓✓ entregado; los archivos que se mandan quedan en el chat y las **fotos se ven en la conversación** (miniaturas con la orientación de la cámara, visor con anterior/siguiente); **Ctrl+V** pega una captura o archivos copiados; **chat fijado en la esquina**, siempre encima, que se recuerda al reiniciar; no leídos en la tarjeta, la bandeja y el título; aviso flotante con **Responder** |
+| Chats | Una conversación por compañero de confianza (por identidad: no se duplica al cambiar de red o de nombre; si reinstaló, se ofrece unir su chat anterior); mensajes guardados en disco **cifrados** (AES-GCM, llave protegida por el sistema) antes de mostrarse; lo escrito sin conexión llega al volver; **un solo enlace por pareja** con señal de vida que se rehace solo al cambiar de red; ✓✓ entregado; los archivos que se mandan quedan en el chat y las **fotos se ven en la conversación** (miniaturas con la orientación de la cámara, visor con anterior/siguiente); **enlaces clicables** que abren el navegador; **Ctrl+V** pega una captura o archivos copiados; **chat fijado en la esquina**, siempre encima, que se recuerda al reiniciar; no leídos en la tarjeta, la bandeja y el título; aviso flotante con **Responder** |
 | Grupos y envío a varios | Grupos locales de compañeros (oficina, sesión, familia…) como fichas que filtran el panel; se arma arrastrando una tarjeta a la ficha o desde el menú del compañero; renombrar, archivar o eliminar con clic derecho. **Enviar lo mismo a varios** con *Seleccionar* (o Ctrl+clic), a un grupo entero (clic derecho o soltando archivos sobre su ficha), con **una sola tarjeta de progreso conjunto**: quién ya lo tiene, quién no y *Reintentar* solo con los que fallaron |
+| Enviar lo copiado | **Ctrl+Alt+C** (en el Mac, ⌃⌥C) manda lo que hay en el portapapeles: texto o enlaces como mensaje del chat, capturas como foto y archivos copiados como envío; al compañero fijado en Ajustes o eligiendo en una lista corta. Opcional: un botón que aparece unos segundos al copiar (no roba el foco y se va solo). Respeta las marcas de los gestores de contraseñas, se apaga desde la bandeja, y en Wayland se puede asignar `AlToque clipboard` a un atajo del sistema |
 | Conexión manual | Por IP o por **código de conexión** (`K7Q2-9XM4`) para redes que bloquean el multicast |
 | Windows | Menú clásico **"Enviar con Al Toque ›"** con tus compañeros (sin firma ni DLL, en `HKCU`), **"Enviar a"**, inicio con Windows, regla de firewall solo para redes privadas, pausa en redes públicas, sonidos y "reducir movimiento" del sistema |
-| Interfaz | Sistema visual propio con tokens claro/oscuro e íconos de trazo; panel rápido (reposo, arrastrando, "no veo a nadie" con consejos y nombre de la red), tarjetas flotantes por estado con la estela de Chasqui como barra de progreso, solicitud grande o compacta con **aceptación parcial** (los programas llegan desmarcados), emparejamiento en 3 pasos, ajustes por tarjetas, historial con **Reintentar** |
+| Interfaz | Logo de las dos carpetas y **Chasqui**, la mascota carpeta con guantes y zapatillas; sistema visual propio con tokens claro/oscuro e íconos de trazo; panel rápido (reposo, arrastrando, "no veo a nadie" con consejos y nombre de la red), tarjetas flotantes por estado con la estela de Chasqui como barra de progreso, solicitud grande o compacta con **aceptación parcial** (los programas llegan desmarcados), emparejamiento en 3 pasos, ajustes por tarjetas, historial con **Reintentar** |
 | Avatares | 24 personajes vectoriales con volumen suave, elegibles en la bienvenida y en Ajustes; parpadean, miran, saltan, celebran y cambian de cara según el momento; viajan dentro del `HELLO` cifrado y, para los compañeros de confianza, solo se aceptan por TLS |
 | Movimiento | Chasqui con expresiones, anticipación, aplastar y estirar, looping, confeti, estrellas, humo y gotas; entradas en cascada y sacudidas; curvas y duraciones del diseño; "Animaciones: como en Windows / completas / reducidas"; nada se anima con la ventana oculta |
 | Linux | AppImage que se actualiza sola, `.tar.gz` portable, inicio con la sesión (`autostart`), x64 y ARM64 |
@@ -57,8 +96,8 @@ y **Android** 11 o posterior con una app propia para el teléfono. Todas hablan 
 
 Pendiente para próximas versiones (ver la hoja de ruta de la especificación): reanudar tras cerrar la app o reiniciar
 el equipo, pausa manual, conectar el teléfono con un QR, notificaciones nativas del Windows App SDK, miniaturas en las solicitudes,
-inglés revisado, integración con gestores de archivos de Linux y Finder, firma de código en Windows y macOS, recibir
-en Android con la app cerrada, IPv6 en el descubrimiento.
+inglés revisado, integración con gestores de archivos de Linux y Finder, firma de código en Windows y macOS, IPv6 en el
+descubrimiento.
 
 ## Instalar
 
@@ -85,6 +124,7 @@ Las instrucciones paso a paso para cada sistema están en [`docs/INSTALAR.md`](d
 4. Clic en un compañero de confianza abre **su chat**: escríbele, arrastra archivos o fotos a la conversación, usa el
    clip o pega una captura con **Ctrl+V**. Lo que se manden queda ahí, también tras reiniciar. Con el 📌 del chat, la
    conversación se queda **fijada en la esquina** de la pantalla, encima de todo, hasta que la minimices.
+5. Para mandar algo sin abrir Al Toque, enciende *Ajustes → Enviar lo copiado*: copia lo que sea y pulsa **Ctrl+Alt+C**.
 
 La ventana no se pierde: **—** y **×** la minimizan a la barra de tareas, y para cerrar Al Toque del todo está
 *Salir de Al Toque* (clic derecho en su botón de la barra de tareas, en el ícono de la bandeja o en Ajustes).
@@ -100,6 +140,7 @@ AlToque send --to "PC de Andrés" [--message "texto"] <rutas…>
 AlToque send --pick <rutas…>      Elegir destino en el panel
 AlToque send --code <rutas…>      Conectar por código o IP
 AlToque show | quit
+AlToque clipboard                 Enviar lo copiado (lo mismo que Ctrl+Alt+C)
 AlToque unintegrate               Quitar el menú contextual y el inicio automático
 ```
 
@@ -111,7 +152,7 @@ milisegundos; si el agente no está corriendo, lo inicia.
 Requisitos: [.NET 10 SDK](https://dotnet.microsoft.com/download).
 
 ```bash
-dotnet test tests/AlToque.Core.Tests                         # 89 pruebas, incluidas dos instancias reales hablando por TLS
+dotnet test tests/AlToque.Core.Tests                         # 123 pruebas, incluidas instancias reales hablando por TLS
 dotnet run --project src/AlToque                             # la app de escritorio en modo desarrollo
 dotnet run --project tools/AlToque.MobilePreview             # la app de Android en una ventana del tamaño de un teléfono
 dotnet run --project tools/AlToque.MobilePreview -- --selftest   # emparejar y enviar entre dos agentes, y salir

@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Avión de papel de Al Toque, en blanco para la barra de notificaciones. -->
+<!-- El logo de Al Toque (dos carpetas y las flechas del intercambio) en blanco para la barra de notificaciones. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
-  <path android:fillColor="#FFFFFFFF" android:pathData="M2.5,11.2 L21,3 L13.4,21.5 L10.9,13.6 Z M10.9,13.6 L21,3" />
+    android:width="24dp" android:height="24dp" android:viewportWidth="256" android:viewportHeight="256">
+  <path android:strokeColor="#FFFFFFFF" android:strokeWidth="22" android:strokeLineCap="round"
+      android:pathData="M120.0,70.8 A44,44 0 0,1 200.0,96.0 M136.0,185.2 A44,44 0 0,1 56.0,160.0" />
+  <path android:fillColor="#FFFFFFFF"
+      android:pathData="M197.1,121.9 L179.3,96.3 Q177.0,93.0 181.0,93.0 L219.0,93.0 Q223.0,93.0 220.7,96.3 L202.9,121.9 Q200.0,126.0 197.1,121.9 Z M58.9,134.1 L76.7,159.7 Q79.0,163.0 75.0,163.0 L37.0,163.0 Q33.0,163.0 35.3,159.7 L53.1,134.1 Q56.0,130.0 58.9,134.1 Z" />
+  <path android:fillColor="#FFFFFFFF"
+      android:pathData="M52.5,48.0 L82.7,48.0 Q87.6,48.0 89.9,52.3 L94.4,60.5 Q96.7,64.8 101.6,64.8 L142.6,64.8 Q150.7,64.8 149.9,72.9 L144.8,123.9 Q144.0,132.0 135.9,132.0 L44.1,132.0 Q36.0,132.0 36.8,123.9 L43.6,56.1 Q44.4,48.0 52.5,48.0 Z M143.1,132.0 L171.1,132.0 Q175.6,132.0 177.8,135.9 L181.9,143.3 Q184.1,147.2 188.6,147.2 L226.6,147.2 Q234.1,147.2 233.3,154.7 L228.7,200.5 Q228.0,208.0 220.5,208.0 L135.5,208.0 Q128.0,208.0 128.7,200.5 L134.9,139.5 Q135.6,132.0 143.1,132.0 Z" />
 </vector>

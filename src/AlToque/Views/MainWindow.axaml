@@ -15,9 +15,7 @@
     <!-- Navegación -->
     <Grid RowDefinitions="Auto,*,Auto" Margin="12,16,12,16">
       <StackPanel Orientation="Horizontal" Spacing="10" Margin="10,0,0,20">
-        <Border Width="26" Height="26" CornerRadius="6" Background="{StaticResource AccentBrush}">
-          <c:IconView Kind="Send" Width="15" Height="15" Foreground="White" />
-        </Border>
+        <c:BrandMark Width="26" Height="26" />
         <TextBlock Text="Al Toque" VerticalAlignment="Center" FontSize="15" />
       </StackPanel>
       <StackPanel Grid.Row="1" Spacing="4">
@@ -297,6 +295,38 @@
               <TextBlock Grid.Column="2" Text="{Binding ShellState}" Classes="body2" VerticalAlignment="Center" Margin="0,0,12,0" />
               <ToggleSwitch Grid.Column="3" IsChecked="{Binding ShellIntegration}" AutomationProperties.Name="{x:Static l:S.ShellTitle}" />
             </Grid>
+          </Border>
+
+          <TextBlock Text="{x:Static l:S.SectionCopySend}" Classes="section" Margin="0,24,0,8" />
+          <Border Classes="setting">
+            <StackPanel Spacing="12">
+              <Grid ColumnDefinitions="40,*,Auto">
+                <c:IconView Kind="Copy" Width="22" Height="22" VerticalAlignment="Center" />
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2" Margin="8,0">
+                  <TextBlock Text="{Binding CopySendTitle}" FontSize="15" />
+                  <TextBlock Text="{Binding CopySendHint}" Classes="meta" TextWrapping="Wrap" />
+                  <TextBlock Text="{Binding CopySendProblem}" IsVisible="{Binding HasCopySendProblem}" Classes="error" TextWrapping="Wrap" />
+                </StackPanel>
+                <ToggleSwitch Grid.Column="2" IsChecked="{Binding CopySendEnabled}" AutomationProperties.Name="{Binding CopySendTitle}" />
+              </Grid>
+              <Grid ColumnDefinitions="40,*,Auto" IsEnabled="{Binding CopySendEnabled}">
+                <c:IconView Kind="Send" Width="20" Height="20" VerticalAlignment="Center" />
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2" Margin="8,0">
+                  <TextBlock Text="{x:Static l:S.CopySendTargetTitle}" FontSize="15" />
+                  <TextBlock Text="{x:Static l:S.CopySendTargetHint}" Classes="meta" TextWrapping="Wrap" />
+                </StackPanel>
+                <ComboBox Grid.Column="2" Width="300" VerticalAlignment="Center" ItemsSource="{Binding CopySendTargets}"
+                          SelectedIndex="{Binding CopySendTargetIndex}" AutomationProperties.Name="{x:Static l:S.CopySendTargetTitle}" />
+              </Grid>
+              <Grid ColumnDefinitions="40,*,Auto" IsEnabled="{Binding CopySendEnabled}">
+                <c:IconView Kind="Sparkles" Width="20" Height="20" VerticalAlignment="Center" />
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2" Margin="8,0">
+                  <TextBlock Text="{x:Static l:S.CopySendOfferSetting}" FontSize="15" />
+                  <TextBlock Text="{x:Static l:S.CopySendOfferHint}" Classes="meta" TextWrapping="Wrap" />
+                </StackPanel>
+                <ToggleSwitch Grid.Column="2" IsChecked="{Binding CopySendOffer}" AutomationProperties.Name="{x:Static l:S.CopySendOfferSetting}" />
+              </Grid>
+            </StackPanel>
           </Border>
 
           <TextBlock Text="{x:Static l:S.SectionGeneral}" Classes="section" Margin="0,24,0,8" />

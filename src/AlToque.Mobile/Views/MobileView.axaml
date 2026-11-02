@@ -15,9 +15,7 @@
 
         <!-- Encabezado -->
         <Grid ColumnDefinitions="Auto,*,Auto">
-          <Border Width="34" Height="34" CornerRadius="9" Background="{StaticResource AccentBrush}">
-            <c:IconView Kind="Send" Width="19" Height="19" Foreground="White" />
-          </Border>
+          <c:BrandMark Width="34" Height="34" />
           <TextBlock Grid.Column="1" Text="Al Toque" Classes="subtitle" FontSize="20" Margin="12,0" VerticalAlignment="Center" />
           <Button Grid.Column="2" Classes="icon" Padding="2" Command="{Binding OpenSettings}"
                   ToolTip.Tip="{x:Static l:S.Settings}" AutomationProperties.Name="{x:Static l:S.Settings}">

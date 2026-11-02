@@ -159,6 +159,9 @@ public sealed class AgentHost : IAsyncDisposable
 
     public event Action? QuitRequested;
 
+    /// <summary>«altoque clipboard»: enviar lo copiado, como el atajo (para quien lo asigna a un atajo del sistema).</summary>
+    public event Action? ClipboardSendRequested;
+
     public static AgentHost Create(AgentOptions? options = null)
     {
         options ??= new AgentOptions();
@@ -728,6 +731,9 @@ public sealed class AgentHost : IAsyncDisposable
                 return new IpcResponse { Ok = true };
             case "quit":
                 QuitRequested?.Invoke();
+                return new IpcResponse { Ok = true };
+            case "clipboard":
+                ClipboardSendRequested?.Invoke();
                 return new IpcResponse { Ok = true };
             case "send":
                 var paths = (request.Paths ?? []).Where(p => !string.IsNullOrWhiteSpace(p)).Take(OutgoingManifest.MaxFiles).ToList();

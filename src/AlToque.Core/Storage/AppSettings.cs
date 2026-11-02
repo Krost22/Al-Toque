@@ -92,6 +92,17 @@ public sealed class AppSettings
     /// <summary>Grupos de compañeros (listas locales de este equipo).</summary>
     public List<ContactGroup>? ContactGroups { get; set; }
 
+    /// <summary>
+    /// «Enviar lo copiado» (escritorio): Ctrl+Alt+C manda lo que está en el portapapeles. Apagado de fábrica.
+    /// </summary>
+    public bool CopySendEnabled { get; set; }
+
+    /// <summary>Además del atajo, al copiar algo aparece unos segundos un botón para enviarlo.</summary>
+    public bool CopySendOffer { get; set; }
+
+    /// <summary>A quién va lo copiado; vacío = preguntar cada vez.</summary>
+    public string? CopySendTarget { get; set; }
+
     /// <summary>Descargar las versiones nuevas en segundo plano e instalarlas al cerrar o reiniciar.</summary>
     public bool AutoUpdate { get; set; } = true;
 
@@ -134,6 +145,8 @@ public sealed class AppSettings
             .Take(PinnedChat.Max)
             .ToList();
         ContactGroups = Storage.ContactGroups.Normalize(ContactGroups);
+        if (CopySendTarget is not null && !Security.PeerKeys.IsValidDeviceId(CopySendTarget))
+            CopySendTarget = null;
     }
 }
 

@@ -9,7 +9,7 @@ namespace AlToque.Core.Ipc;
 
 public sealed class IpcRequest
 {
-    /// <summary>"send", "show", "ping", "pair", "connect", "quit".</summary>
+    /// <summary>"send", "show", "ping", "pair", "connect", "quit", "clipboard".</summary>
     public required string Command { get; init; }
 
     public List<string>? Paths { get; init; }

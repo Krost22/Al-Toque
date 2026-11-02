@@ -21,9 +21,7 @@
     <StackPanel x:Name="Sections" Spacing="18" Margin="20,16,20,20">
       <!-- Encabezado: se arrastra para mover la ventana -->
       <Grid x:Name="Header" ColumnDefinitions="Auto,*,Auto,Auto,Auto" Background="Transparent">
-        <Border Width="30" Height="30" CornerRadius="7" Background="{StaticResource AccentBrush}">
-          <c:IconView Kind="Send" Width="17" Height="17" Foreground="White" />
-        </Border>
+        <c:BrandMark Width="30" Height="30" />
         <TextBlock Grid.Column="1" Text="Al Toque" Classes="subtitle" Margin="12,0" VerticalAlignment="Center" />
         <Button Grid.Column="2" Classes="icon" Classes.on="{Binding KeepOnTop}" Command="{Binding ToggleKeepOnTop}"
                 ToolTip.Tip="{x:Static l:S.KeepOnTop}" AutomationProperties.Name="{x:Static l:S.KeepOnTop}">

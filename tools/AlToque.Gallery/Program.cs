@@ -28,6 +28,7 @@ var scenes = new Dictionary<string, Func<(Control Content, double W, double H)>>
     ["chasqui"] = ChasquiSheet,
     ["pista"] = TrackSheet,
     ["chasqui-tira"] = ChasquiStrip,
+    ["chasqui-grande"] = ChasquiBig,
 };
 
 foreach (var (name, build) in scenes)
@@ -156,6 +157,15 @@ static (Control, double, double) ChasquiStrip()
         row.Children.Add(cell);
     }
     return (row, moments.Length * 128 + 32, 180);
+}
+
+static (Control, double, double) ChasquiBig()
+{
+    (ChasquiState State, double At)[] moments = [(ChasquiState.Idle, 0.6), (ChasquiState.Attentive, 0.45), (ChasquiState.Sending, 1.2)];
+    var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(16) };
+    foreach (var (state, at) in moments)
+        row.Children.Add(new FrozenChasqui(state, at) { Width = 300, Height = 300 });
+    return (row, moments.Length * 308 + 32, 332);
 }
 
 static (Control, double, double) TrackSheet()

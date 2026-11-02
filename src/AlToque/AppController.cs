@@ -22,7 +22,7 @@ namespace AlToque;
 /// Conecta el agente con la interfaz: bandeja, panel rápido, Chasqui flotante, solicitudes y ventanas.
 /// Las ventanas se crean la primera vez que hacen falta y después solo se ocultan.
 /// </summary>
-public sealed class AppController
+public sealed partial class AppController
 {
     private static readonly TimeSpan SendSuccessLinger = TimeSpan.FromSeconds(3);
     private static readonly TimeSpan ReceiveSuccessLinger = TimeSpan.FromSeconds(20);
@@ -123,6 +123,7 @@ public sealed class AppController
         RestorePinned();
         PruneGroups();
         CleanPastedImages();
+        ApplyCopySend();
     }
 
     private void WireAgent()
@@ -141,6 +142,7 @@ public sealed class AppController
         Agent.CodeRequested += p => Post(() => ShowConnect(p, showMyCode: false));
         Agent.ShowRequested += () => Post(() => ShowPanel());
         Agent.QuitRequested += () => Post(Quit);
+        Agent.ClipboardSendRequested += () => Post(SendCopiedFromCommand);
         Agent.Peers.Changed += () => Post(RefreshPeers);
         Agent.Links.PresenceChanged += _ => Post(RefreshPeers);
         Agent.Chats.Changed += (peerId, message) => Post(() => OnChatChanged(peerId, message));
@@ -189,6 +191,9 @@ public sealed class AppController
         menu.Add(Item(S.TrayPair, ShowPairing));
         menu.Add(Item(S.TrayConnect, () => ShowConnect(null, showMyCode: false)));
         menu.Add(Item(S.TrayHistory, () => ShowMain(1)));
+        _copySendItem = new NativeMenuItem(S.CopySendTray(CopySendShortcut)) { ToggleType = MenuItemToggleType.CheckBox };
+        _copySendItem.Click += (_, _) => ToggleCopySend();
+        menu.Add(_copySendItem);
         menu.Add(new NativeMenuItemSeparator());
         menu.Add(Item(S.Quit, Quit));
 
@@ -802,6 +807,7 @@ public sealed class AppController
         if (Agent.EffectiveMode == ReceiveMode.Everyone)
             RefreshMode();
         Panel.UpdateChasqui();
+        TickCopySend();
 
         // Los terminados se retiran solos: éxito al envío en 3 s; recepciones con botones, más tarde.
         var now = DateTimeOffset.Now;
@@ -871,9 +877,14 @@ public sealed class AppController
         var left = PinnedWidth() + (_panelWindow is { IsVisible: true, IsMinimized: false, UserPlaced: false } p ? p.Bounds.Width : 0);
         var offset = 0.0;
         var overlap = OperatingSystem.IsWindows() ? FloatingWindow.ShadowMargin : -8;
+        if (_copyWindow is { IsVisible: true } cw)
+        {
+            FloatingWindow.PlaceBottomRight(cw, 0, left);
+            offset += cw.Bounds.Height - overlap;
+        }
         if (_transfersWindow is { IsVisible: true } tw)
         {
-            FloatingWindow.PlaceBottomRight(tw, 0, left);
+            FloatingWindow.PlaceBottomRight(tw, Math.Max(0, offset), left);
             offset += tw.Bounds.Height - overlap;
         }
         foreach (var (window, _) in _offers)
@@ -1537,6 +1548,7 @@ public sealed class AppController
         _fastTimer.Stop();
         _slowTimer.Stop();
         _tray?.Dispose();
+        _copyHooks?.Dispose();
         // Con una versión ya descargada, se instala al terminar este proceso (sin volver a abrirse).
         if (!_restartingForUpdate)
             _updates?.ApplyOnExit();

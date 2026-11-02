@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <title>Al Toque</title>
+  <!-- Dos carpetas que se pasan archivos: azul arriba, violeta abajo, con las flechas del intercambio. -->
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="256" y2="256" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1F2D96" />
+      <stop offset="0.6" stop-color="#121757" />
+      <stop offset="1" stop-color="#1C1062" />
+    </linearGradient>
+    <radialGradient id="glow" cx="60" cy="40" r="170" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3B4CC0" stop-opacity="0.35" />
+      <stop offset="1" stop-color="#3B4CC0" stop-opacity="0" />
+    </radialGradient>
+    <linearGradient id="arc1" x1="120" y1="70.8" x2="200" y2="96" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7F95FF" stop-opacity="0" />
+      <stop offset="0.45" stop-color="#A9B6FF" stop-opacity="0.78" />
+      <stop offset="1" stop-color="#EEF0FF" />
+    </linearGradient>
+    <linearGradient id="arc2" x1="136" y1="185.2" x2="56" y2="160" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7C3AED" stop-opacity="0.24" />
+      <stop offset="0.5" stop-color="#9B6BFF" />
+      <stop offset="1" stop-color="#F1EAFF" />
+    </linearGradient>
+    <linearGradient id="blueBack" x1="36" y1="48" x2="150" y2="132" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#38B6FF" /><stop offset="1" stop-color="#2E6BF2" />
+    </linearGradient>
+    <linearGradient id="blueFront" x1="36" y1="73" x2="150" y2="132" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#7CE0FF" /><stop offset="1" stop-color="#3E6DFF" />
+    </linearGradient>
+    <linearGradient id="purpleBack" x1="128" y1="132" x2="234" y2="208" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#B48BFF" /><stop offset="1" stop-color="#7A45EE" />
+    </linearGradient>
+    <linearGradient id="purpleFront" x1="128" y1="155" x2="234" y2="208" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#DDB8FF" /><stop offset="1" stop-color="#8645FF" />
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="66" fill="url(#tile)" />
+  <rect width="256" height="256" rx="66" fill="url(#glow)" />
+  <path d="M120.0,70.8 A44,44 0 0,1 200.0,96.0" fill="none" stroke="url(#arc1)" stroke-width="20" stroke-linecap="round" />
+  <path d="M197.1,121.9 L179.3,96.3 Q177.0,93.0 181.0,93.0 L219.0,93.0 Q223.0,93.0 220.7,96.3 L202.9,121.9 Q200.0,126.0 197.1,121.9 Z" fill="#EEF0FF" />
+  <path d="M136.0,185.2 A44,44 0 0,1 56.0,160.0" fill="none" stroke="url(#arc2)" stroke-width="20" stroke-linecap="round" />
+  <path d="M58.9,134.1 L76.7,159.7 Q79.0,163.0 75.0,163.0 L37.0,163.0 Q33.0,163.0 35.3,159.7 L53.1,134.1 Q56.0,130.0 58.9,134.1 Z" fill="#F1EAFF" />
+  <path d="M52.5,48.0 L82.7,48.0 Q87.6,48.0 89.9,52.3 L94.4,60.5 Q96.7,64.8 101.6,64.8 L142.6,64.8 Q150.7,64.8 149.9,72.9 L144.8,123.9 Q144.0,132.0 135.9,132.0 L44.1,132.0 Q36.0,132.0 36.8,123.9 L43.6,56.1 Q44.4,48.0 52.5,48.0 Z" fill="url(#blueBack)" />
+  <path d="M57.7,76.6 L143.1,76.6 Q152.8,76.6 150.4,86.0 L141.0,122.6 Q138.6,132.0 128.9,132.0 L43.6,132.0 Q33.8,132.0 36.2,122.6 L45.6,86.0 Q48.0,76.6 57.7,76.6 Z" fill="url(#blueFront)" stroke="#FFFFFF" stroke-opacity="0.27" stroke-width="1.6" />
+  <path d="M143.1,132.0 L171.1,132.0 Q175.6,132.0 177.8,135.9 L181.9,143.3 Q184.1,147.2 188.6,147.2 L226.6,147.2 Q234.1,147.2 233.3,154.7 L228.7,200.5 Q228.0,208.0 220.5,208.0 L135.5,208.0 Q128.0,208.0 128.7,200.5 L134.9,139.5 Q135.6,132.0 143.1,132.0 Z" fill="url(#purpleBack)" />
+  <path d="M148.0,157.8 L227.0,157.8 Q236.0,157.8 233.8,166.6 L225.3,199.3 Q223.0,208.0 214.0,208.0 L135.0,208.0 Q126.0,208.0 128.3,199.3 L136.8,166.6 Q139.0,157.8 148.0,157.8 Z" fill="url(#purpleFront)" stroke="#FFFFFF" stroke-opacity="0.27" stroke-width="1.6" />
+</svg>

@@ -11,7 +11,7 @@ namespace AlToque;
 /// </summary>
 internal static partial class Cli
 {
-    private static readonly string[] Commands = ["send", "show", "quit", "unintegrate", Firewall.SetupCommand, "--help", "-h", "/?", "--version"];
+    private static readonly string[] Commands = ["send", "show", "quit", "clipboard", "unintegrate", Firewall.SetupCommand, "--help", "-h", "/?", "--version"];
 
     public static bool IsCliInvocation(string[] args) =>
         args.Length > 0 && Commands.Contains(args[0], StringComparer.OrdinalIgnoreCase);
@@ -27,6 +27,8 @@ internal static partial class Cli
                 return Deliver(new IpcRequest { Command = "show" }, startAgent: true);
             case "quit":
                 return Deliver(new IpcRequest { Command = "quit" }, startAgent: false);
+            case "clipboard":
+                return Deliver(new IpcRequest { Command = "clipboard" }, startAgent: false);
             case "unintegrate":
                 if (OperatingSystem.IsWindows())
                     WindowsShell.Uninstall();
@@ -129,6 +131,7 @@ internal static partial class Cli
               AlToque send --pick <rutas…>      Elegir destino en el panel
               AlToque send --code <rutas…>      Conectar por código o IP
               AlToque show                      Abrir el panel
+              AlToque clipboard                 Enviar lo copiado (como Ctrl+Alt+C)
               AlToque quit                      Cerrar el agente
               AlToque unintegrate               Quitar el menú contextual y el inicio automático
 

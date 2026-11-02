@@ -248,8 +248,8 @@ jobs:
       - name: Ícono (.icns)
         run: |
           mkdir -p AlToque.iconset
-          src=src/AlToque/Assets/altoque-256.png
-          for s in 16 32 128 256; do
+          src=branding/altoque-1024.png
+          for s in 16 32 128 256 512; do
             sips -z $s $s "$src" --out "AlToque.iconset/icon_${s}x${s}.png" > /dev/null
             d=$((s * 2)); sips -z $d $d "$src" --out "AlToque.iconset/icon_${s}x${s}@2x.png" > /dev/null
           done

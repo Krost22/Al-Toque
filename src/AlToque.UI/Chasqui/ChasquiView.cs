@@ -10,7 +10,7 @@ using Avalonia.Media.Immutable;
 namespace AlToque.Chasqui;
 
 /// <summary>
-/// Chasqui, la mascota: un avión de papel con ojos que reacciona a todo. Tiene anticipación, aplastar y estirar,
+/// Chasqui, la mascota: una carpeta con cara, guantes y zapatillas que reacciona a todo. Tiene anticipación, aplastar y estirar,
 /// caras para cada momento, pequeñas acciones cuando está aburrido y partículas en los logros. Con "reducir
 /// movimiento" usa poses fijas y fundidos.
 /// </summary>

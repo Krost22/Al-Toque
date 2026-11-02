@@ -36,4 +36,7 @@ internal sealed class PreviewPlatform : IMobilePlatform
     public void OpenReceived(string? path) => AgentLog.Write("Abrir: " + (path ?? "(descargas)"));
     public void OpenUrl(string url) => AgentLog.Write("Abrir enlace: " + url);
     public void SetBusy(bool busy) => AgentLog.Write("Ocupado: " + busy);
+    public void SetKeepAlive(bool keep) => AgentLog.Write("Mantener conectado: " + keep);
+    public void NotifyMessage(string peerId, string title, string text) => AgentLog.Write($"Notificación: {title}: {text}");
+    public void ClearMessages(string peerId) => AgentLog.Write("Notificación leída: " + peerId);
 }

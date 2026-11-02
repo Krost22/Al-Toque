@@ -25,4 +25,13 @@ public interface IMobilePlatform
 
     /// <summary>Hay transferencias en curso: que el sistema no congele la app.</summary>
     void SetBusy(bool busy);
+
+    /// <summary>"Mantener conectado": seguir recibiendo mensajes y archivos con la app cerrada.</summary>
+    void SetKeepAlive(bool keep);
+
+    /// <summary>Un mensaje nuevo que no se está viendo: notificación del sistema (tocarla abre ese chat).</summary>
+    void NotifyMessage(string peerId, string title, string text);
+
+    /// <summary>Ese chat ya se leyó: se quita su notificación.</summary>
+    void ClearMessages(string peerId);
 }

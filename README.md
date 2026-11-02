@@ -21,8 +21,8 @@ se encoge de hombros si rechazan el envío y se marea si algo falla.
 
 <p><img src="docs/img/chasqui.png" alt="Chasqui en reposo, atento, buscando, enviando, con éxito, rechazado y con error" width="680" /></p>
 
-En el teléfono, la misma app: compañeros, enviar desde la app o desde **Compartir** de cualquier otra, recibir en
-*Descargas › Al Toque*, emparejar con el código de 6 cifras y conectar por código.
+En el teléfono, la misma app: compañeros y sus chats (con fotos), enviar desde la app o desde **Compartir** de cualquier
+otra, recibir en *Descargas › Al Toque*, conectar con los equipos cercanos en 3 toques, grupos y enviar a varios a la vez.
 
 <p><img src="docs/img/android.png" alt="Al Toque en Android: bienvenida con selector de avatar, solicitud de un equipo no verificado y archivos recibidos" width="680" /></p>
 
@@ -52,7 +52,7 @@ y **Android** 11 o posterior con una app propia para el teléfono. Todas hablan 
 | Movimiento | Chasqui con expresiones, anticipación, aplastar y estirar, looping, confeti, estrellas, humo y gotas; entradas en cascada y sacudidas; curvas y duraciones del diseño; "Animaciones: como en Windows / completas / reducidas"; nada se anima con la ventana oculta |
 | Linux | AppImage que se actualiza sola, `.tar.gz` portable, inicio con la sesión (`autostart`), x64 y ARM64 |
 | macOS | App `.app` (Apple Silicon e Intel), instalador `.pkg` que se actualiza solo, ícono en la barra de menús, inicio con la sesión (LaunchAgent) |
-| Android | App para el teléfono con el mismo diseño: compañeros, **Compartir** desde cualquier app, recibir en Descargas › Al Toque (aparece en la galería), emparejar, conectar por código, servicio en primer plano mientras pasan archivos, aviso de versión nueva |
+| Android | App para el teléfono con el mismo diseño: compañeros, **Compartir** desde cualquier app, recibir en Descargas › Al Toque (aparece en la galería), emparejar, conectar por código, servicio en primer plano mientras pasan archivos, aviso de versión nueva. Y lo mismo que en el escritorio: **chats** con fotos y visor, **Cerca de ti** para conectar en 3 toques, favoritos, **grupos**, **enviar a varios** con progreso conjunto, notificación de mensajes nuevos y **Mantener conectado** (recibir con la app cerrada) |
 | Distribución | NativeAOT (sin .NET instalado), modo portable (`portable.flag`), instaladores y actualizaciones con Velopack en Windows, Linux y macOS, APK para Android, CI en GitHub Actions con pruebas en las cuatro plataformas (Android en un emulador) |
 
 Pendiente para próximas versiones (ver la hoja de ruta de la especificación): reanudar tras cerrar la app o reiniciar

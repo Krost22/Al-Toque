@@ -123,13 +123,68 @@ public sealed class AndroidPlatform : IMobilePlatform
         }
     }
 
+    private bool _busy;
+    private bool _keepAlive;
+
     public void SetBusy(bool busy)
     {
         if (busy)
             MainActivity.AskForNotifications();
         MainActivity.KeepScreenOn(busy);
-        TransferService.SetRunning(_context, busy);
+        _busy = busy;
+        TransferService.SetRunning(_context, _busy || _keepAlive, _keepAlive);
     }
+
+    public void SetKeepAlive(bool keep)
+    {
+        if (keep)
+            MainActivity.AskForNotifications();
+        _keepAlive = keep;
+        TransferService.SetRunning(_context, _busy || _keepAlive, _keepAlive);
+    }
+
+    private const string MessagesChannel = "mensajes";
+
+    public void NotifyMessage(string peerId, string title, string text)
+    {
+        try
+        {
+            var manager = (NotificationManager)_context.GetSystemService(Context.NotificationService)!;
+            manager.CreateNotificationChannel(new NotificationChannel(MessagesChannel, Localization.S.MobileMessagesChannel, NotificationImportance.High));
+            var open = new Intent(_context, typeof(MainActivity));
+            open.PutExtra(MainActivity.ChatExtra, peerId);
+            open.AddFlags(ActivityFlags.NewTask | ActivityFlags.SingleTop);
+            var pending = PendingIntent.GetActivity(_context, NotificationIdFor(peerId), open, PendingIntentFlags.Immutable | PendingIntentFlags.UpdateCurrent);
+            var notification = new Notification.Builder(_context, MessagesChannel)
+                .SetContentTitle(title)!
+                .SetContentText(text)!
+                .SetStyle(new Notification.BigTextStyle().BigText(text))!
+                .SetSmallIcon(Resource.Drawable.ic_notification)!
+                .SetContentIntent(pending)!
+                .SetAutoCancel(true)!
+                .SetCategory(Notification.CategoryMessage)!
+                .Build()!;
+            manager.Notify(NotificationIdFor(peerId), notification);
+        }
+        catch (Java.Lang.Exception ex)
+        {
+            AgentLog.Write("No se pudo mostrar la notificación del mensaje: " + ex.Message);
+        }
+    }
+
+    public void ClearMessages(string peerId)
+    {
+        try
+        {
+            ((NotificationManager)_context.GetSystemService(Context.NotificationService)!).Cancel(NotificationIdFor(peerId));
+        }
+        catch (Java.Lang.Exception)
+        {
+        }
+    }
+
+    /// <summary>Una notificación por compañero (los mensajes nuevos de esa persona la reemplazan).</summary>
+    private static int NotificationIdFor(string peerId) => 10_000 + (int)((uint)StringComparer.Ordinal.GetHashCode(peerId) % 50_000);
 
     private static string MimeFor(string path)
     {

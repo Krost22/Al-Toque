@@ -25,13 +25,25 @@ public enum MobileSheet
     Pair,
     Connect,
     MyCode,
+
+    /// <summary>Una conversación, a pantalla completa.</summary>
+    Chat,
+
+    /// <summary>Lo que se puede hacer con un compañero (favorito, grupos, quitar…).</summary>
+    PeerActions,
+
+    /// <summary>Lo que se puede hacer con un grupo (enviarle, renombrar, archivar…).</summary>
+    GroupActions,
+
+    /// <summary>Nombre de un grupo nuevo o renombrado.</summary>
+    GroupName,
 }
 
 /// <summary>
 /// La pantalla del teléfono: compañeros, lo pendiente de enviar, transferencias, recientes y quién puede enviarte. Las
 /// solicitudes, el emparejamiento, el código y los ajustes se abren como hojas.
 /// </summary>
-public sealed class MobileViewModel : ViewModelBase
+public sealed partial class MobileViewModel : ViewModelBase
 {
     private static readonly TimeSpan SendSuccessLinger = TimeSpan.FromSeconds(4);
     private static readonly TimeSpan OtherLinger = TimeSpan.FromSeconds(30);
@@ -109,6 +121,10 @@ public sealed class MobileViewModel : ViewModelBase
         _agent.History.Changed += () => Post(RefreshRecent);
         _agent.Pairing.PromptRequested += p => Post(() => ShowPairPrompt(p));
         _agent.Pairing.Finished += (id, outcome) => Post(() => ShowPairOutcome(id, outcome));
+
+        _agent.Chats.Changed += (peerId, message) => Post(() => OnChatChanged(peerId, message));
+        _agent.Links.PresenceChanged += _ => Post(RefreshPeers);
+        InitSocial();
 
         _slow.Tick += (_, _) => SlowTick();
         _fast.Tick += (_, _) => FastTick();
@@ -194,24 +210,34 @@ public sealed class MobileViewModel : ViewModelBase
 
     public ObservableCollection<PeerViewModel> Peers { get; } = [];
     public bool HasPeers => Peers.Count > 0;
-    public bool ShowNobody => Peers.Count == 0;
+    public bool ShowNobody => Peers.Count == 0 && Nearby.Count == 0;
     public string PeersCountText => S.InThisNetwork(Peers.Count(p => p.IsOnline));
     public RelayCommand PeerTapped { get; }
 
     private void RefreshPeers()
     {
-        var snapshot = _agent.Peers.Snapshot()
-            .OrderByDescending(p => p.Presence == PeerPresence.Online)
-            .ThenByDescending(p => p.IsFavorite)
+        var snapshot = _agent.Peers.Snapshot().Where(p => !_agent.IsBlocked(p.DeviceId)).ToList();
+        // Compañeros: favoritos primero, luego los que están en línea; el resto por nombre.
+        SyncPeers(Peers, snapshot.Where(p => p.IsTrusted)
+            .OrderByDescending(p => p.IsFavorite)
+            .ThenByDescending(p => p.Presence == PeerPresence.Online)
             .ThenBy(p => p.DisplayName, StringComparer.CurrentCultureIgnoreCase)
-            .ToList();
-        SyncPeers(Peers, snapshot);
+            .ToList());
+        // Cerca de ti: los que se ven en la red y todavía no son compañeros.
+        SyncPeers(Nearby, snapshot.Where(p => !p.IsTrusted && p.Presence == PeerPresence.Online)
+            .OrderBy(p => p.DisplayName, StringComparer.CurrentCultureIgnoreCase)
+            .ToList());
         SyncPeers(PairCandidates, snapshot.Where(p => p.Pairing && p.Presence == PeerPresence.Online && p.EndPoint is not null).ToList());
+        SyncGroupChips();
+        SyncChats();
         Raise(nameof(HasPeers));
+        Raise(nameof(HasNearby));
         Raise(nameof(ShowNobody));
         Raise(nameof(PeersCountText));
         Raise(nameof(HasPairCandidates));
         Raise(nameof(NoPairCandidates));
+        Raise(nameof(ShowSelectLink));
+        RaiseSelection();
         UpdateChasqui();
     }
 
@@ -249,10 +275,22 @@ public sealed class MobileViewModel : ViewModelBase
     {
         if (peer is null)
             return;
-        if (peer.IsPairing && !peer.IsTrusted)
+        // Eligiendo a varios: el toque marca o desmarca.
+        if (IsSelecting && peer.IsTrusted)
         {
-            Open(MobileSheet.Pair);
-            await PairWithAsync(peer);
+            ToggleSelected(peer);
+            return;
+        }
+        // Un equipo cercano: primero se conectan (lo que había para enviar sale al terminar).
+        if (!peer.IsTrusted && peer.CanConnect)
+        {
+            RequestConnection(peer);
+            return;
+        }
+        // Un compañero, sin nada pendiente: su chat.
+        if (peer.IsTrusted && !HasPending)
+        {
+            OpenChat(peer.DeviceId);
             return;
         }
         if (!HasPending)
@@ -387,6 +425,14 @@ public sealed class MobileViewModel : ViewModelBase
     {
         if (Transfers.Any(t => t.Info == info))
             return;
+        // Parte de un envío a varios: lo muestra la tarjeta conjunta.
+        if (GroupSends.FirstOrDefault(g => g.Contains(info)) is { } group)
+        {
+            group.Refresh();
+            _fast.Start();
+            SetBusy(true);
+            return;
+        }
         var vm = new TransferViewModel(info, Dismiss, _agent.CancelTransfer, Retry, () => Open(MobileSheet.Connect), _platform.OpenReceived);
         vm.OpenFileRequested += t => _platform.OpenReceived(t.Info.CompletedPaths.FirstOrDefault());
         Transfers.Insert(0, vm);
@@ -403,8 +449,9 @@ public sealed class MobileViewModel : ViewModelBase
         if (info.IsSuccess && _outgoingCopies.Remove(info.Id, out var copies))
             OutgoingFiles.Delete(copies);
         Transfers.FirstOrDefault(t => t.Info == info)?.Refresh();
+        GroupSends.FirstOrDefault(g => g.Contains(info))?.Refresh();
         Chasqui = ChasquiStates.For(info);
-        SetBusy(Transfers.Any(t => t.IsActive));
+        SetBusy(Transfers.Any(t => t.IsActive) || GroupSends.Any(g => g.IsActive));
     }
 
     private void Dismiss(TransferViewModel vm)
@@ -448,7 +495,12 @@ public sealed class MobileViewModel : ViewModelBase
             if (t.IsActive || t.FinishedAt is null)
                 t.Refresh();
         }
-        if (!Transfers.Any(t => t.IsActive))
+        foreach (var g in GroupSends)
+        {
+            if (g.IsActive)
+                g.Refresh();
+        }
+        if (!Transfers.Any(t => t.IsActive) && !GroupSends.Any(g => g.IsActive))
             _fast.Stop();
         UpdateChasqui();
     }
@@ -458,6 +510,8 @@ public sealed class MobileViewModel : ViewModelBase
         var now = DateTimeOffset.Now;
         foreach (var t in Transfers.Where(t => !t.IsActive && t.FinishedAt is { } f && now - f > (t.IsSuccess && t.Info.Direction == TransferDirection.Send ? SendSuccessLinger : OtherLinger)).ToList())
             Dismiss(t);
+        foreach (var g in GroupSends.Where(g => !g.IsActive && g.FinishedAt is { } f && now - f > (g.IsSuccess ? SendSuccessLinger : OtherLinger)).ToList())
+            DismissGroupSend(g);
         foreach (var o in _offers)
             o.Tick();
         if (Flash is not null && now > _flashUntil)
@@ -538,8 +592,13 @@ public sealed class MobileViewModel : ViewModelBase
             Raise(nameof(IsPair));
             Raise(nameof(IsConnect));
             Raise(nameof(IsMyCode));
+            Raise(nameof(IsChat));
+            Raise(nameof(IsPeerActions));
+            Raise(nameof(IsGroupActions));
+            Raise(nameof(IsGroupName));
             Raise(nameof(IsSheetOpen));
             Raise(nameof(IsOverlayOpen));
+            UpdateChatVisibility();
         }
     }
 
@@ -549,6 +608,10 @@ public sealed class MobileViewModel : ViewModelBase
     public bool IsPair => Sheet == MobileSheet.Pair;
     public bool IsConnect => Sheet == MobileSheet.Connect;
     public bool IsMyCode => Sheet == MobileSheet.MyCode;
+    public bool IsChat => Sheet == MobileSheet.Chat;
+    public bool IsPeerActions => Sheet == MobileSheet.PeerActions;
+    public bool IsGroupActions => Sheet == MobileSheet.GroupActions;
+    public bool IsGroupName => Sheet == MobileSheet.GroupName;
     public bool IsSheetOpen => Sheet != MobileSheet.None;
     public bool IsOverlayOpen => IsSheetOpen || HasOffer;
 
@@ -576,6 +639,8 @@ public sealed class MobileViewModel : ViewModelBase
         }
         if (sheet == MobileSheet.Connect)
             ResetConnect();
+        if (Sheet == MobileSheet.Chat && sheet != MobileSheet.Chat)
+            Chat = null;
         if (sheet == MobileSheet.MyCode)
         {
             Raise(nameof(MyCode));
@@ -594,8 +659,23 @@ public sealed class MobileViewModel : ViewModelBase
     /// <summary>Botón "atrás" del teléfono: cierra la hoja abierta. Devuelve false si no había nada que cerrar.</summary>
     public bool Back()
     {
+        if (HasConfirm)
+        {
+            AnswerConfirm(false);
+            return true;
+        }
+        if (HasViewer)
+        {
+            Viewer = null;
+            return true;
+        }
         if (HasOffer)
             return true; // Una solicitud se responde, no se descarta con "atrás".
+        if (IsSelecting && !IsSheetOpen)
+        {
+            IsSelecting = false;
+            return true;
+        }
         if (IsSheetOpen)
         {
             Close();
@@ -688,7 +768,7 @@ public sealed class MobileViewModel : ViewModelBase
     public string PairPeerColorHex => PairPrompt?.PeerColor ?? MyColorHex;
     public string PairPeerAvatarId => PairPrompt is { } p ? AvatarCatalog.Resolve(p.PeerAvatar, p.PeerId) : MyAvatarId;
     public string PairPeerInitial => IdentityVisuals.Initial(PairPeerName);
-    public string PairQuestion => S.SeesThisCode(PairPeerName);
+    public string PairQuestion => PairPrompt is { IsRequest: true } ? S.MobileConnectRequestTitle(PairPeerName) + ". " + S.SeesThisCode(PairPeerName) : S.SeesThisCode(PairPeerName);
     public string? PairStatus { get => _pairStatus; private set => Set(ref _pairStatus, value); }
     public string? PairResult { get => _pairResult; private set => Set(ref _pairResult, value); }
     public bool PairResultOk { get => _pairResultOk; private set => Set(ref _pairResultOk, value); }
@@ -762,6 +842,9 @@ public sealed class MobileViewModel : ViewModelBase
 
     private void ShowPairOutcome(string deviceId, PairingOutcome outcome, string? name = null)
     {
+        PairingEnded(deviceId, outcome);
+        if (outcome == PairingOutcome.Paired)
+            AfterPaired(deviceId);
         if (Sheet != MobileSheet.Pair)
             return;
         name ??= PairPrompt?.PeerName ?? _agent.Trust.Find(deviceId)?.DisplayName ?? "";

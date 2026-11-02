@@ -84,6 +84,11 @@ public sealed class AppSettings
     /// <summary>Chats fijados en la esquina de la pantalla: se vuelven a abrir donde estaban al iniciar.</summary>
     public List<PinnedChat>? PinnedChats { get; set; }
 
+    /// <summary>
+    /// Teléfono: seguir conectado con la app cerrada (servicio en primer plano), para recibir mensajes y archivos.
+    /// </summary>
+    public bool KeepConnected { get; set; }
+
     /// <summary>Grupos de compañeros (listas locales de este equipo).</summary>
     public List<ContactGroup>? ContactGroups { get; set; }
 

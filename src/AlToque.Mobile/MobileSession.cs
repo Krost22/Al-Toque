@@ -26,6 +26,8 @@ public sealed class MobileSession
         {
             Paths = AppPaths.Create(platform.DataDirectory, isPortable: false),
             EnableIpc = false,
+            // El teléfono muestra las solicitudes de conexión de equipos cercanos en la hoja de emparejar.
+            AllowPairRequests = true,
         });
         S.Initialize(agent.Settings.Current.Language);
         if (!agent.Settings.Current.WelcomeDone && TextLimits.CleanAlias(platform.DeviceName) is { } name)

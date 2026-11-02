@@ -24,6 +24,9 @@ public sealed class MainActivity : AvaloniaMainActivity
     /// <summary>Extra para la autoprueba del CI: adb shell am start -n …/.MainActivity --ez altoque_selftest true</summary>
     public const string SelfTestExtra = "altoque_selftest";
 
+    /// <summary>Extra de la notificación de un mensaje: abre el chat con ese compañero.</summary>
+    public const string ChatExtra = "altoque_chat";
+
     private static WeakReference<MainActivity>? _current;
 
     protected override void OnCreate(Bundle? savedInstanceState)
@@ -37,6 +40,18 @@ public sealed class MainActivity : AvaloniaMainActivity
     {
         base.OnNewIntent(intent);
         HandleIntent(intent);
+    }
+
+    protected override void OnResume()
+    {
+        base.OnResume();
+        Dispatcher.UIThread.Post(() => MobileApp.Session?.ViewModel.SetForeground(true));
+    }
+
+    protected override void OnPause()
+    {
+        Dispatcher.UIThread.Post(() => MobileApp.Session?.ViewModel.SetForeground(false));
+        base.OnPause();
     }
 
     /// <summary>Pantalla encendida mientras pasan archivos: si se apaga, Android puede cortar la Wi-Fi.</summary>
@@ -86,6 +101,12 @@ public sealed class MainActivity : AvaloniaMainActivity
                 global::Android.Util.Log.Info(AndroidPlatform.LogTag, result);
                 await File.WriteAllTextAsync(Path.Combine(files, "selftest.txt"), result);
             });
+            return;
+        }
+        if (intent.GetStringExtra(ChatExtra) is { Length: > 0 } peerId)
+        {
+            intent.RemoveExtra(ChatExtra);
+            Dispatcher.UIThread.Post(() => MobileApp.Session?.ViewModel.OpenChat(peerId));
             return;
         }
         if (intent.Action is Intent.ActionSend or Intent.ActionSendMultiple)

@@ -183,8 +183,17 @@ public sealed class AndroidPlatform : IMobilePlatform
         }
     }
 
-    /// <summary>Una notificación por compañero (los mensajes nuevos de esa persona la reemplazan).</summary>
-    private static int NotificationIdFor(string peerId) => 10_000 + (int)((uint)StringComparer.Ordinal.GetHashCode(peerId) % 50_000);
+    /// <summary>
+    /// Una notificación por compañero (los mensajes nuevos de esa persona la reemplazan). El número no cambia entre
+    /// arranques (el hash de string de .NET sí), para poder quitarla aunque la haya puesto la app antes de reiniciarse.
+    /// </summary>
+    private static int NotificationIdFor(string peerId)
+    {
+        uint hash = 2166136261;
+        foreach (var c in peerId)
+            hash = (hash ^ c) * 16777619;
+        return 10_000 + (int)(hash % 50_000);
+    }
 
     private static string MimeFor(string path)
     {

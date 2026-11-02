@@ -217,6 +217,9 @@ public sealed partial class MobileViewModel
     /// <summary>Tocar un equipo cercano: se le pide conectarse; lo que había para enviar sale al quedar conectados.</summary>
     private void RequestConnection(PeerViewModel peer)
     {
+        // Lo que esperaba a otro emparejamiento (se cerró la hoja antes de terminar) pasa a esperar a este.
+        if (_afterPairing is { } waiting && !HasPending)
+            SetPending(waiting.Paths, waiting.Copies);
         _afterPairing = HasPending ? (peer.DeviceId, _pending, _pendingCopyDir) : null;
         if (HasPending)
         {
@@ -239,10 +242,29 @@ public sealed partial class MobileViewModel
             SetPending(after.Paths, after.Copies);
     }
 
-    private void AfterPaired(string deviceId) => _ = OfferMergeAfterReinstallAsync(deviceId);
+    private readonly HashSet<string> _mergeChecking = new(StringComparer.Ordinal);
+
+    // El resultado llega dos veces al que inicia (el aviso del agente y la respuesta de PairWithAsync): se pregunta una vez.
+    private void AfterPaired(string deviceId)
+    {
+        if (_mergeChecking.Add(deviceId))
+            _ = OfferMergeAfterReinstallAsync(deviceId);
+    }
 
     /// <summary>Se emparejó con alguien que se llama igual que un compañero que no está: ¿es el mismo, reinstalado?</summary>
     private async Task OfferMergeAfterReinstallAsync(string newId)
+    {
+        try
+        {
+            await MergeIfReinstalledAsync(newId);
+        }
+        finally
+        {
+            _mergeChecking.Remove(newId);
+        }
+    }
+
+    private async Task MergeIfReinstalledAsync(string newId)
     {
         if (_agent.Trust.Find(newId) is not { } fresh)
             return;
@@ -440,8 +462,9 @@ public sealed partial class MobileViewModel
             foreach (var g in Groups.Where(g => !g.Archived))
             {
                 var id = g.Id;
+                // La casilla ya muestra el cambio: no se rehace la lista mientras se toca.
                 ActionGroups.Add(new GroupToggleViewModel(g.Name, g.Members.Contains(peer.DeviceId), on =>
-                    SaveGroups(list => on ? ContactGroups.AddMember(list, id, peer.DeviceId) : ContactGroups.RemoveMember(list, id, peer.DeviceId))));
+                    SaveGroups(list => on ? ContactGroups.AddMember(list, id, peer.DeviceId) : ContactGroups.RemoveMember(list, id, peer.DeviceId), refreshActions: false)));
             }
         }
         Raise(nameof(HasActionGroups));
@@ -476,7 +499,7 @@ public sealed partial class MobileViewModel
     public RelayCommand GroupDelete { get; private set; } = null!;
     public RelayCommand SaveGroupName { get; private set; } = null!;
 
-    private void SaveGroups(Func<IReadOnlyList<ContactGroup>?, List<ContactGroup>> change)
+    private void SaveGroups(Func<IReadOnlyList<ContactGroup>?, List<ContactGroup>> change, bool refreshActions = true)
     {
         _agent.Settings.Update(s =>
         {
@@ -484,7 +507,8 @@ public sealed partial class MobileViewModel
             s.ContactGroups = list.Count > 0 ? list : null;
         });
         SyncGroupChips();
-        RefreshActionGroups();
+        if (refreshActions)
+            RefreshActionGroups();
     }
 
     private void SyncGroupChips()

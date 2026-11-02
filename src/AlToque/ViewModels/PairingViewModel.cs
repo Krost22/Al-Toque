@@ -260,7 +260,11 @@ public sealed class PairingViewModel : ViewModelBase
     {
         var target = _app.Agent.Peers.ResolveEndPoint(peer.DeviceId);
         if (target is null)
+        {
+            // Se fue de la red justo ahora: mejor decirlo que dejar la ventana en blanco.
+            ShowOutcome(PairingOutcome.Failed, peer.Name);
             return;
+        }
         Connecting = true;
         Status = S.PairConnecting(peer.Name);
         var outcome = await _app.Agent.Pairing.PairWithAsync(target, peer.DeviceId, CancellationToken.None);

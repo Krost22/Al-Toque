@@ -807,8 +807,14 @@ public sealed partial class MobileViewModel : ViewModelBase
 
     private async Task PairWithAsync(PeerViewModel? peer)
     {
-        if (peer is null || _agent.Peers.ResolveEndPoint(peer.DeviceId) is not { } target)
+        if (peer is null)
             return;
+        if (_agent.Peers.ResolveEndPoint(peer.DeviceId) is not { } target)
+        {
+            // Se fue de la red justo ahora: que la hoja lo diga y lo que esperaba vuelva a quedar pendiente.
+            ShowPairOutcome(peer.DeviceId, PairingOutcome.Failed, peer.Name);
+            return;
+        }
         _pairConnecting = true;
         PairStatus = S.PairConnecting(peer.Name);
         RaisePair();

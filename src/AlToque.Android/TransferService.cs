@@ -47,7 +47,7 @@ public sealed class TransferService : Service
             var manager = (NotificationManager)GetSystemService(NotificationService)!;
             manager.CreateNotificationChannel(new NotificationChannel(Channel, S.MobileServiceChannel, NotificationImportance.Low));
             var open = PendingIntent.GetActivity(this, 0, new Intent(this, typeof(MainActivity)), PendingIntentFlags.Immutable | PendingIntentFlags.UpdateCurrent);
-            var keep = intent?.GetBooleanExtra(KeepExtra, false) == true;
+            var keep = KeepsAlive(intent);
             var notification = new Notification.Builder(this, Channel)
                 .SetContentTitle(keep ? S.MobileKeepTitle : S.MobileServiceTitle)!
                 .SetContentText(keep ? S.MobileKeepBody : S.MobileServiceBody)!
@@ -63,6 +63,16 @@ public sealed class TransferService : Service
             AgentLog.Write("El servicio de transferencias no pudo mostrarse: " + ex.Message);
             StopSelf();
         }
-        return intent?.GetBooleanExtra(KeepExtra, false) == true ? StartCommandResult.Sticky : StartCommandResult.NotSticky;
+        return KeepsAlive(intent) ? StartCommandResult.Sticky : StartCommandResult.NotSticky;
+    }
+
+    // Sin intent es Android reiniciando el servicio, y eso solo pasa con "Mantener conectado" (el único modo Sticky).
+    private static bool KeepsAlive(Intent? intent) => intent is null || intent.GetBooleanExtra(KeepExtra, false);
+
+    /// <summary>Android 15+: se acabó el tiempo permitido para pasar archivos en segundo plano; hay que parar o cierra la app.</summary>
+    public override void OnTimeout(int startId, ForegroundService fgsType)
+    {
+        AgentLog.Write("Android pidió detener el servicio de transferencias por tiempo.");
+        StopSelf();
     }
 }

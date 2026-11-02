@@ -51,4 +51,14 @@ public static partial class S
     public static string RecipientFailed(string name) => T($"{name}: no llegó", $"{name}: not delivered");
     public static string RecipientWaiting(string name) => T($"{name}: esperando", $"{name}: waiting");
     public static string RecipientSending(string name) => T($"{name}: enviando", $"{name}: sending");
+
+    // ── Reinstalado ─────────────────────────────────────────────────────────────
+    public static string MergeReinstalledAsk(string name) => T(
+        $"¿«{name}» es el mismo equipo que ya tenías, reinstalado? Si dices que sí, su chat anterior pasa a este, conserva sus grupos y se quita el viejo de tus compañeros.",
+        $"Is “{name}” the same device you already had, reinstalled? If so, its previous chat moves here, it keeps its groups and the old one is removed from your teammates.");
+
+    // ── Reanudar tras un corte ──────────────────────────────────────────────────
+    public static string ReconnectingTo(string name) => T($"Reconectando con {name}…", $"Reconnecting to {name}…");
+    public static string ReconnectingDetail => T("Se cortó la conexión. Sigue sola desde donde quedó en cuanto vuelva.",
+        "The connection dropped. It picks up where it left off as soon as it's back.");
 }

@@ -78,11 +78,12 @@ public class TransferIntegrationTests
         if (OperatingSystem.IsWindows())
             Assert.Contains("ZoneId=3", File.ReadAllText(Path.Combine(b.Inbox, "solo.txt") + ":Zone.Identifier"));
 
-        // Un segundo envío igual no pisa nada: se renombra el primer nivel.
+        // Un segundo envío igual no pisa nada ni deja una copia "(1)": ese mismo contenido ya estaba.
         var again = a.Host.BeginSend(a.TargetFor(b), [solo]);
         await WaitFinished(again);
         Assert.Equal(TransferState.Completed, again.State);
-        Assert.True(File.Exists(Path.Combine(b.Inbox, "solo (1).txt")));
+        Assert.True(File.Exists(Path.Combine(b.Inbox, "solo.txt")));
+        Assert.False(File.Exists(Path.Combine(b.Inbox, "solo (1).txt")));
 
         Assert.Contains(a.Host.History.Recent(), h => h.Direction == "sent" && h.Result == "ok");
         Assert.Contains(b.Host.History.Recent(), h => h.Direction == "received" && h.Result == "ok");

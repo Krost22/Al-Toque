@@ -65,8 +65,25 @@ public sealed class TransferClient
         Message = manifest.Offer.Message,
     };
 
-    /// <summary>Ejecuta el envío completo. Nunca lanza: el resultado queda en <paramref name="info"/>.</summary>
-    public async Task SendAsync(PeerTarget target, OutgoingManifest manifest, TransferInfo info)
+    /// <summary>Un archivo por enviar: su token de un solo uso y desde qué byte (más de 0 al retomar tras un corte).</summary>
+    private readonly record struct Job(OutgoingFile File, string Token, long Offset);
+
+    /// <summary>Esperas entre intentos de reconexión tras un corte (unos dos minutos y medio en total).</summary>
+    internal TimeSpan[] ReconnectDelays { get; set; } =
+        [.. new[] { 1, 2, 3, 5, 8, 13, 20, 30, 30, 30 }.Select(s => TimeSpan.FromSeconds(s))];
+
+    /// <summary>Solo para pruebas: una pausa por bloque, para que un envío dure lo bastante como para cortarlo.</summary>
+    internal TimeSpan ChunkDelayForTesting { get; set; }
+
+    /// <summary>Cortes que se aguantan en un mismo envío antes de darlo por perdido.</summary>
+    private const int MaxResumes = 20;
+
+    /// <summary>
+    /// Ejecuta el envío completo. Nunca lanza: el resultado queda en <paramref name="info"/>. Con un compañero de
+    /// confianza que sabe reanudar, un corte de red (cambio de Wi-Fi, suspensión) no lo termina: se reconecta solo
+    /// —en la dirección nueva que dé <paramref name="relocate"/>— y cada archivo sigue desde donde quedó.
+    /// </summary>
+    public async Task SendAsync(PeerTarget target, OutgoingManifest manifest, TransferInfo info, Func<CancellationToken, Task<PeerTarget?>>? relocate = null)
     {
         var ct = info.CancellationToken;
         PeerConnection? control = null;
@@ -78,48 +95,17 @@ public sealed class TransferClient
             info.PeerId = control.RemoteDeviceId;
             info.PeerTrusted = _trust.IsTrustedKey(control.RemotePublicKey);
 
-            await control.Frames.SendAsync(FrameType.Hello, new HelloMessage
-            {
-                V = AppInfo.ProtocolVersion,
-                Purpose = Purposes.Transfer,
-                Alias = _alias(),
-                Os = AppInfo.OsName,
-                AppVersion = AppInfo.Version,
-                Caps = Capabilities.ForHello(_avatar()),
-            }, ProtocolJsonContext.Default.HelloMessage, ct).ConfigureAwait(false);
-
-            HelloMessage hello;
-            try
-            {
-                using var helloFrame = await control.Frames.ReadExpectAsync(TimeSpan.FromSeconds(10), ct, FrameType.Hello, FrameType.Error).ConfigureAwait(false);
-                if (helloFrame.Type == FrameType.Error)
-                    throw RemoteError(helloFrame);
-                hello = helloFrame.Parse(ProtocolJsonContext.Default.HelloMessage);
-            }
-            catch (Exception ex) when (ex is IOException or System.Security.Authentication.AuthenticationException or ProtocolException)
-            {
-                // En TLS 1.3 el receptor rechaza nuestro certificado después del apretón de manos.
-                throw new TransferException(ErrorCodes.Policy, ex.Message);
-            }
-
+            var hello = await ExchangeHelloAsync(control, target, ct).ConfigureAwait(false);
             if (!info.PeerTrusted && TextLimits.CleanAlias(hello.Alias) is { } alias)
                 info.PeerName = alias;
             info.PeerAvatar = Capabilities.AvatarOf(hello.Caps);
-            PeerVerified?.Invoke(control.RemoteDeviceId, target.EndPoint, TextLimits.CleanAlias(hello.Alias), hello.Os, info.PeerAvatar);
+            var canResume = info.PeerTrusted && hello.Caps?.Contains(Capabilities.Resume) == true;
 
             await control.Frames.SendAsync(FrameType.Offer, manifest.Offer, ProtocolJsonContext.Default.OfferMessage, ct).ConfigureAwait(false);
             info.AcceptDeadline = DateTimeOffset.Now + TransferServer.OfferTimeout;
             info.SetState(TransferState.WaitingForAccept);
 
-            DecisionMessage decision;
-            using (var decisionFrame = await control.Frames.ReadExpectAsync(DecisionTimeout, ct, FrameType.Decision, FrameType.Error).ConfigureAwait(false))
-            {
-                if (decisionFrame.Type == FrameType.Error)
-                    throw RemoteError(decisionFrame);
-                decision = decisionFrame.Parse(ProtocolJsonContext.Default.DecisionMessage);
-            }
-            if (decision.SessionId != manifest.Offer.SessionId)
-                throw new ProtocolException("Decisión de otra sesión.");
+            var decision = await ReadDecisionAsync(control, manifest, ct).ConfigureAwait(false);
             if (decision.Result == DecisionResults.Declined)
             {
                 var reason = decision.Reason is { } r && ErrorCodes.IsKnown(r) ? r : ErrorCodes.Declined;
@@ -128,73 +114,41 @@ public sealed class TransferClient
                 return;
             }
 
-            var jobs = new List<(OutgoingFile File, string Token)>();
-            foreach (var a in decision.Files ?? [])
-            {
-                if (!manifest.Files.TryGetValue(a.FileId, out var f) || !Base32.IsValid(a.Token, 26) || a.Offset != 0)
-                    throw new ProtocolException("Decisión con archivos desconocidos.");
-                if (jobs.Any(j => j.File.FileId == a.FileId))
-                    throw new ProtocolException("Archivo aceptado dos veces.");
-                jobs.Add((f, a.Token));
-            }
-            info.TotalBytes = jobs.Sum(j => j.File.Size);
-            info.FileCount = jobs.Count;
+            // Resultado de cada archivo ya confirmado por el receptor (para no contarlo dos veces al reanudar).
+            var results = new System.Collections.Concurrent.ConcurrentDictionary<string, bool>(StringComparer.Ordinal);
+            var jobs = JobsFrom(decision, manifest, results, info, resuming: false);
+            var accepted = jobs.Select(j => j.File).ToList();
+            info.TotalBytes = accepted.Sum(f => f.Size);
+            info.FileCount = accepted.Count;
             info.SetState(TransferState.Transferring);
 
-            if (jobs.Count == 0)
-            {
-                await TrySendAsync(control, FrameType.Bye, new ByeMessage(), ProtocolJsonContext.Default.ByeMessage).ConfigureAwait(false);
-                info.SetState(TransferState.Completed);
-                return;
-            }
-
-            using var sessionCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            using var watchCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            var controlWatch = WatchControlAsync(control, watchCts);
-
-            var queue = new ConcurrentQueue<(OutgoingFile File, string Token)>(jobs);
-            var connections = Math.Min(MaxDataConnections, jobs.Count);
             var remoteKey = control.RemotePublicKey;
-            for (int i = 0; i < connections; i++)
-                workers.Add(new DataWorker(this, target, remoteKey, manifest.Offer.SessionId, queue, info));
-
-            // El primer fallo de cualquier conexión corta las demás; se conserva la causa original.
-            Exception? firstFailure = null;
-            var workTasks = workers.Select(async w =>
+            var resumes = 0;
+            while (jobs.Count > 0)
             {
                 try
                 {
-                    await w.RunAsync(sessionCts.Token).ConfigureAwait(false);
+                    await RunJobsAsync(control, target, remoteKey, manifest.Offer.SessionId, jobs, results, info, workers, ct).ConfigureAwait(false);
+                    break;
                 }
-                catch (Exception ex)
+                catch (Exception ex) when (canResume && resumes < MaxResumes && !ct.IsCancellationRequested && IsConnectionLoss(ex))
                 {
-                    if (!(ex is OperationCanceledException && sessionCts.IsCancellationRequested))
-                        Interlocked.CompareExchange(ref firstFailure, ex, null);
-                    sessionCts.Cancel();
-                    foreach (var other in workers)
-                        other.Abort();
+                    resumes++;
+                    info.SetState(TransferState.Reconnecting);
+                    foreach (var w in workers)
+                        w.Abort();
+                    workers.Clear();
+                    await control.DisposeAsync().ConfigureAwait(false);
+                    control = null;
+                    (control, decision, target) = await ReconnectAsync(target, relocate, remoteKey, manifest, ct).ConfigureAwait(false);
+                    if (decision.Result == DecisionResults.Declined)
+                        throw new TransferException(decision.Reason is { } why && ErrorCodes.IsKnown(why) ? why : ErrorCodes.Unreachable, "No se pudo retomar.");
+                    jobs = JobsFrom(decision, manifest, results, info, resuming: true);
+                    // Lo que el receptor ya tiene (algo pudo perderse en vuelo al cortarse).
+                    info.SetTransferred(accepted.Sum(f => results.ContainsKey(f.FileId) ? f.Size : 0) + jobs.Sum(j => j.Offset));
+                    info.SetState(TransferState.Transferring);
                 }
-            }).ToList();
-            var all = Task.WhenAll(workTasks);
-            if (await Task.WhenAny(all, controlWatch).ConfigureAwait(false) == controlWatch && await controlWatch.ConfigureAwait(false) is { } remote)
-            {
-                Interlocked.CompareExchange(ref firstFailure, remote, null);
-                sessionCts.Cancel();
-                foreach (var w in workers)
-                    w.Abort();
             }
-            await all.ConfigureAwait(false);
-            ct.ThrowIfCancellationRequested();
-            if (firstFailure is not null)
-            {
-                // Si el receptor canceló, su aviso por el canal de control llega casi a la vez que el corte de datos.
-                if (firstFailure is not TransferException && !controlWatch.IsCompleted)
-                    await Task.WhenAny(controlWatch, Task.Delay(1000, ct)).ConfigureAwait(false);
-                if (controlWatch.IsCompletedSuccessfully && controlWatch.Result is TransferException { Code: ErrorCodes.Cancelled } cancelled)
-                    throw cancelled;
-                throw firstFailure;
-            }
-            watchCts.Cancel();
 
             await TrySendAsync(control, FrameType.Bye, new ByeMessage(), ProtocolJsonContext.Default.ByeMessage).ConfigureAwait(false);
             info.CurrentFile = null;
@@ -226,7 +180,8 @@ public sealed class TransferClient
         {
             info.SetState(TransferState.Failed, info.State == TransferState.WaitingForAccept ? ErrorCodes.AcceptTimeout : ErrorCodes.Timeout, ex.Message);
         }
-        catch (Exception ex) when (ex is IOException or ProtocolException or System.Security.Authentication.AuthenticationException or ObjectDisposedException)
+        catch (Exception ex) when (ex is IOException or ProtocolException or System.Security.Authentication.AuthenticationException or ObjectDisposedException
+                                       or System.Net.Sockets.SocketException)
         {
             info.SetState(TransferState.Failed, ErrorCodes.Unreachable, ex.Message);
         }
@@ -237,6 +192,203 @@ public sealed class TransferClient
             if (control is not null)
                 await control.DisposeAsync().ConfigureAwait(false);
         }
+    }
+
+    /// <summary>Un corte de la red o de la conexión (no un rechazo, una cancelación ni un error del protocolo).</summary>
+    private static bool IsConnectionLoss(Exception ex) => ex switch
+    {
+        TransferException te => te.Code is ErrorCodes.Unreachable or ErrorCodes.Timeout,
+        IOException or TimeoutException or ObjectDisposedException or System.Net.Sockets.SocketException => true,
+        System.Security.Authentication.AuthenticationException => true,
+        OperationCanceledException => false,
+        _ => false,
+    };
+
+    private async Task<HelloMessage> ExchangeHelloAsync(PeerConnection control, PeerTarget target, CancellationToken ct)
+    {
+        await control.Frames.SendAsync(FrameType.Hello, new HelloMessage
+        {
+            V = AppInfo.ProtocolVersion,
+            Purpose = Purposes.Transfer,
+            Alias = _alias(),
+            Os = AppInfo.OsName,
+            AppVersion = AppInfo.Version,
+            Caps = Capabilities.ForHello(_avatar()),
+        }, ProtocolJsonContext.Default.HelloMessage, ct).ConfigureAwait(false);
+
+        HelloMessage hello;
+        try
+        {
+            using var helloFrame = await control.Frames.ReadExpectAsync(TimeSpan.FromSeconds(10), ct, FrameType.Hello, FrameType.Error).ConfigureAwait(false);
+            if (helloFrame.Type == FrameType.Error)
+                throw RemoteError(helloFrame);
+            hello = helloFrame.Parse(ProtocolJsonContext.Default.HelloMessage);
+        }
+        catch (Exception ex) when (ex is IOException or System.Security.Authentication.AuthenticationException or ProtocolException)
+        {
+            // En TLS 1.3 el receptor rechaza nuestro certificado después del apretón de manos.
+            throw new TransferException(ErrorCodes.Policy, ex.Message);
+        }
+        PeerVerified?.Invoke(control.RemoteDeviceId, target.EndPoint, TextLimits.CleanAlias(hello.Alias), hello.Os, Capabilities.AvatarOf(hello.Caps));
+        return hello;
+    }
+
+    private static async Task<DecisionMessage> ReadDecisionAsync(PeerConnection control, OutgoingManifest manifest, CancellationToken ct)
+    {
+        DecisionMessage decision;
+        using (var decisionFrame = await control.Frames.ReadExpectAsync(DecisionTimeout, ct, FrameType.Decision, FrameType.Error).ConfigureAwait(false))
+        {
+            if (decisionFrame.Type == FrameType.Error)
+                throw RemoteError(decisionFrame);
+            decision = decisionFrame.Parse(ProtocolJsonContext.Default.DecisionMessage);
+        }
+        if (decision.SessionId != manifest.Offer.SessionId)
+            throw new ProtocolException("Decisión de otra sesión.");
+        return decision;
+    }
+
+    /// <summary>
+    /// Lo que hay que enviar según la decisión. Al reanudar, lo ya terminado se cuenta (una sola vez) y lo demás sigue
+    /// desde el offset que dice tener el receptor.
+    /// </summary>
+    private static List<Job> JobsFrom(DecisionMessage decision, OutgoingManifest manifest,
+        System.Collections.Concurrent.ConcurrentDictionary<string, bool> results, TransferInfo info, bool resuming)
+    {
+        var jobs = new List<Job>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var a in decision.Files ?? [])
+        {
+            if (!manifest.Files.TryGetValue(a.FileId, out var f) || !seen.Add(a.FileId))
+                throw new ProtocolException("Decisión con archivos desconocidos o repetidos.");
+            if (!resuming && (a.Offset != 0 || a.Done is not null || a.Failed is not null))
+                throw new ProtocolException("Decisión inesperada.");
+            if (a.Done == true)
+            {
+                var ok = a.Failed != true;
+                if (results.TryAdd(a.FileId, ok))
+                {
+                    if (ok)
+                        info.FileSucceeded(null);
+                    else
+                        info.FileFailed();
+                }
+                continue;
+            }
+            if (!Base32.IsValid(a.Token, 26) || a.Offset < 0 || a.Offset > f.Size)
+                throw new ProtocolException("Decisión con datos inválidos.");
+            jobs.Add(new Job(f, a.Token, a.Offset));
+        }
+        return jobs;
+    }
+
+    /// <summary>
+    /// Tras un corte: espera, busca la dirección actual del compañero (pudo cambiar de red) y le ofrece retomar la
+    /// misma sesión. Reintenta unos minutos; si no vuelve, el envío falla como "no se pudo conectar".
+    /// </summary>
+    private async Task<(PeerConnection Control, DecisionMessage Decision, PeerTarget Target)> ReconnectAsync(PeerTarget target,
+        Func<CancellationToken, Task<PeerTarget?>>? relocate, byte[] remoteKey, OutgoingManifest manifest, CancellationToken ct)
+    {
+        var resumeOffer = new OfferMessage
+        {
+            SessionId = manifest.Offer.SessionId,
+            Files = manifest.Offer.Files,
+            Dirs = manifest.Offer.Dirs,
+            TotalSize = manifest.Offer.TotalSize,
+            Message = manifest.Offer.Message,
+            Resume = true,
+        };
+        Exception? last = null;
+        foreach (var delay in ReconnectDelays)
+        {
+            await Task.Delay(delay, ct).ConfigureAwait(false);
+            var current = target;
+            if (relocate is not null)
+            {
+                try
+                {
+                    current = await relocate(ct).ConfigureAwait(false) ?? target;
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    current = target;
+                }
+            }
+            PeerConnection? conn = null;
+            try
+            {
+                conn = await ConnectVerifiedAsync(current, remoteKey, ct).ConfigureAwait(false);
+                await ExchangeHelloAsync(conn, current, ct).ConfigureAwait(false);
+                await conn.Frames.SendAsync(FrameType.Offer, resumeOffer, ProtocolJsonContext.Default.OfferMessage, ct).ConfigureAwait(false);
+                var decision = await ReadDecisionAsync(conn, manifest, ct).ConfigureAwait(false);
+                var done = conn;
+                conn = null;
+                return (done, decision, current);
+            }
+            catch (Exception ex) when (ex is PeerConnectException || IsConnectionLoss(ex) || ex is TransferException { Code: ErrorCodes.Policy })
+            {
+                last = ex;
+            }
+            finally
+            {
+                if (conn is not null)
+                    await conn.DisposeAsync().ConfigureAwait(false);
+            }
+        }
+        throw new TransferException(ErrorCodes.Unreachable, last?.Message ?? "No volvió la conexión.");
+    }
+
+    /// <summary>Envía la lista por 1 a 4 conexiones de datos; lanza la primera falla (un corte, un error del receptor…).</summary>
+    private async Task RunJobsAsync(PeerConnection control, PeerTarget target, byte[] remoteKey, string sessionId, List<Job> jobs,
+        System.Collections.Concurrent.ConcurrentDictionary<string, bool> results, TransferInfo info, List<DataWorker> workers, CancellationToken ct)
+    {
+        using var sessionCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        using var watchCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var controlWatch = WatchControlAsync(control, watchCts);
+
+        var queue = new ConcurrentQueue<Job>(jobs);
+        var connections = Math.Min(MaxDataConnections, jobs.Count);
+        for (int i = 0; i < connections; i++)
+            workers.Add(new DataWorker(this, target, remoteKey, sessionId, queue, results, info));
+        var running = workers.ToList();
+
+        // El primer fallo de cualquier conexión corta las demás; se conserva la causa original.
+        Exception? firstFailure = null;
+        var workTasks = running.Select(async w =>
+        {
+            try
+            {
+                await w.RunAsync(sessionCts.Token).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                if (!(ex is OperationCanceledException && sessionCts.IsCancellationRequested))
+                    Interlocked.CompareExchange(ref firstFailure, ex, null);
+                sessionCts.Cancel();
+                foreach (var other in running)
+                    other.Abort();
+            }
+        }).ToList();
+        var all = Task.WhenAll(workTasks);
+        if (await Task.WhenAny(all, controlWatch).ConfigureAwait(false) == controlWatch && await controlWatch.ConfigureAwait(false) is { } remote)
+        {
+            Interlocked.CompareExchange(ref firstFailure, remote, null);
+            sessionCts.Cancel();
+            foreach (var w in running)
+                w.Abort();
+        }
+        await all.ConfigureAwait(false);
+        ct.ThrowIfCancellationRequested();
+        if (firstFailure is not null)
+        {
+            // Si el receptor canceló, su aviso por el canal de control llega casi a la vez que el corte de datos.
+            if (firstFailure is not TransferException && !controlWatch.IsCompleted)
+                await Task.WhenAny(controlWatch, Task.Delay(1000, ct)).ConfigureAwait(false);
+            if (controlWatch.IsCompletedSuccessfully && controlWatch.Result is TransferException { Code: ErrorCodes.Cancelled } cancelled)
+                throw cancelled;
+            watchCts.Cancel();
+            throw firstFailure;
+        }
+        watchCts.Cancel();
     }
 
     /// <summary>Comprueba que el puerto responde y devuelve la identidad que presenta (para "Conectar por IP").</summary>
@@ -325,7 +477,7 @@ public sealed class TransferClient
     /// </summary>
     private sealed class DataWorker(
         TransferClient owner, PeerTarget target, byte[] remoteKey, string sessionId,
-        ConcurrentQueue<(OutgoingFile File, string Token)> queue, TransferInfo info)
+        ConcurrentQueue<Job> queue, ConcurrentDictionary<string, bool> results, TransferInfo info)
     {
         private static readonly TimeSpan FinalResultsTimeout = TimeSpan.FromMinutes(2);
         private readonly ConcurrentDictionary<string, bool> _awaiting = new();
@@ -343,17 +495,17 @@ public sealed class TransferClient
             _conn = await owner.ConnectVerifiedAsync(target, remoteKey, ct).ConfigureAwait(false);
             await using var _ = _conn.ConfigureAwait(false);
             using var readerCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            var results = ReadResultsAsync(_conn, readerCts.Token, ct);
+            var reader = ReadResultsAsync(_conn, readerCts.Token, ct);
 
             var buffer = ArrayPool<byte>.Shared.Rent(FrameChannel.HeaderSize + ChunkSize);
             try
             {
-                while (!results.IsCompleted && queue.TryDequeue(out var job))
+                while (!reader.IsCompleted && queue.TryDequeue(out var job))
                 {
                     ct.ThrowIfCancellationRequested();
                     _awaiting[job.File.FileId] = true;
                     Interlocked.Increment(ref _sent);
-                    await SendFileAsync(_conn, job.File, job.Token, buffer, ct).ConfigureAwait(false);
+                    await SendFileAsync(_conn, job.File, job.Token, job.Offset, buffer, ct).ConfigureAwait(false);
                 }
                 await _conn.Frames.FlushAsync(ct).ConfigureAwait(false);
             }
@@ -366,7 +518,7 @@ public sealed class TransferClient
             }
             try
             {
-                await results.WaitAsync(FinalResultsTimeout, ct).ConfigureAwait(false);
+                await reader.WaitAsync(FinalResultsTimeout, ct).ConfigureAwait(false);
             }
             catch (TimeoutException)
             {
@@ -377,7 +529,8 @@ public sealed class TransferClient
 
         private bool AllAnswered => Volatile.Read(ref _doneSending) && Volatile.Read(ref _received) == Volatile.Read(ref _sent);
 
-        private async Task SendFileAsync(PeerConnection conn, OutgoingFile file, string token, byte[] buffer, CancellationToken ct)
+        /// <param name="offset">Lo que el receptor ya tiene de este archivo (al retomar tras un corte).</param>
+        private async Task SendFileAsync(PeerConnection conn, OutgoingFile file, string token, long offset, byte[] buffer, CancellationToken ct)
         {
             info.CurrentFile = Path.GetFileName(file.RelativePath);
             await conn.Frames.SendAsync(FrameType.StreamOpen, new StreamOpenMessage
@@ -385,11 +538,11 @@ public sealed class TransferClient
                 SessionId = sessionId,
                 FileId = file.FileId,
                 Token = token,
-                Offset = 0,
+                Offset = offset,
             }, ProtocolJsonContext.Default.StreamOpenMessage, ct).ConfigureAwait(false);
 
             using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-            long sent = 0;
+            long sent = offset;
             var aborted = false;
             FileStream? fs = null;
             try
@@ -412,7 +565,29 @@ public sealed class TransferClient
             {
                 await using (fs.ConfigureAwait(false))
                 {
-                    while (sent < file.Size)
+                    // Al retomar, lo que el receptor ya tiene entra al hash sin volver a enviarse: el hash final cubre
+                    // el archivo entero y detecta si el origen cambió entretanto.
+                    long hashed = 0;
+                    while (hashed < offset && !aborted)
+                    {
+                        int n;
+                        try
+                        {
+                            n = await fs.ReadAsync(buffer.AsMemory(FrameChannel.HeaderSize, (int)Math.Min(ChunkSize, offset - hashed)), ct).ConfigureAwait(false);
+                        }
+                        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                        {
+                            n = 0;
+                        }
+                        if (n == 0)
+                        {
+                            aborted = true;
+                            break;
+                        }
+                        hash.AppendData(buffer, FrameChannel.HeaderSize, n);
+                        hashed += n;
+                    }
+                    while (!aborted && sent < file.Size)
                     {
                         var want = (int)Math.Min(ChunkSize, file.Size - sent);
                         int n;
@@ -433,6 +608,8 @@ public sealed class TransferClient
                         await conn.Frames.SendChunkAsync(buffer, n, ct).ConfigureAwait(false);
                         sent += n;
                         info.AddBytes(n);
+                        if (owner.ChunkDelayForTesting > TimeSpan.Zero)
+                            await Task.Delay(owner.ChunkDelayForTesting, ct).ConfigureAwait(false);
                     }
                     if (!aborted)
                     {
@@ -473,12 +650,18 @@ public sealed class TransferClient
                     var result = frame.Parse(ProtocolJsonContext.Default.FileResultMessage);
                     if (!_awaiting.TryRemove(result.FileId, out _))
                         throw new ProtocolException("FILE_RESULT inesperado.");
+                    // Cada archivo cuenta una sola vez, aunque se haya retomado tras un corte.
+                    var first = results.TryAdd(result.FileId, result.Ok);
                     if (result.Ok)
-                        info.FileSucceeded(null);
+                    {
+                        if (first)
+                            info.FileSucceeded(null);
+                    }
                     else
                     {
                         LastError = result.Error is { } e && ErrorCodes.IsKnown(e) ? e : ErrorCodes.Io;
-                        info.FileFailed();
+                        if (first)
+                            info.FileFailed();
                         if (LastError == ErrorCodes.DiskFull)
                             throw new TransferException(ErrorCodes.DiskFull, "Sin espacio en el receptor.");
                     }

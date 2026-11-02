@@ -123,6 +123,39 @@ public class ChatTests
         Assert.Equal(10, reopened.AddOwnText(peer, "listo").Seq);
     }
 
+    [Fact]
+    public void AfterAReinstallTheOldConversationJoinsTheNewOne()
+    {
+        using var dir = new TempDir();
+        var me = NewDeviceId();
+        var before = NewDeviceId(); // Laura antes de reinstalar
+        var after = NewDeviceId();  // Laura con su identidad nueva
+        var store = OpenStore(dir, me);
+        Assert.True(store.AddRemote(before, Wire(1, "¿me mandas el plano?")));
+        store.AddOwnText(before, "ahí va");
+        store.AddOwnText(before, "¿llegó?");
+        store.MarkRead(before);
+
+        store.Merge(before, after);
+        Assert.Empty(store.Messages(before));
+        Assert.Equal(["¿me mandas el plano?", "ahí va", "¿llegó?"], store.Messages(after).Select(m => m.Text));
+
+        // La identidad nueva empieza su numeración de cero: sus mensajes no se toman por repetidos.
+        Assert.True(store.AddRemote(after, Wire(1, "reinstalé, ¿me reenvías?")));
+        Assert.Equal(1, store.TheirUpTo(after));
+        // Lo anterior no se le vuelve a mandar; lo nuevo, sí.
+        Assert.Empty(store.OwnAfter(after, 0));
+        var nuevo = store.AddOwnText(after, "claro");
+        Assert.Equal(1, nuevo.Seq);
+        Assert.Single(store.OwnAfter(after, 0));
+
+        // Queda así al reabrir, y del chat viejo no queda nada.
+        var reopened = OpenStore(dir, me);
+        Assert.Equal(5, reopened.Messages(after).Count);
+        Assert.Empty(reopened.Messages(before));
+        Assert.False(File.Exists(Path.Combine(dir.Path, "config", "chats", before + ".log")));
+    }
+
     [Theory]
     // Los dos marcan a la vez (enlace existente recién nacido): manda el que inició el identificador menor.
     [InlineData(true, false, 1, 1, true)]

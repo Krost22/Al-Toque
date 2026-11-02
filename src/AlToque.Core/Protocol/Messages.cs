@@ -50,7 +50,10 @@ public static class Capabilities
     /// <summary>Acepta solicitudes de conexión sin que su usuario abra «Emparejar» (las ve como un aviso).</summary>
     public const string PairRequest = "pairreq";
 
-    public static readonly List<string> Local = [Burst, Metadata, Message, Chat];
+    /// <summary>Retoma un envío cortado (cambio de red, suspensión) desde donde quedó cada archivo.</summary>
+    public const string Resume = "resume";
+
+    public static readonly List<string> Local = [Burst, Metadata, Message, Chat, Resume];
 
     /// <summary>Prefijo con el que el avatar viaja dentro de las capacidades del HELLO.</summary>
     public const string AvatarPrefix = "av:";
@@ -99,6 +102,12 @@ public sealed class OfferMessage
 
     public required long TotalSize { get; init; }
     public string? Message { get; init; }
+
+    /// <summary>
+    /// Reanuda la sesión del mismo id que se cortó: el receptor responde cuánto tiene de cada archivo. Solo se manda a
+    /// equipos que anuncian <see cref="Capabilities.Resume"/> (los demás rechazan campos desconocidos).
+    /// </summary>
+    public bool? Resume { get; init; }
 }
 
 public sealed class OfferFile
@@ -137,6 +146,12 @@ public sealed class AcceptedFile
     public required string Token { get; init; }
 
     public long Offset { get; init; }
+
+    /// <summary>Al reanudar: ese archivo ya terminó antes del corte (no se vuelve a enviar).</summary>
+    public bool? Done { get; init; }
+
+    /// <summary>Al reanudar: terminó, pero falló (por ejemplo, el hash no coincidió).</summary>
+    public bool? Failed { get; init; }
 }
 
 public sealed class StreamOpenMessage

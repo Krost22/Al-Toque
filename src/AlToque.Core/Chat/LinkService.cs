@@ -346,6 +346,8 @@ public sealed class LinkService : IAsyncDisposable
                         // "Tengo tus mensajes hasta el N": va todo lo posterior.
                         var have = frame.Parse(ProtocolJsonContext.Default.ChatSyncMessage).HaveYours;
                         _chats.CatchUp(link.PeerId, have);
+                        // También confirma la entrega: si un ACK se perdió al cambiar de enlace, aquí se recupera.
+                        _chats.MarkDelivered(link.PeerId, have);
                         link.SentUpTo = have;
                         await PushAsync(link).ConfigureAwait(false);
                         break;

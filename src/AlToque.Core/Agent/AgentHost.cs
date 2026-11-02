@@ -453,6 +453,19 @@ public sealed class AgentHost : IAsyncDisposable
 
     // ── Destinos ─────────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Tras un corte a mitad de un envío: la dirección actual del compañero (si cambió de red, la nueva). Se pregunta
+    /// a la red y se espera un momento las respuestas.
+    /// </summary>
+    private async Task<PeerTarget?> RelocateAsync(TransferInfo info, PeerTarget fallback, CancellationToken ct)
+    {
+        if ((info.PeerId ?? fallback.ExpectedDeviceId) is not { } id)
+            return null;
+        Discovery?.Query();
+        await Task.Delay(TimeSpan.FromMilliseconds(600), ct).ConfigureAwait(false);
+        return TargetForPeer(id) is { } located ? located with { DisplayName = fallback.DisplayName } : null;
+    }
+
     public PeerTarget? TargetForPeer(string deviceId)
     {
         if (Peers.Resolve(deviceId) is not var (ep, live))
@@ -604,7 +617,7 @@ public sealed class AgentHost : IAsyncDisposable
                 info.TotalBytes = manifest.TotalSize;
                 info.FirstName = manifest.FirstName;
                 info.Message = manifest.Offer.Message;
-                await Client.SendAsync(target, manifest, info).ConfigureAwait(false);
+                await Client.SendAsync(target, manifest, info, ct => RelocateAsync(info, target, ct)).ConfigureAwait(false);
             }
             catch (Exception ex)
             {

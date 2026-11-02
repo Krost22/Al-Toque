@@ -1336,6 +1336,8 @@ public sealed class AppController
 
     private void OnPairingFinished(string deviceId, PairingOutcome outcome)
     {
+        if (outcome == PairingOutcome.Paired)
+            OfferMergeAfterReinstall(deviceId);
         // Lo que esperaba destino sale en cuanto quedan conectados.
         if (_afterPairing is { } after && after.PeerId == deviceId)
         {
@@ -1354,6 +1356,38 @@ public sealed class AppController
     {
         Agent.Discovery?.AnnounceSoon();
         RefreshMode();
+    }
+
+    /// <summary>
+    /// Recién emparejado con alguien que se llama igual que un compañero que ya tenía y que no está en línea: lo más
+    /// probable es que haya reinstalado (identidad nueva). Si el usuario lo confirma, se unen: chat, favorito,
+    /// recibir sin preguntar, grupos y chat fijado pasan al nuevo, y el viejo se quita.
+    /// </summary>
+    private async void OfferMergeAfterReinstall(string newId)
+    {
+        if (Agent.Trust.Find(newId) is not { } fresh)
+            return;
+        var old = Agent.Trust.All.FirstOrDefault(t => t.DeviceId != newId
+            && string.Equals(t.DisplayName, fresh.DisplayName, StringComparison.CurrentCultureIgnoreCase)
+            && Agent.Peers.Find(t.DeviceId)?.Presence != Core.Discovery.PeerPresence.Online);
+        if (old is null || !await ConfirmWindow.AskAsync(S.MergeReinstalledAsk(fresh.DisplayName)))
+            return;
+        Agent.Chats.Merge(old.DeviceId, newId);
+        Agent.Trust.Update(newId, t =>
+        {
+            t.Favorite |= old.Favorite;
+            t.AutoAccept = old.AutoAccept;
+        });
+        SaveGroups(g => ContactGroups.ReplaceMember(g, old.DeviceId, newId));
+        var wasPinned = _pinned.ContainsKey(old.DeviceId);
+        if (wasPinned)
+            ClosePinned(old.DeviceId);
+        Agent.Trust.Remove(old.DeviceId);
+        if (wasPinned)
+            OpenPinned(newId, state: null);
+        SavePinned();
+        PruneGroups();
+        RefreshPeers();
     }
 
     // ── Otras ventanas ───────────────────────────────────────────────────────────

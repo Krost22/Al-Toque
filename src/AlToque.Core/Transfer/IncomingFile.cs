@@ -141,7 +141,6 @@ internal sealed class IncomingFile : IAsyncDisposable
     {
         if (Written + data.Length > Expected)
             throw new ProtocolException("Llegaron más bytes de los declarados.");
-        _hash.AppendData(data.Span);
         try
         {
             await _stream.WriteAsync(data, ct).ConfigureAwait(false);
@@ -150,7 +149,19 @@ internal sealed class IncomingFile : IAsyncDisposable
         {
             throw new TransferException(ErrorCodes.DiskFull, ex.Message);
         }
+        // Se cuenta (y entra al hash) solo lo que quedó escrito: si se corta a mitad, se retoma desde aquí.
+        _hash.AppendData(data.Span);
         Written += data.Length;
+    }
+
+    /// <summary>
+    /// Antes de seguir tras un corte: el temporal queda exactamente con lo contado (una escritura cortada pudo dejar
+    /// bytes de más) y la posición al final.
+    /// </summary>
+    public void PrepareResume()
+    {
+        _stream.SetLength(Written);
+        _stream.Position = Written;
     }
 
     /// <summary>Verifica tamaño y hash, sincroniza a disco, marca el origen y renombra. Devuelve la ruta final.</summary>
@@ -174,6 +185,19 @@ internal sealed class IncomingFile : IAsyncDisposable
         await FinalizeGate.WaitAsync().ConfigureAwait(false);
         try
         {
+            // Exactamente lo mismo ya está con ese nombre (se volvió a mandar, o un reintento): no se crea otra copia.
+            if (_policy != ConflictPolicy.Replace)
+            {
+                foreach (var existing in new[] { _plan.WantedPath, _plan.FinalPath }.OfType<string>().Distinct(StringComparer.Ordinal))
+                {
+                    if (await HasSameContentAsync(existing, Expected, actual).ConfigureAwait(false) && NameSanitizer.IsInside(_root, existing))
+                    {
+                        SecureFile.TryDelete(PartPath);
+                        _finished = true;
+                        return existing;
+                    }
+                }
+            }
             final = _plan.FinalPath;
             if (File.Exists(final) || Directory.Exists(final))
             {
@@ -200,6 +224,30 @@ internal sealed class IncomingFile : IAsyncDisposable
         _finished = true;
         ApplyTimestamps(final);
         return final;
+    }
+
+    /// <summary>¿Ese archivo existe, es normal y tiene el mismo tamaño y el mismo SHA-256?</summary>
+    private static async Task<bool> HasSameContentAsync(string path, long size, string sha256Hex)
+    {
+        try
+        {
+            var info = new FileInfo(path);
+            if (!info.Exists || info.Length != size || SafeFs.IsLink(path))
+                return false;
+            await using var fs = new FileStream(path, new FileStreamOptions
+            {
+                Mode = FileMode.Open,
+                Access = FileAccess.Read,
+                Share = FileShare.ReadWrite | FileShare.Delete,
+                Options = FileOptions.Asynchronous | FileOptions.SequentialScan,
+            });
+            var hash = await SHA256.HashDataAsync(fs).ConfigureAwait(false);
+            return string.Equals(Convert.ToHexStringLower(hash), sha256Hex, StringComparison.Ordinal);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
     }
 
     /// <summary>

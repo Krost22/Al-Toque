@@ -44,6 +44,7 @@ public static class ChasquiStates
         TransferState.Preparing or TransferState.Connecting => ChasquiState.Preparing,
         TransferState.WaitingForAccept => t.Direction == TransferDirection.Send ? ChasquiState.Waiting : ChasquiState.Incoming,
         TransferState.Transferring => t.Direction == TransferDirection.Send ? ChasquiState.Sending : ChasquiState.Receiving,
+        TransferState.Reconnecting => ChasquiState.Reconnecting,
         TransferState.Completed => t.Direction == TransferDirection.Send ? ChasquiState.Success : ChasquiState.Received,
         TransferState.PartiallyCompleted => ChasquiState.Error,
         TransferState.Declined => ChasquiState.Rejected,

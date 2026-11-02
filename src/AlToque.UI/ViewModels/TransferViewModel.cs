@@ -142,6 +142,7 @@ public sealed class TransferViewModel : ViewModelBase
         Track = info.State switch
         {
             TransferState.WaitingForAccept or TransferState.Connecting or TransferState.Preparing when send => TrackMode.Waiting,
+            TransferState.Reconnecting => TrackMode.Waiting,
             TransferState.Transferring => TrackMode.Active,
             TransferState.Completed => TrackMode.Done,
             _ => TrackMode.Hidden,
@@ -159,6 +160,7 @@ public sealed class TransferViewModel : ViewModelBase
             TransferState.WaitingForAccept when send => S.WaitingAccept(who),
             TransferState.WaitingForAccept => S.WantsToSend(info.FileCount),
             TransferState.Transferring => send ? S.SendingTo2(who) : S.ReceivingFrom2(who),
+            TransferState.Reconnecting => S.ReconnectingTo(who),
             TransferState.Completed => send ? S.SentTitle(who) : S.ReceivedTitle(info.FileCount, who),
             TransferState.PartiallyCompleted => S.Partial(info.FilesDone, info.FilesFailed),
             _ when IsDeclined => send ? S.DeclinedTitle(who) : S.ReceiveCancelled,
@@ -170,6 +172,7 @@ public sealed class TransferViewModel : ViewModelBase
         {
             TransferState.Transferring when info.CurrentFile is { } current =>
                 S.FileOf(current, Math.Min(info.FileCount, info.FilesDone + 1), info.FileCount),
+            TransferState.Reconnecting => S.ReconnectingDetail,
             TransferState.Completed when !send && info.DestinationFolder is { } folder => S.SavedIn(ShortFolder(folder)),
             TransferState.Completed => size is null ? What : $"{What} · {size}",
             _ when IsDeclined && send => S.DeclinedBody,
@@ -184,6 +187,7 @@ public sealed class TransferViewModel : ViewModelBase
             TransferState.Transferring => (
                 S.BytesOf(Format.Bytes(info.TransferredBytes), size ?? "—") + (speed > 1 ? " · " + Format.Speed(speed) : ""),
                 eta is null ? $"{pct} %" : $"{pct} % · {S.Left(eta)}"),
+            TransferState.Reconnecting => (S.BytesOf(Format.Bytes(info.TransferredBytes), size ?? "—"), $"{pct} %"),
             _ => ("", ""),
         };
 

@@ -312,6 +312,18 @@ public sealed class TransferServer : IAsyncDisposable
 
         if (!Base32.IsValid(offer.SessionId, 26))
             return;
+        // El emisor vuelve tras un corte con la misma sesión: se sigue desde donde quedó, sin volver a preguntar.
+        if (offer.Resume == true && trusted)
+        {
+            ReceiveSession? existing;
+            lock (_lock)
+                _sessions.TryGetValue(offer.SessionId, out existing);
+            if (existing is not null && existing.IsSender(conn.RemotePublicKey) && existing.CanPark && existing.Matches(offer))
+            {
+                await ResumeAsync(conn, existing, ct).ConfigureAwait(false);
+                return;
+            }
+        }
         var peerId = conn.RemoteDeviceId;
         var rateKeyIp = conn.RemoteEndPoint.Address.ToString();
         if (!CheckRate(peerId) || !CheckRate("ip:" + rateKeyIp))
@@ -353,7 +365,11 @@ public sealed class TransferServer : IAsyncDisposable
             AcceptDeadline = DateTimeOffset.Now + OfferTimeout,
             DestinationFolder = plan.SingleTopFolder ?? plan.Root,
         };
-        var session = new ReceiveSession(offer.SessionId, conn.RemotePublicKey, info, plan, settings.ConflictPolicy);
+        var session = new ReceiveSession(offer.SessionId, conn.RemotePublicKey, info, plan, settings.ConflictPolicy)
+        {
+            // Un compañero de confianza que sabe reanudar: un corte de red deja la sesión en pausa, no la cierra.
+            CanPark = trusted && hello.Caps?.Contains(Capabilities.Resume) == true,
+        };
 
         bool busy;
         lock (_lock)
@@ -377,6 +393,8 @@ public sealed class TransferServer : IAsyncDisposable
         // Lector de control: detecta si el emisor se retira o cancela mientras esperamos la respuesta.
         var senderGone = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
         var controlReader = ReadControlAsync(conn, session, senderGone, ct);
+        // La sesión quedó en pausa (corte de red) o la retomó otra conexión: ya no es de esta.
+        var handedOff = false;
 
         try
         {
@@ -463,32 +481,7 @@ public sealed class TransferServer : IAsyncDisposable
             info.SetState(TransferState.Transferring);
             TransferStarted?.Invoke(info);
             session.CompleteIfNothingPending();
-
-            var done = await Task.WhenAny(session.Finished, senderGone.Task).ConfigureAwait(false);
-            if (done == senderGone.Task && !session.Finished.IsCompleted)
-            {
-                var why = await senderGone.Task.ConfigureAwait(false);
-                // Un BYE con todo terminado da tiempo a que lleguen los últimos resultados.
-                if (why == "bye")
-                {
-                    if (await Task.WhenAny(session.Finished, Task.Delay(TimeSpan.FromSeconds(10), ct)).ConfigureAwait(false) != session.Finished)
-                        session.Fail(ErrorCodes.Io, "El emisor terminó sin completar.");
-                }
-                else
-                {
-                    session.Fail(why == "cancel" ? ErrorCodes.Cancelled : ErrorCodes.Unreachable, null, cancelled: why == "cancel");
-                }
-            }
-
-            if (info.State == TransferState.Cancelled && !senderGone.Task.IsCompleted && !cancelNotified)
-            {
-                // Cancelado desde este lado: se avisa al emisor.
-                await TrySendAsync(conn, FrameType.Cancel, new CancelMessage { Reason = ErrorCodes.Cancelled }, ProtocolJsonContext.Default.CancelMessage).ConfigureAwait(false);
-            }
-            else if (info.IsSuccess || info.State == TransferState.PartiallyCompleted)
-            {
-                await TrySendAsync(conn, FrameType.Bye, new ByeMessage(), ProtocolJsonContext.Default.ByeMessage).ConfigureAwait(false);
-            }
+            handedOff = await WatchSessionAsync(conn, session, senderGone, () => cancelNotified, ct).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is ProtocolException or IOException or TimeoutException or TransferException or OperationCanceledException)
         {
@@ -504,18 +497,158 @@ public sealed class TransferServer : IAsyncDisposable
         finally
         {
             incoming.Withdraw();
-            if (!session.Info.IsFinished)
-            {
-                if (session.State == ReceiveState.Offered)
-                    session.SetDeclined(ErrorCodes.Cancelled);
-                else
-                    session.Fail(ErrorCodes.Protocol, null);
-            }
-            TransferFinished?.Invoke(session.Info);
-            lock (_lock)
-                _sessions.Remove(offer.SessionId);
+            if (!handedOff)
+                FinishSession(session);
             conn.Abort();
             await controlReader.ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// Después de la decisión: espera a que la sesión termine, a que el emisor se vaya o a que otra conexión la retome.
+    /// Devuelve true si la sesión quedó en pausa o en manos de otra conexión (entonces esta no la cierra).
+    /// </summary>
+    private async Task<bool> WatchSessionAsync(PeerConnection conn, ReceiveSession session, TaskCompletionSource<string> senderGone,
+        Func<bool> cancelNotified, CancellationToken ct)
+    {
+        var generation = session.Generation;
+        var superseded = session.Superseded;
+        session.Control = conn;
+        var done = await Task.WhenAny(session.Finished, senderGone.Task, superseded).ConfigureAwait(false);
+        if (done == superseded || session.Generation != generation)
+            return true;
+        var info = session.Info;
+        if (done == senderGone.Task && !session.Finished.IsCompleted)
+        {
+            var why = await senderGone.Task.ConfigureAwait(false);
+            // Un BYE con todo terminado da tiempo a que lleguen los últimos resultados.
+            if (why == "bye")
+            {
+                if (await Task.WhenAny(session.Finished, Task.Delay(TimeSpan.FromSeconds(10), ct)).ConfigureAwait(false) != session.Finished)
+                    session.Fail(ErrorCodes.Io, "El emisor terminó sin completar.");
+            }
+            else if (why == "closed" && session.TryPark(generation))
+            {
+                // Corte de red con un emisor que sabe reanudar: lo recibido espera a que vuelva.
+                _ctx.Log?.Invoke("Recepción en pausa hasta que el emisor vuelva: " + IdentityVisuals.ShortCode(PeerKeys.DeviceIdFromSpki(session.SenderKey)));
+                await session.WaitForReceiversAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+                return true;
+            }
+            else
+            {
+                session.Fail(why == "cancel" ? ErrorCodes.Cancelled : ErrorCodes.Unreachable, null, cancelled: why == "cancel");
+            }
+        }
+
+        if (info.State == TransferState.Cancelled && !senderGone.Task.IsCompleted && !cancelNotified())
+        {
+            // Cancelado desde este lado: se avisa al emisor.
+            await TrySendAsync(conn, FrameType.Cancel, new CancelMessage { Reason = ErrorCodes.Cancelled }, ProtocolJsonContext.Default.CancelMessage).ConfigureAwait(false);
+        }
+        else if (info.IsSuccess || info.State == TransferState.PartiallyCompleted)
+        {
+            await TrySendAsync(conn, FrameType.Bye, new ByeMessage(), ProtocolJsonContext.Default.ByeMessage).ConfigureAwait(false);
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// El emisor volvió tras un corte con la misma sesión: se le dice cuánto hay de cada archivo y sigue desde ahí. Si
+    /// esta sesión aún no había notado el corte, sus conexiones viejas están muertas: se pausa en el acto.
+    /// </summary>
+    private async Task ResumeAsync(PeerConnection conn, ReceiveSession session, CancellationToken ct)
+    {
+        if (session.State != ReceiveState.Parked && !session.TryPark())
+        {
+            await SendDeclineAsync(conn, session.SessionId, ErrorCodes.Busy, ct).ConfigureAwait(false);
+            return;
+        }
+        await session.WaitForReceiversAsync(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+        if (session.Resume() is not { } files)
+        {
+            await SendDeclineAsync(conn, session.SessionId, ErrorCodes.Busy, ct).ConfigureAwait(false);
+            return;
+        }
+        var generation = session.Generation;
+        _ctx.Log?.Invoke("Recepción retomada: " + IdentityVisuals.ShortCode(PeerKeys.DeviceIdFromSpki(session.SenderKey)));
+        var senderGone = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var controlReader = ReadControlAsync(conn, session, senderGone, ct);
+        var cancelNotified = false;
+        session.NotifyCancel = async () =>
+        {
+            cancelNotified = true;
+            await TrySendAsync(conn, FrameType.Cancel, new CancelMessage { Reason = ErrorCodes.Cancelled }, ProtocolJsonContext.Default.CancelMessage).ConfigureAwait(false);
+        };
+        var handedOff = false;
+        try
+        {
+            await conn.Frames.SendAsync(FrameType.Decision, new DecisionMessage
+            {
+                SessionId = session.SessionId,
+                Result = DecisionResults.Accepted,
+                Files = files,
+            }, ProtocolJsonContext.Default.DecisionMessage, ct).ConfigureAwait(false);
+            session.CompleteIfNothingPending();
+            handedOff = await WatchSessionAsync(conn, session, senderGone, () => cancelNotified, ct).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is ProtocolException or IOException or TimeoutException or TransferException or OperationCanceledException)
+        {
+            // Se volvió a cortar enseguida: otra pausa, si se puede.
+            if (session.TryPark(generation))
+                handedOff = true;
+            else
+                session.Fail(ex is IOException ? ErrorCodes.Unreachable : ErrorCodes.Protocol, ex.Message);
+        }
+        finally
+        {
+            if (!handedOff)
+                FinishSession(session);
+            conn.Abort();
+            await controlReader.ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// Se volvió a mandar una carpeta que ya estaba: todo coincidió con lo que había y la copia renombrada
+    /// ("Fotos (1)") quedó sin archivos. Se quita para no dejar carpetas vacías.
+    /// </summary>
+    private static void RemoveEmptyRenamedFolders(ReceivePlan plan)
+    {
+        var tops = plan.Files.Where(f => f.WantedPath is not null && f.Components.Length > 1).Select(f => f.Components[0]).Distinct(StringComparer.Ordinal);
+        foreach (var top in tops)
+        {
+            var dir = Path.Combine(plan.Root, top);
+            try
+            {
+                if (NameSanitizer.IsInside(plan.Root, dir) && Directory.Exists(dir) && !SafeFs.IsLink(dir)
+                    && !Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories).Any())
+                    Directory.Delete(dir, recursive: true);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+            }
+        }
+    }
+
+    /// <summary>Cierra la sesión (si quedó abierta) y avisa una sola vez que terminó.</summary>
+    private void FinishSession(ReceiveSession session)
+    {
+        if (!session.Info.IsFinished)
+        {
+            if (session.State == ReceiveState.Offered)
+                session.SetDeclined(ErrorCodes.Cancelled);
+            else
+                session.Fail(ErrorCodes.Protocol, null);
+        }
+        if (!session.TryMarkReported())
+            return;
+        if (session.Info.State is TransferState.Completed or TransferState.PartiallyCompleted)
+            RemoveEmptyRenamedFolders(session.Plan);
+        TransferFinished?.Invoke(session.Info);
+        lock (_lock)
+        {
+            if (_sessions.TryGetValue(session.SessionId, out var current) && current == session)
+                _sessions.Remove(session.SessionId);
         }
     }
 
@@ -567,13 +700,12 @@ public sealed class TransferServer : IAsyncDisposable
             var current = open;
             while (true)
             {
-                var planned = session.TryOpenStream(current, conn.RemotePublicKey);
-                if (planned is null)
+                if (session.TryOpenStream(current, conn.RemotePublicKey) is not { } opened)
                 {
                     session.Fail(ErrorCodes.Protocol, "Flujo de datos no autorizado.");
                     return;
                 }
-                await ReceiveFileAsync(conn, session, planned).ConfigureAwait(false);
+                await ReceiveFileAsync(conn, session, opened.File, opened.Partial).ConfigureAwait(false);
 
                 using var next = await conn.Frames.ReadOrEndAsync(IdleTimeout, session.Token).ConfigureAwait(false);
                 if (next is null)
@@ -595,9 +727,22 @@ public sealed class TransferServer : IAsyncDisposable
         {
             session.Fail(ex.Code, ex.Message);
         }
+        catch (TimeoutException ex) when (session.CanPark)
+        {
+            // Sin datos hace rato con un emisor que sabe reanudar: se espera a que vuelva.
+            session.RemoveConnection(conn);
+            if (!session.TryPark())
+                session.Fail(ErrorCodes.Timeout, ex.Message);
+        }
         catch (Exception ex) when (ex is ProtocolException or TimeoutException or System.Security.Authentication.AuthenticationException)
         {
             session.Fail(ex is TimeoutException ? ErrorCodes.Timeout : ErrorCodes.Protocol, ex.Message);
+        }
+        catch (IOException) when (session.CanPark)
+        {
+            // Corte de red: lo recibido quedó guardado; la sesión se pausa cuando se note en el canal de control (o el
+            // emisor la retoma antes).
+            session.RemoveConnection(conn);
         }
         catch (IOException ex)
         {
@@ -613,30 +758,44 @@ public sealed class TransferServer : IAsyncDisposable
         }
     }
 
-    /// <summary>Recibe un archivo: CHUNK* y FILE_END. Responde con FILE_RESULT.</summary>
-    private async Task ReceiveFileAsync(PeerConnection conn, ReceiveSession session, PlannedFile planned)
+    /// <summary>
+    /// Recibe un archivo: CHUNK* y FILE_END. Responde con FILE_RESULT. Si llega <paramref name="partial"/>, es lo que ya
+    /// se tenía de antes de un corte: se sigue escribiendo ahí. Si la conexión se corta a mitad y el emisor sabe
+    /// reanudar, lo recibido se guarda en la sesión en lugar de borrarse.
+    /// </summary>
+    private async Task ReceiveFileAsync(PeerConnection conn, ReceiveSession session, PlannedFile planned, IncomingFile? partial)
     {
         var ct = session.Token;
-        IncomingFile? file = null;
+        var fileId = planned.Offer.FileId;
+        IncomingFile? file = partial;
         string? openError = null;
+        var kept = false;
+        var finished = false;
         try
         {
-            file = IncomingFile.Create(planned, session.Plan.Root, session.Policy, session.SessionId[..10]);
-        }
-        catch (TransferException ex) when (ex.Code != ErrorCodes.DiskFull)
-        {
-            openError = ex.Code;
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            if (ex is IOException io && IncomingFile.IsDiskFull(io))
-                throw new TransferException(ErrorCodes.DiskFull, ex.Message);
-            openError = ErrorCodes.Io;
-        }
+            if (file is not null)
+            {
+                file.PrepareResume();
+            }
+            else
+            {
+                try
+                {
+                    file = IncomingFile.Create(planned, session.Plan.Root, session.Policy, session.SessionId[..10]);
+                }
+                catch (TransferException ex) when (ex.Code != ErrorCodes.DiskFull)
+                {
+                    openError = ex.Code;
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    if (ex is IOException io && IncomingFile.IsDiskFull(io))
+                        throw new TransferException(ErrorCodes.DiskFull, ex.Message);
+                    openError = ErrorCodes.Io;
+                }
+            }
 
-        await using (file)
-        {
-            long received = 0;
+            long received = file?.Written ?? 0;
             while (true)
             {
                 using var frame = await conn.Frames.ReadAsync(IdleTimeout, ct).ConfigureAwait(false);
@@ -655,7 +814,7 @@ public sealed class TransferServer : IAsyncDisposable
                     throw new ProtocolException("Mensaje inesperado durante un archivo.");
 
                 var end = frame.Parse(ProtocolJsonContext.Default.FileEndMessage);
-                if (end.FileId != planned.Offer.FileId)
+                if (end.FileId != fileId)
                     throw new ProtocolException("FILE_END de otro archivo.");
 
                 string? error = openError;
@@ -682,12 +841,31 @@ public sealed class TransferServer : IAsyncDisposable
 
                 await conn.Frames.SendAsync(FrameType.FileResult, new FileResultMessage
                 {
-                    FileId = planned.Offer.FileId,
+                    FileId = fileId,
                     Ok = error is null,
                     Error = error,
                 }, ProtocolJsonContext.Default.FileResultMessage, ct).ConfigureAwait(false);
-                session.MarkFileDone(planned.Offer.FileId, error is null, finalPath);
+                session.MarkFileDone(fileId, error is null, finalPath);
+                finished = true;
                 return;
+            }
+        }
+        catch (Exception ex) when (!finished && file is not null && openError is null
+                                   && ex is IOException or OperationCanceledException or TimeoutException
+                                   && session.StashPartial(fileId, file))
+        {
+            // Corte a mitad del archivo: lo recibido queda guardado para cuando el emisor vuelva.
+            kept = true;
+            throw;
+        }
+        finally
+        {
+            if (!kept)
+            {
+                if (!finished)
+                    session.StopReceiving(fileId);
+                if (file is not null)
+                    await file.DisposeAsync().ConfigureAwait(false);
             }
         }
     }
@@ -730,14 +908,40 @@ public sealed class TransferServer : IAsyncDisposable
     private void CheckIdleSessions()
     {
         List<ReceiveSession> idle;
+        List<ReceiveSession> expired;
         lock (_lock)
         {
             idle = _sessions.Values
                 .Where(s => s.State is ReceiveState.Accepted or ReceiveState.Transferring && s.IdleMilliseconds > IdleTimeout.TotalMilliseconds)
                 .ToList();
+            expired = _sessions.Values
+                .Where(s => s.State == ReceiveState.Parked && s.ParkedSince is { } since && DateTimeOffset.UtcNow - since > ParkTimeout)
+                .ToList();
         }
+        // Sin datos hace rato: con un emisor que sabe reanudar, se espera a que vuelva; si no, se cierra.
         foreach (var s in idle)
-            s.Fail(ErrorCodes.Timeout, "Sin actividad.");
+        {
+            if (!s.TryPark())
+                s.Fail(ErrorCodes.Timeout, "Sin actividad.");
+        }
+        foreach (var s in expired)
+        {
+            s.Fail(ErrorCodes.Unreachable, "El emisor no volvió.");
+            FinishSession(s);
+        }
+    }
+
+    /// <summary>Cuánto espera una recepción en pausa a que el emisor vuelva (cambio de red, suspensión breve).</summary>
+    internal TimeSpan ParkTimeout { get; set; } = TimeSpan.FromMinutes(5);
+
+    /// <summary>Solo para pruebas: corta todas las conexiones de las sesiones en curso, como un cambio de red.</summary>
+    internal void DropConnectionsForTesting()
+    {
+        List<ReceiveSession> sessions;
+        lock (_lock)
+            sessions = [.. _sessions.Values];
+        foreach (var s in sessions)
+            s.AbortConnectionsForTesting();
     }
 
     private static async Task TrySendAsync<T>(PeerConnection conn, FrameType type, T message, System.Text.Json.Serialization.Metadata.JsonTypeInfo<T> info)

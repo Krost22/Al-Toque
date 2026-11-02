@@ -58,6 +58,12 @@ public static class ContactGroups
     public static List<ContactGroup> RemoveMember(IReadOnlyList<ContactGroup>? groups, string id, string deviceId) =>
         Map(groups, id, g => g with { Members = g.Members.Where(m => m != deviceId).ToList() });
 
+    /// <summary>El mismo compañero con otra identidad (reinstaló): ocupa su lugar en cada grupo donde estaba.</summary>
+    public static List<ContactGroup> ReplaceMember(IReadOnlyList<ContactGroup>? groups, string oldId, string newId) =>
+        Copy(groups).Select(g => g.Members.Contains(oldId)
+            ? g with { Members = g.Members.Select(m => m == oldId ? newId : m).Distinct(StringComparer.Ordinal).ToList() }
+            : g).ToList();
+
     /// <summary>Quita de todos los grupos a quien ya no es compañero (se quitó o se bloqueó).</summary>
     public static List<ContactGroup> Prune(IReadOnlyList<ContactGroup>? groups, Func<string, bool> isContact) =>
         Copy(groups).Select(g => g with { Members = g.Members.Where(isContact).ToList() }).ToList();

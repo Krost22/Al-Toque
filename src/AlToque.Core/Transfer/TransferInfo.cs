@@ -12,6 +12,10 @@ public enum TransferState
     Connecting,
     WaitingForAccept,
     Transferring,
+
+    /// <summary>Se cortó la conexión a mitad: se espera para seguir desde donde quedó (cambio de red, suspensión).</summary>
+    Reconnecting,
+
     Completed,
     PartiallyCompleted,
     Declined,
@@ -118,6 +122,17 @@ public sealed class TransferInfo
     }
 
     internal void FileFailed() => Interlocked.Increment(ref _filesFailed);
+
+    /// <summary>Al reanudar: lo que el receptor ya tiene (pudo perderse algo en vuelo al cortarse).</summary>
+    internal void SetTransferred(long bytes)
+    {
+        Interlocked.Exchange(ref _transferred, Math.Max(0, bytes));
+        lock (_lock)
+        {
+            _lastSampleTicks = 0;
+            _speed = 0;
+        }
+    }
 
     internal void SetState(TransferState state, string? errorCode = null, string? detail = null)
     {

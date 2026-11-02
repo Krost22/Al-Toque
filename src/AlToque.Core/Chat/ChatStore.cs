@@ -426,6 +426,59 @@ public sealed class ChatStore
         Changed?.Invoke(peerId, null);
     }
 
+    /// <summary>
+    /// El compañero reinstaló Al Toque (tiene otra identidad) y el usuario confirmó que es el mismo equipo: la
+    /// conversación anterior pasa a la nueva como historial y la vieja desaparece. Lo anterior no cuenta para la
+    /// numeración nueva (el otro empieza de cero), ni se le vuelve a mandar.
+    /// </summary>
+    public void Merge(string fromPeerId, string intoPeerId)
+    {
+        CheckPeer(fromPeerId);
+        CheckPeer(intoPeerId);
+        if (fromPeerId == intoPeerId)
+            return;
+        lock (_lock)
+        {
+            if (!_conversations.Remove(fromPeerId, out var old))
+                return;
+            var target = Get(intoPeerId);
+            List<ChatEvent> events = [];
+            foreach (var m in old.Messages)
+            {
+                if (target.ById.ContainsKey(m.Id))
+                    continue;
+                var copy = new ChatMessage
+                {
+                    Id = m.Id,
+                    Author = m.Author,
+                    Seq = 0,
+                    Time = m.Time,
+                    ReceivedAt = m.ReceivedAt,
+                    Kind = m.Kind,
+                    Text = m.Text,
+                    Delivered = m.Delivered,
+                    Files = m.Files,
+                    FileCount = m.FileCount,
+                    TotalBytes = m.TotalBytes,
+                    Result = m.Result,
+                    Folder = m.Folder,
+                };
+                AddLocked(target, copy);
+                events.Add(new ChatEvent { T = "msg", Msg = copy });
+            }
+            if (old.ReadAt > target.ReadAt)
+            {
+                target.ReadAt = old.ReadAt;
+                events.Add(new ChatEvent { T = "read", At = old.ReadAt });
+            }
+            if (events.Count > 0)
+                Append(intoPeerId, [.. events]);
+            SecureFile.TryDelete(PathFor(fromPeerId));
+        }
+        Changed?.Invoke(fromPeerId, null);
+        Changed?.Invoke(intoPeerId, null);
+    }
+
     // ── Estado en memoria ───────────────────────────────────────────────────────
 
     private Conversation Get(string peerId)

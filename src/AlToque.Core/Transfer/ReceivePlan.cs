@@ -13,6 +13,12 @@ public sealed class PlannedFile
 
     public required string FinalPath { get; init; }
 
+    /// <summary>
+    /// Si hubo que renombrarlo ("foto (1).jpg") porque el nombre estaba ocupado, la ruta que tenía antes: si ahí ya
+    /// está exactamente el mismo contenido, no se guarda otra copia.
+    /// </summary>
+    public string? WantedPath { get; init; }
+
     /// <summary>Tenía caracteres ocultos (bidireccionales) que se eliminaron.</summary>
     public bool HadHiddenCharacters { get; init; }
 
@@ -75,6 +81,7 @@ public sealed class ReceivePlan
                 Offer = f.Offer,
                 Components = f.Components,
                 FinalPath = f.FinalPath,
+                WantedPath = f.WantedPath,
                 HadHiddenCharacters = f.HadHiddenCharacters,
                 Dangerous = f.Dangerous,
                 MisleadingName = f.MisleadingName,
@@ -150,11 +157,13 @@ public sealed class ReceivePlan
             var components = ApplyRename(name.Components, renames);
             var finalPath = NameSanitizer.Combine(fullRoot, components);
             var exists = File.Exists(finalPath) || Directory.Exists(finalPath);
+            var renamed = !ReferenceEquals(components, name.Components);
             planned.Add(new PlannedFile
             {
                 Offer = f,
                 Components = components,
                 FinalPath = finalPath,
+                WantedPath = renamed ? NameSanitizer.Combine(fullRoot, name.Components) : null,
                 HadHiddenCharacters = name.HadHiddenCharacters,
                 Dangerous = FileKinds.IsDangerous(components[^1]),
                 MisleadingName = name.HadHiddenCharacters || FileKinds.HasMisleadingDoubleExtension(components[^1]),

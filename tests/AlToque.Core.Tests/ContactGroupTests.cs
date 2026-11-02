@@ -58,6 +58,19 @@ public class ContactGroupTests
     }
 
     [Fact]
+    public void AReinstalledTeammateKeepsItsPlaceInEachGroup()
+    {
+        var before = NewDeviceId();
+        var after = NewDeviceId();
+        var other = NewDeviceId();
+        var (groups, a) = ContactGroups.Create(null, "Oficina", [other, before]);
+        (groups, var b) = ContactGroups.Create(groups, "Familia", [other]);
+        groups = ContactGroups.ReplaceMember(groups, before, after);
+        Assert.Equal([other, after], groups.Single(g => g.Id == a!.Id).Members);
+        Assert.Equal([other], groups.Single(g => g.Id == b!.Id).Members);
+    }
+
+    [Fact]
     public void BadNamesAndTooManyGroupsAreRefused()
     {
         Assert.Null(ContactGroups.Create(null, "‮​").Created);

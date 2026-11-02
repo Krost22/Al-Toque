@@ -124,7 +124,7 @@ public partial class QuickPanelWindow : Window
         TourStep[] steps =
         [
             new(["PeerList", "NobodyView"], S.Tour1Title, hasPeers ? S.Tour1Body : S.Tour1Nobody, ChasquiState.Attentive),
-            new(["PairLink", "NobodyPair"], S.Tour2Title, S.Tour2Body, ChasquiState.Waiting),
+            new(["NearbyArea", "PairLink", "NobodyPair"], S.Tour2Title, S.Tour2Body, ChasquiState.Waiting),
             new(["MinimizeButton"], S.Tour3Title, S.Tour3Body, ChasquiState.Success),
         ];
         void OnFinished()

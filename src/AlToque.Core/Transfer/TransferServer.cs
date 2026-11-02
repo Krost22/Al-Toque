@@ -201,6 +201,9 @@ public sealed class TransferServer : IAsyncDisposable
             return true;
         if (_ctx.EffectiveMode() == ReceiveMode.Everyone || _ctx.Pairing.IsWindowOpen)
             return true;
+        // Un equipo cercano puede pedir conectarse (solo sirve para emparejar: lo demás exige confianza).
+        if (_ctx.Pairing.AcceptsRequestFrom?.Invoke(id) == true)
+            return true;
         lock (_lock)
             return _sessions.Values.Any(s => s.IsActive && s.IsSender(spki));
     }

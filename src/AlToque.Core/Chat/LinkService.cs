@@ -21,6 +21,9 @@ public sealed class LinkService : IAsyncDisposable
     private static readonly TimeSpan HelloTimeout = TimeSpan.FromSeconds(5);
     private static readonly int[] BackoffSeconds = [2, 4, 8, 15, 30, 60];
 
+    /// <summary>Dos enlaces que nacen con menos de esto de diferencia son los dos lados marcando a la vez.</summary>
+    private static readonly TimeSpan SimultaneousDialWindow = TimeSpan.FromSeconds(5);
+
     /// <summary>A un equipo que no habla el enlace (versión anterior) se le vuelve a probar cada 10 minutos.</summary>
     private const int IncompatibleBackoffSeconds = 600;
 
@@ -44,6 +47,7 @@ public sealed class LinkService : IAsyncDisposable
         public readonly bool Outgoing = outgoing;
         public readonly CancellationTokenSource Cts = new();
         public readonly SemaphoreSlim PushGate = new(1, 1);
+        public readonly long CreatedAt = Environment.TickCount64;
         public long LastHeard = Environment.TickCount64;
 
         /// <summary>Hasta qué número de mis mensajes ya mandé por este enlace.</summary>
@@ -284,17 +288,21 @@ public sealed class LinkService : IAsyncDisposable
     }
 
     /// <summary>
-    /// ¿Se queda el enlace nuevo? Manda el que inició el identificador menor; entre dos del mismo tipo, el más nuevo
-    /// (el viejo suele estar muerto tras un cambio de red). Un enlace callado hace rato siempre se reemplaza.
+    /// ¿Se queda el enlace nuevo? Cada lado marca solo cuando no tiene enlace, así que un enlace nuevo sobre uno que
+    /// ya tiene unos segundos significa que el otro perdió el viejo (cambió de red, se reinició): el nuevo lo
+    /// reemplaza. Si los dos marcan a la vez, manda el que inició el identificador menor; entre dos del mismo tipo,
+    /// el más nuevo. Un enlace callado hace rato siempre se reemplaza.
     /// </summary>
     private bool Prefer(Link candidate, Link existing)
     {
-        if (Environment.TickCount64 - existing.LastHeard > 2 * PingInterval.TotalMilliseconds)
-            return true;
-        var canonicalNew = IsCanonical(candidate);
-        var canonicalOld = IsCanonical(existing);
-        return canonicalNew || !canonicalOld;
+        var now = Environment.TickCount64;
+        return Prefer(IsCanonical(candidate), IsCanonical(existing), TimeSpan.FromMilliseconds(now - existing.CreatedAt),
+            TimeSpan.FromMilliseconds(now - existing.LastHeard));
     }
+
+    /// <summary>La regla de <see cref="Prefer(Link, Link)"/>, sin estado (se prueba aparte).</summary>
+    internal static bool Prefer(bool candidateCanonical, bool existingCanonical, TimeSpan existingAge, TimeSpan existingSilence) =>
+        existingSilence > 2 * PingInterval || existingAge > SimultaneousDialWindow || candidateCanonical || !existingCanonical;
 
     private bool IsCanonical(Link link) => link.Outgoing == (string.CompareOrdinal(_identity.DeviceId, link.PeerId) < 0);
 

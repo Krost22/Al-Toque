@@ -7,7 +7,7 @@ using AlToque.Core.Storage;
 namespace AlToque.Core.Discovery;
 
 /// <summary>Lo que este equipo anuncia. <c>null</c> = invisible (modo "Nadie").</summary>
-public sealed record DiscoveryAdvert(int Port, string? Alias, string? Os, bool Busy, bool Pairing, string? Avatar = null);
+public sealed record DiscoveryAdvert(int Port, string? Alias, string? Os, bool Busy, bool Pairing, string? Avatar = null, bool PairRequests = false);
 
 /// <summary>Pista recibida por UDP. No prueba nada: la identidad se verifica después con TLS.</summary>
 public sealed record DiscoveryHint(
@@ -207,7 +207,9 @@ public sealed class DiscoveryService : IDisposable
             Av = advert?.Alias is null ? null : TextLimits.CleanAvatar(advert.Avatar),
             Busy = advert?.Busy ?? false,
             Pairing = advert?.Pairing ?? false,
-            Caps = advert is null ? null : [.. Protocol.Capabilities.Local],
+            Caps = advert is null ? null
+                : advert.PairRequests ? [.. Protocol.Capabilities.Local, Protocol.Capabilities.PairRequest]
+                : [.. Protocol.Capabilities.Local],
         };
         var bytes = packet.ToBytes();
         try

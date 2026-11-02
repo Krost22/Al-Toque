@@ -80,7 +80,7 @@ public sealed class AppController
     {
         try
         {
-            Agent = AgentHost.Create(new AgentOptions { IsPublicNetwork = NetworkCategory.IsOnPublicNetwork });
+            Agent = AgentHost.Create(new AgentOptions { IsPublicNetwork = NetworkCategory.IsOnPublicNetwork, AllowPairRequests = true });
         }
         catch (Exception ex)
         {
@@ -403,9 +403,17 @@ public sealed class AppController
         RefreshPeers();
     }
 
-    /// <summary>Clic en un compañero: envía lo pendiente, pide archivos o, si quiere emparejar, empareja.</summary>
+    /// <summary>Clic (o archivos soltados) en un compañero: envía, pide archivos o, si todavía no es compañero, pide conectarse.</summary>
     public async void OnPeerClicked(PeerViewModel peer, IReadOnlyList<string>? paths, string? message)
     {
+        // Un equipo cercano que todavía no es compañero: primero se conectan; lo que se soltó sale después.
+        if (!peer.IsTrusted && peer.CanConnect)
+        {
+            if (Panel.HasPending)
+                Panel.SetPending(null);
+            RequestConnection(peer, paths, message);
+            return;
+        }
         if (paths is not { Count: > 0 })
         {
             if (peer.IsPairing && !peer.IsTrusted)
@@ -509,7 +517,7 @@ public sealed class AppController
 
     private void RefreshMode()
     {
-        Panel.SyncMode(Agent.EffectiveMode, Agent.EveryoneUntil, Agent.Trust.All.Count, Agent.IsReceivingPausedByNetwork);
+        Panel.SyncMode(Agent.EffectiveMode, Agent.EveryoneUntil, Agent.Trust.All.Count, Agent.IsReceivingPausedByNetwork, Agent.IsVisibleNearby);
         Main?.RefreshMode();
         Pairing?.SyncNetwork(Agent.IsReceivingPausedByNetwork);
         UpdateTray();
@@ -613,6 +621,9 @@ public sealed class AppController
         // Los avisos de mensajes se retiran solos a los 8 s (salvo con el ratón encima).
         foreach (var (window, vm) in _messageToasts.Where(t => DateTimeOffset.Now - t.Vm.ShownAt > TimeSpan.FromSeconds(8) && !t.Window.IsHovered).ToList())
             CloseMessageToast(vm);
+        // Una solicitud ya resuelta se retira sola a los pocos segundos.
+        foreach (var (_, vm) in _pairRequests.Where(r => r.Vm.FinishedAt is { } f && DateTimeOffset.Now - f > TimeSpan.FromSeconds(r.Vm.IsDone ? 10 : 5) && !r.Window.IsHovered).ToList())
+            ClosePairRequest(vm);
         Panel.Tick();
         foreach (var (_, vm) in _offers)
             vm.Tick();
@@ -698,6 +709,11 @@ public sealed class AppController
             offset += window.Bounds.Height - overlap;
         }
         foreach (var (window, _) in _messageToasts)
+        {
+            FloatingWindow.PlaceBottomRight(window, Math.Max(0, offset), left);
+            offset += window.Bounds.Height - overlap;
+        }
+        foreach (var (window, _) in _pairRequests)
         {
             FloatingWindow.PlaceBottomRight(window, Math.Max(0, offset), left);
             offset += window.Bounds.Height - overlap;
@@ -1087,8 +1103,56 @@ public sealed class AppController
         _pairingWindow.Activate();
     }
 
+    /// <summary>
+    /// Clic en un equipo de «Cerca de ti»: se le pide conectarse sin que tenga que abrir «Emparejar». La ventana de
+    /// emparejamiento muestra el código; lo que estaba esperando destino (clic derecho) sale al quedar conectados.
+    /// </summary>
+    public void RequestConnection(PeerViewModel peer, IReadOnlyList<string>? pending, string? message)
+    {
+        _afterPairing = pending is { Count: > 0 } ? (peer.DeviceId, pending, message) : null;
+        ShowPairing();
+        Pairing!.PairWith.Execute(peer);
+    }
+
+    private (string PeerId, IReadOnlyList<string> Paths, string? Message)? _afterPairing;
+    private readonly List<(PairRequestWindow Window, PairRequestViewModel Vm)> _pairRequests = [];
+
+    /// <summary>Alguien cercano pidió conectarse: aviso flotante con el código, «Conectar» y «Ahora no».</summary>
+    private void ShowPairRequest(PairingPrompt prompt)
+    {
+        var vm = new PairRequestViewModel(prompt, OpenChat, ClosePairRequest);
+        var window = new PairRequestWindow { DataContext = vm };
+        window.LayoutChanged += LayoutToasts;
+        prompt.Aborted.Register(() => Post(() =>
+        {
+            // El otro se retiró antes de que se respondiera: el aviso se va.
+            if (vm.IsAsking)
+                ClosePairRequest(vm);
+        }));
+        _pairRequests.Add((window, vm));
+        window.Show();
+        LayoutToasts();
+        if (Agent.Settings.Current.Sounds)
+            SystemPrefs.Play(SystemPrefs.Sound.Incoming);
+    }
+
+    private void ClosePairRequest(PairRequestViewModel vm)
+    {
+        var entry = _pairRequests.FirstOrDefault(r => r.Vm == vm);
+        if (entry.Window is null)
+            return;
+        _pairRequests.Remove(entry);
+        entry.Window.Close();
+        LayoutToasts();
+    }
+
     private void OnPairingPrompt(PairingPrompt prompt)
     {
+        if (prompt.IsRequest)
+        {
+            ShowPairRequest(prompt);
+            return;
+        }
         if (_pairingWindow is null)
             ShowPairing();
         Pairing!.ShowPrompt(prompt);
@@ -1099,10 +1163,24 @@ public sealed class AppController
 
     private void OnPairingFinished(string deviceId, PairingOutcome outcome)
     {
+        // Lo que esperaba destino sale en cuanto quedan conectados.
+        if (_afterPairing is { } after && after.PeerId == deviceId)
+        {
+            _afterPairing = null;
+            if (outcome == PairingOutcome.Paired)
+                _ = SendToPeerAsync(deviceId, NameOf(deviceId), after.Paths, after.Message);
+        }
         if (Pairing is null || _pairingWindow is null)
             return;
         var name = Pairing.Prompt?.PeerName ?? Agent.Trust.Find(deviceId)?.DisplayName ?? "";
         Pairing.ShowOutcome(outcome, name);
+    }
+
+    /// <summary>Se cambió «Visible para equipos cercanos»: el anuncio sale ya y los textos del panel cambian.</summary>
+    public void OnVisibilityChanged()
+    {
+        Agent.Discovery?.AnnounceSoon();
+        RefreshMode();
     }
 
     // ── Otras ventanas ───────────────────────────────────────────────────────────

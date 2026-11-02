@@ -28,8 +28,8 @@ public static partial class S
     public static string Tour1Nobody => T("Cuando otro equipo de tu red abra Al Toque, aparecerá aquí. Si la red bloquea la búsqueda, conéctense con un código.",
         "When another device on your network opens Al Toque, it shows up here. If the network blocks discovery, connect with a code.");
     public static string Tour2Title => T("Conecta un equipo nuevo", "Connect a new device");
-    public static string Tour2Body => T("Pulsen «Emparejar» en los dos y comparen el código de 6 cifras: desde entonces se envían sin preguntar.",
-        "Press “Pair” on both and compare the 6-digit code: from then on you send to each other without asking.");
+    public static string Tour2Body => T("Toca un equipo en «Cerca de ti»: la otra persona acepta y los dos ven el mismo código de 6 cifras. Desde entonces se envían sin preguntar.",
+        "Tap a device under “Nearby”: the other person accepts and you both see the same 6-digit code. From then on you send without asking.");
     public static string Tour3Title => T("Siempre a mano", "Always at hand");
     public static string Tour3Body => T("Al Toque vive en la barra de tareas: «—» lo minimiza y sigue recibiendo. Para salir, clic derecho en su botón › Salir de Al Toque.",
         "Al Toque lives in the taskbar: “—” minimizes it and it keeps receiving. To quit, right-click its button › Quit Al Toque.");

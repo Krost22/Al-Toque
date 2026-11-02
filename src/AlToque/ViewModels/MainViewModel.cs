@@ -278,6 +278,17 @@ public sealed class MainViewModel : ViewModelBase
         set => Update(s => s.AllowPublicNetworks = value);
     }
 
+    /// <summary>Los equipos cercanos ven el nombre para pedir conectarse; se anuncia enseguida el cambio.</summary>
+    public bool VisibleNearby
+    {
+        get => _app.Agent.Settings.Current.VisibleNearby;
+        set
+        {
+            Update(s => s.VisibleNearby = value);
+            _app.OnVisibilityChanged();
+        }
+    }
+
     public bool ExcludeVirtual
     {
         get => _app.Agent.Settings.Current.ExcludeVirtualAdapters;

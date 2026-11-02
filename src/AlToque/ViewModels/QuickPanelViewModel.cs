@@ -59,11 +59,17 @@ public sealed class QuickPanelViewModel : ViewModelBase
             if (p is not PeerViewModel peer)
                 return;
             // A un compañero de confianza se le abre el chat (el fijado en la esquina, si lo está); con archivos
-            // pendientes (clic derecho), se le envían.
+            // pendientes (clic derecho), se le envían. A un equipo cercano se le pide conectarse.
             if (peer.IsTrusted && !HasPending)
             {
                 if (!_app.FocusPinned(peer.DeviceId))
                     OpenChat(peer.DeviceId);
+            }
+            else if (!peer.IsTrusted && peer.CanConnect)
+            {
+                var pending = PendingPaths;
+                SetPending(null);
+                _app.RequestConnection(peer, pending, MessageOrNull);
             }
             else
                 _app.OnPeerClicked(peer, PendingPaths, MessageOrNull);
@@ -76,7 +82,16 @@ public sealed class QuickPanelViewModel : ViewModelBase
         });
     }
 
+    /// <summary>Compañeros de confianza (en línea o no).</summary>
     public ObservableCollection<PeerViewModel> Peers { get; } = [];
+
+    /// <summary>«Cerca de ti»: equipos en esta red que todavía no son compañeros; un clic pide conectarse.</summary>
+    public ObservableCollection<PeerViewModel> Nearby { get; } = [];
+
+    public bool HasNearby => Nearby.Count > 0;
+
+    /// <summary>Hay alguien a la vista: compañeros o equipos cercanos.</summary>
+    private bool HasAnyone => Peers.Count > 0 || Nearby.Count > 0;
 
     // ── Chat abierto ────────────────────────────────────────────────────────────
 
@@ -165,18 +180,19 @@ public sealed class QuickPanelViewModel : ViewModelBase
     public bool ReduceMotion { get => _reduceMotion; set => Set(ref _reduceMotion, value); }
 
     public bool HasPeers => Peers.Count > 0;
-    public bool ShowNobody => Peers.Count == 0 && !_searching;
-    public bool ShowSearching => Peers.Count == 0 && _searching;
+    public bool ShowNobody => !HasAnyone && !_searching;
+    public bool ShowSearching => !HasAnyone && _searching;
     public bool HasRecent => Recent.Count > 0;
 
     // ── Estados visuales del panel ───────────────────────────────────────────────
 
     /// <summary>"No veo a nadie": vista grande con Chasqui buscando y consejos.</summary>
-    public bool ShowNobodyView => Peers.Count == 0 && !DragOver && !HasPending;
+    public bool ShowNobodyView => !HasAnyone && !DragOver && !HasPending;
 
-    public bool ShowReadyCard => !DragOver && !HasPending && Peers.Count > 0;
+    public bool ShowReadyCard => !DragOver && !HasPending && HasAnyone;
     public bool ShowPeersArea => Peers.Count > 0;
-    public bool ShowRecentArea => HasRecent && !DragOver && !HasPending && Peers.Count > 0;
+    public bool ShowNearbyArea => Nearby.Count > 0;
+    public bool ShowRecentArea => HasRecent && !DragOver && !HasPending && HasAnyone;
     public bool ShowDropForLater => DragOver && !HasPending;
     public string PeersCountText => S.InThisNetwork(Peers.Count(p => p.IsOnline));
     public string DragSummary { get => _dragSummary; private set => Set(ref _dragSummary, value); }
@@ -186,8 +202,10 @@ public sealed class QuickPanelViewModel : ViewModelBase
     {
         ReceiveMode.Nobody => S.NobodyInvisible,
         ReceiveMode.Everyone => S.NobodyVisibleEveryone,
-        _ => S.NobodyVisibleTrusted,
+        _ => _visibleNearby ? S.NobodyVisibleNearby : S.NobodyVisibleTrusted,
     };
+
+    private bool _visibleNearby;
     public bool IsVisibleOnNetwork => _mode != ReceiveMode.Nobody && !NetworkPublic;
 
     public bool ModeNobody
@@ -235,6 +253,7 @@ public sealed class QuickPanelViewModel : ViewModelBase
         Raise(nameof(ShowNobodyView));
         Raise(nameof(ShowReadyCard));
         Raise(nameof(ShowPeersArea));
+        Raise(nameof(ShowNearbyArea));
         Raise(nameof(ShowRecentArea));
         Raise(nameof(ShowDropForLater));
         Raise(nameof(PeersCountText));
@@ -277,7 +296,7 @@ public sealed class QuickPanelViewModel : ViewModelBase
         {
             if (!Set(ref _dragOver, value))
                 return;
-            foreach (var p in Peers)
+            foreach (var p in Peers.Concat(Nearby))
                 p.IsDragging = value;
             RaiseLayout();
             UpdateChasqui();
@@ -349,47 +368,59 @@ public sealed class QuickPanelViewModel : ViewModelBase
 
     public void SyncPeers(IReadOnlyList<PeerInfo> snapshot)
     {
-        // Favoritos primero, luego los que están en línea; el resto por nombre.
-        var visible = snapshot.Where(p => p.IsTrusted || p.Presence == PeerPresence.Online)
-            .OrderByDescending(p => p.IsTrusted && p.IsFavorite)
+        // Compañeros: favoritos primero, luego los que están en línea; el resto por nombre.
+        var contacts = snapshot.Where(p => p.IsTrusted)
+            .OrderByDescending(p => p.IsFavorite)
             .ThenByDescending(p => p.Presence == PeerPresence.Online)
             .ThenBy(p => p.DisplayName, StringComparer.CurrentCultureIgnoreCase)
             .ToList();
-        for (int i = Peers.Count - 1; i >= 0; i--)
-        {
-            if (visible.All(v => v.DeviceId != Peers[i].DeviceId))
-                Peers.RemoveAt(i);
-        }
-        for (int i = 0; i < visible.Count; i++)
-        {
-            var info = visible[i];
-            var existing = Peers.FirstOrDefault(p => p.DeviceId == info.DeviceId);
-            if (existing is null)
-            {
-                existing = new PeerViewModel(info.DeviceId);
-                Peers.Insert(Math.Min(i, Peers.Count), existing);
-            }
-            else
-            {
-                var at = Peers.IndexOf(existing);
-                if (at != i && i < Peers.Count)
-                    Peers.Move(at, i);
-            }
-            existing.Update(info);
-        }
-        if (visible.Any(p => p.Presence == PeerPresence.Online))
+        // Cerca de ti: los que se ven ahora en la red y todavía no son compañeros.
+        var nearby = snapshot.Where(p => !p.IsTrusted && p.Presence == PeerPresence.Online)
+            .OrderBy(p => p.DisplayName, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+        SyncList(Peers, contacts);
+        SyncList(Nearby, nearby);
+        if (contacts.Any(p => p.Presence == PeerPresence.Online) || nearby.Count > 0)
             _searching = false;
         Raise(nameof(HasPeers));
+        Raise(nameof(HasNearby));
         Raise(nameof(ShowNobody));
         Raise(nameof(ShowSearching));
         RaiseLayout();
         UpdateChasqui();
     }
 
+    /// <summary>Lleva la colección al orden de la instantánea sin recrear las tarjetas (no se repiten las animaciones).</summary>
+    private static void SyncList(ObservableCollection<PeerViewModel> list, List<PeerInfo> visible)
+    {
+        for (int i = list.Count - 1; i >= 0; i--)
+        {
+            if (visible.All(v => v.DeviceId != list[i].DeviceId))
+                list.RemoveAt(i);
+        }
+        for (int i = 0; i < visible.Count; i++)
+        {
+            var info = visible[i];
+            var existing = list.FirstOrDefault(p => p.DeviceId == info.DeviceId);
+            if (existing is null)
+            {
+                existing = new PeerViewModel(info.DeviceId);
+                list.Insert(Math.Min(i, list.Count), existing);
+            }
+            else
+            {
+                var at = list.IndexOf(existing);
+                if (at != i && i < list.Count)
+                    list.Move(at, i);
+            }
+            existing.Update(info);
+        }
+    }
+
     /// <summary>Al abrir el panel se consulta la red; tras unos segundos sin nadie se muestra la ayuda.</summary>
     public void BeginSearch()
     {
-        _searching = !Peers.Any(p => p.IsOnline);
+        _searching = !Peers.Any(p => p.IsOnline) && Nearby.Count == 0;
         _searchStarted = DateTimeOffset.Now;
         Raise(nameof(ShowNobody));
         Raise(nameof(ShowSearching));
@@ -420,10 +451,11 @@ public sealed class QuickPanelViewModel : ViewModelBase
             Raise(nameof(SearchText));
     }
 
-    public void SyncMode(ReceiveMode mode, DateTimeOffset? everyoneUntil, int trustedCount, bool networkPublic)
+    public void SyncMode(ReceiveMode mode, DateTimeOffset? everyoneUntil, int trustedCount, bool networkPublic, bool visibleNearby = false)
     {
         _mode = mode;
         _trustedCount = trustedCount;
+        _visibleNearby = visibleNearby;
         _syncingMode = true;
         ModeIndex = mode switch
         {
@@ -437,7 +469,7 @@ public sealed class QuickPanelViewModel : ViewModelBase
         {
             ReceiveMode.Everyone => S.ModeHintEveryone(everyoneUntil is { } until ? until - DateTimeOffset.UtcNow : null),
             ReceiveMode.Nobody => S.ModeNobodyHint,
-            _ => S.ModeHintTrusted(_trustedCount),
+            _ => S.ModeHintTrusted(_trustedCount, visibleNearby),
         };
         Raise(nameof(HasModeHint));
         Raise(nameof(VisibilityText));
@@ -484,16 +516,16 @@ public sealed class QuickPanelViewModel : ViewModelBase
             Chasqui = ChasquiState.Attentive;
             Status = S.DropHere;
         }
-        else if (ShowSearching || Peers.Count == 0)
+        else if (ShowSearching || !HasAnyone)
         {
             // Sin nadie a la vista, Chasqui sigue buscando con el radar.
             Chasqui = ChasquiState.Searching;
-            Status = Peers.Count == 0 && !ShowSearching ? S.NobodyFound : S.Searching;
+            Status = !HasAnyone && !ShowSearching ? S.NobodyFound : S.Searching;
         }
         else
         {
             Chasqui = ChasquiState.Idle;
-            Status = Peers.Count == 0 ? S.NobodyFound : S.Tagline;
+            Status = S.Tagline;
         }
     }
 }

@@ -75,6 +75,12 @@ public sealed class AppSettings
     /// <summary>El historial de envíos ya se copió a los chats de cada compañero.</summary>
     public bool ChatsImported { get; set; }
 
+    /// <summary>
+    /// En redes privadas, los equipos cercanos ven el nombre y el avatar (aunque no sean de confianza) para poder
+    /// pedir conectarse en un clic. Apagado, solo los compañeros lo ven.
+    /// </summary>
+    public bool VisibleNearby { get; set; } = true;
+
     /// <summary>Chats fijados en la esquina de la pantalla: se vuelven a abrir donde estaban al iniciar.</summary>
     public List<PinnedChat>? PinnedChats { get; set; }
 

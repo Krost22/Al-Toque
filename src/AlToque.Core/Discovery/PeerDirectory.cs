@@ -31,6 +31,9 @@ public sealed record PeerInfo
     /// <summary>Tiene la ventana de emparejamiento abierta.</summary>
     public bool Pairing { get; init; }
 
+    /// <summary>Acepta solicitudes de conexión aunque no tenga «Emparejar» abierto (versión que las muestra como aviso).</summary>
+    public bool AcceptsRequests { get; init; }
+
     /// <summary>Se comprobó su clave por TLS en esta ejecución.</summary>
     public bool VerifiedThisSession { get; init; }
 
@@ -39,7 +42,7 @@ public sealed record PeerInfo
 
 /// <summary>
 /// Combina las pistas del descubrimiento, la lista de confianza y la caché de direcciones.
-/// Los desconocidos solo aparecen si anuncian alias (modo "Todos" o emparejamiento).
+/// Los desconocidos solo aparecen si anuncian alias (visibles para equipos cercanos, modo "Todos" o emparejamiento).
 /// </summary>
 public sealed class PeerDirectory
 {
@@ -247,6 +250,7 @@ public sealed class PeerDirectory
                     Presence = PeerPresence.Online,
                     Busy = live.Busy,
                     Pairing = live.Pairing,
+                    AcceptsRequests = live.Caps?.Contains(Protocol.Capabilities.PairRequest) == true,
                     VerifiedThisSession = _verified.Contains(live.DeviceId),
                     LastSeen = live.LastSeen,
                 });

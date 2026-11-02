@@ -643,7 +643,7 @@ public sealed class MobileViewModel : ViewModelBase
     {
         ReceiveMode.Nobody => S.ModeNobodyHint,
         ReceiveMode.Everyone => S.ModeHintEveryone(_agent.EveryoneUntil is { } u ? u - DateTimeOffset.UtcNow : null),
-        _ => S.ModeHintTrusted(_agent.Trust.All.Count),
+        _ => S.ModeHintTrusted(_agent.Trust.All.Count, _agent.IsVisibleNearby),
     };
 
     private void RefreshMode()

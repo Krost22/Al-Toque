@@ -48,6 +48,12 @@ public sealed class PairingPrompt
 
     public bool IsInitiator { get; }
 
+    /// <summary>
+    /// Llegó sin que este equipo abriera «Emparejar»: alguien cercano pide conectarse. La interfaz lo muestra como un
+    /// aviso con «Conectar» / «Ahora no» en vez de la ventana de emparejamiento.
+    /// </summary>
+    public bool IsRequest { get; init; }
+
     /// <summary>Avatar que mostró el otro equipo en su HELLO (solo decorativo).</summary>
     public string? PeerAvatar { get; init; }
 
@@ -93,6 +99,12 @@ public sealed class PairingService
     private static readonly TimeSpan UserTimeout = TimeSpan.FromSeconds(90);
     private const int MaxFailures = 3;
 
+    /// <summary>Solicitudes sin «Emparejar» abierto que se muestran por minuto, como mucho.</summary>
+    private const int MaxRequestsPerMinute = 3;
+
+    /// <summary>Tras «Ahora no» (o sin respuesta), ese equipo no puede volver a pedir durante un rato.</summary>
+    public static readonly TimeSpan DeclinedCooldown = TimeSpan.FromMinutes(10);
+
     private readonly DeviceIdentity _identity;
     private readonly TrustStore _trust;
     private readonly Func<string> _alias;
@@ -103,6 +115,8 @@ public sealed class PairingService
     private DateTimeOffset? _lockedUntil;
     private int _failures;
     private Timer? _windowTimer;
+    private readonly Queue<DateTimeOffset> _recentRequests = new();
+    private readonly Dictionary<string, DateTimeOffset> _declinedUntil = new(StringComparer.Ordinal);
 
     public PairingService(DeviceIdentity identity, TrustStore trust, Func<string> alias, Func<string?>? avatar = null)
     {
@@ -111,6 +125,12 @@ public sealed class PairingService
         _alias = alias;
         _avatar = avatar ?? (() => null);
     }
+
+    /// <summary>
+    /// ¿Se le puede mostrar a este usuario una solicitud de conexión de ese equipo sin que haya abierto «Emparejar»?
+    /// (red privada, no está en «Nadie», no está bloqueado…). Sin valor, solo se empareja con la ventana abierta.
+    /// </summary>
+    public Func<string, bool>? AcceptsRequestFrom { get; set; }
 
     /// <summary>Se abrió o cerró la ventana de emparejamiento.</summary>
     public event Action? WindowChanged;
@@ -181,7 +201,9 @@ public sealed class PairingService
             await SendErrorAsync(conn, ErrorCodes.PairingLocked, ct).ConfigureAwait(false);
             return;
         }
-        if (!IsWindowOpen)
+        // Con «Emparejar» cerrado, puede ser una solicitud de alguien cercano (si este equipo las acepta).
+        var isRequest = !IsWindowOpen;
+        if (isRequest && !TakeRequest(conn.RemoteDeviceId))
         {
             await SendErrorAsync(conn, ErrorCodes.NotPairing, ct).ConfigureAwait(false);
             return;
@@ -213,7 +235,11 @@ public sealed class PairingService
             }
 
             var code = ComputeCode(conn.RemoteFingerprint, _identity.Fingerprint, nA, nB);
-            prompt = new PairingPrompt(conn.RemoteDeviceId, CleanAlias(hello.Alias), code, isInitiator: false) { PeerAvatar = Capabilities.AvatarOf(hello.Caps) };
+            prompt = new PairingPrompt(conn.RemoteDeviceId, CleanAlias(hello.Alias), code, isInitiator: false)
+            {
+                PeerAvatar = Capabilities.AvatarOf(hello.Caps),
+                IsRequest = isRequest,
+            };
             outcome = await ConfirmAsync(conn, prompt, hello, ct).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is ProtocolException or IOException or TimeoutException or OperationCanceledException or System.Security.Authentication.AuthenticationException)
@@ -224,12 +250,41 @@ public sealed class PairingService
         {
             prompt?.Finish(outcome);
             RecordOutcome(outcome);
+            // «Ahora no» o sin respuesta a una solicitud: ese equipo espera antes de volver a pedir.
+            if (isRequest && outcome is PairingOutcome.Rejected or PairingOutcome.Timeout)
+            {
+                lock (_lock)
+                    _declinedUntil[conn.RemoteDeviceId] = DateTimeOffset.UtcNow + DeclinedCooldown;
+            }
             _busy.Release();
             Finished?.Invoke(conn.RemoteDeviceId, outcome);
         }
     }
 
-    /// <summary>Lado iniciador: me conecto a un equipo con la ventana abierta.</summary>
+    /// <summary>¿Se muestra esta solicitud? Lo decide el agente, con un tope por minuto y una espera tras un «no».</summary>
+    private bool TakeRequest(string deviceId)
+    {
+        if (AcceptsRequestFrom is not { } accepts || !accepts(deviceId))
+            return false;
+        var now = DateTimeOffset.UtcNow;
+        lock (_lock)
+        {
+            if (_declinedUntil.TryGetValue(deviceId, out var until))
+            {
+                if (until > now)
+                    return false;
+                _declinedUntil.Remove(deviceId);
+            }
+            while (_recentRequests.TryPeek(out var t) && now - t > TimeSpan.FromMinutes(1))
+                _recentRequests.Dequeue();
+            if (_recentRequests.Count >= MaxRequestsPerMinute)
+                return false;
+            _recentRequests.Enqueue(now);
+            return true;
+        }
+    }
+
+    /// <summary>Lado iniciador: me conecto a un equipo con la ventana abierta o que acepta solicitudes.</summary>
     public async Task<PairingOutcome> PairWithAsync(IPEndPoint endPoint, string? expectedDeviceId, CancellationToken ct)
     {
         PeerConnection conn;

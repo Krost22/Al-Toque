@@ -15,10 +15,17 @@ public static partial class S
     public static string SegEveryone => T("Todos", "Everyone");
     public static string SeeHistory => T("Ver historial", "See history");
     public static string WhoCanSend => T("Quién puede enviarte", "Who can send you files");
-    public static string ModeHintTrusted(int n) => n switch
+    /// <param name="visibleNearby">Los equipos cercanos ven el nombre para pedir conectarse (lo normal en redes privadas).</param>
+    public static string ModeHintTrusted(int n, bool visibleNearby = false) => (n, visibleNearby) switch
     {
-        0 => T("Aún no tienes compañeros de confianza. Empareja uno para recibir.", "You have no trusted teammates yet. Pair one to receive."),
-        1 => T("Solo tu compañero emparejado. Los demás ni siquiera ven tu nombre.", "Only your paired teammate. Others can't even see your name."),
+        (0, true) => T("Aún no tienes compañeros. Los equipos cercanos te ven y pueden pedirte conectar.",
+            "No teammates yet. Nearby devices can see you and ask to connect."),
+        (0, false) => T("Aún no tienes compañeros de confianza. Empareja uno para recibir.", "You have no trusted teammates yet. Pair one to receive."),
+        (1, true) => T("Solo tu compañero puede enviarte. Los equipos cercanos ven tu nombre para pedirte conectar.",
+            "Only your teammate can send you files. Nearby devices see your name to ask to connect."),
+        (1, false) => T("Solo tu compañero emparejado. Los demás ni siquiera ven tu nombre.", "Only your paired teammate. Others can't even see your name."),
+        (_, true) => T($"Solo tus {n} compañeros pueden enviarte. Los equipos cercanos ven tu nombre para pedirte conectar.",
+            $"Only your {n} teammates can send you files. Nearby devices see your name to ask to connect."),
         _ => T($"Solo tus {n} compañeros emparejados. Los demás ni siquiera ven tu nombre.", $"Only your {n} paired teammates. Others can't even see your name."),
     };
     public static string ModeHintEveryone(TimeSpan? left) => left is { } l
@@ -33,6 +40,7 @@ public static partial class S
         ? T($"Sigo buscando en «{network}» · {seconds} s", $"Still looking on “{network}” · {seconds} s")
         : T($"Sigo buscando · {seconds} s", $"Still looking · {seconds} s");
     public static string NobodyVisibleTrusted => T("Tu PC está visible para tus compañeros de confianza.", "Your PC is visible to your trusted teammates.");
+    public static string NobodyVisibleNearby => T("Tu PC está visible para los equipos cercanos.", "Your PC is visible to nearby devices.");
     public static string NobodyVisibleEveryone => T("Tu PC está visible para todos en esta red.", "Your PC is visible to everyone on this network.");
     public static string NobodyInvisible => T("Tu PC está invisible: elegiste «Nadie».", "Your PC is invisible: you chose “Nobody”.");
     public static string NobodyBlocking => T("Esta red puede estar bloqueando la búsqueda.", "This network may be blocking discovery.");

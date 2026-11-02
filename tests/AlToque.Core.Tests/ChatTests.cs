@@ -123,6 +123,18 @@ public class ChatTests
         Assert.Equal(10, reopened.AddOwnText(peer, "listo").Seq);
     }
 
+    [Theory]
+    // Los dos marcan a la vez (enlace existente recién nacido): manda el que inició el identificador menor.
+    [InlineData(true, false, 1, 1, true)]
+    [InlineData(false, true, 1, 1, false)]
+    [InlineData(false, false, 1, 1, true)]
+    // El otro vuelve a marcar sobre un enlace de hace rato: perdió el viejo (cambio de red, reinicio) y el nuevo gana.
+    [InlineData(false, true, 20, 1, true)]
+    // Un enlace callado más de 30 s está muerto aunque sea el preferido.
+    [InlineData(false, true, 1, 40, true)]
+    public void NewLinkReplacesTheOldOneWhenItShould(bool candidateCanonical, bool existingCanonical, int ageSeconds, int silenceSeconds, bool replaces) =>
+        Assert.Equal(replaces, LinkService.Prefer(candidateCanonical, existingCanonical, TimeSpan.FromSeconds(ageSeconds), TimeSpan.FromSeconds(silenceSeconds)));
+
     // ── Entre dos equipos ───────────────────────────────────────────────────────
 
     [Fact]
@@ -280,13 +292,14 @@ public class ChatTests
     private static Task WaitLinked(TestAgent a, TestAgent b) =>
         WaitUntil(() => a.Host.Links.IsLinked(b.Host.DeviceId) && b.Host.Links.IsLinked(a.Host.DeviceId));
 
-    private static async Task WaitUntil(Func<bool> condition)
+    private static async Task WaitUntil(Func<bool> condition,
+        [System.Runtime.CompilerServices.CallerArgumentExpression(nameof(condition))] string what = "")
     {
         var start = Environment.TickCount64;
         while (!condition())
         {
             if (Environment.TickCount64 - start > Timeout.TotalMilliseconds)
-                throw new TimeoutException("La condición no se cumplió a tiempo.");
+                throw new TimeoutException("No se cumplió a tiempo: " + what);
             await Task.Delay(20);
         }
     }

@@ -1,0 +1,98 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:AlToque.ViewModels"
+        xmlns:c="using:AlToque.Controls"
+        xmlns:av="using:AlToque.Controls.Avatars"
+        xmlns:l="using:AlToque.Localization"
+        x:Class="AlToque.Views.PairRequestWindow"
+        x:DataType="vm:PairRequestViewModel"
+        Title="Al Toque"
+        Width="420" SizeToContent="Height"
+        WindowDecorations="None"
+        ShowInTaskbar="False"
+        Topmost="True"
+        Background="Transparent">
+  <Window.Styles>
+    <!-- Los dígitos del código, más chicos que en la ventana de emparejamiento. -->
+    <Style Selector="Border.digitbox">
+      <Setter Property="Width" Value="40" />
+      <Setter Property="Height" Value="52" />
+    </Style>
+    <Style Selector="TextBlock.digit">
+      <Setter Property="FontSize" Value="26" />
+    </Style>
+  </Window.Styles>
+  <Border x:Name="Root" Classes="panel" Padding="18,16,14,18">
+    <StackPanel Spacing="14">
+      <Grid ColumnDefinitions="Auto,*,Auto">
+        <av:AvatarView Width="52" Height="52" VerticalAlignment="Top" AvatarId="{Binding AvatarId}" ColorHex="{Binding ColorHex}"
+                       Initial="{Binding Initial}" Ring="Unverified" Mood="Surprised" PopOnLoad="True" />
+        <StackPanel Grid.Column="1" Margin="12,0,6,0" Spacing="3" VerticalAlignment="Center">
+          <TextBlock Text="{Binding Title}" Classes="strong" FontSize="15" TextWrapping="Wrap" />
+          <TextBlock Text="{x:Static l:S.PairRequestBody}" Classes="body2" TextWrapping="Wrap" IsVisible="{Binding IsAsking}" />
+          <TextBlock Text="{Binding WaitingText}" Classes="body2" TextWrapping="Wrap" IsVisible="{Binding IsWaiting}" />
+          <TextBlock Text="{Binding DoneText}" Classes="body2" TextWrapping="Wrap" IsVisible="{Binding IsDone}" />
+          <TextBlock Text="{x:Static l:S.PairRequestFailed}" Classes="body2" TextWrapping="Wrap" IsVisible="{Binding IsFailed}" />
+        </StackPanel>
+        <Button Grid.Column="2" Classes="icon small" VerticalAlignment="Top" Command="{Binding Close}"
+                ToolTip.Tip="{x:Static l:S.Close}" AutomationProperties.Name="{x:Static l:S.Close}">
+          <c:IconView Kind="Close" />
+        </Button>
+      </Grid>
+
+      <!-- El código que los dos deben ver igual -->
+      <StackPanel Spacing="8" IsVisible="{Binding ShowCode}">
+        <TextBlock Text="{Binding CheckText}" Classes="meta" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" />
+        <StackPanel x:Name="Digits" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="6">
+          <ItemsControl ItemsSource="{Binding CodeFirst}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <StackPanel Orientation="Horizontal" Spacing="6" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="x:String">
+                <Border Classes="digitbox">
+                  <TextBlock Text="{Binding}" Classes="digit" />
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <Border Width="10" />
+          <ItemsControl ItemsSource="{Binding CodeLast}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <StackPanel Orientation="Horizontal" Spacing="6" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="x:String">
+                <Border Classes="digitbox">
+                  <TextBlock Text="{Binding}" Classes="digit" />
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </StackPanel>
+
+      <ProgressBar Classes="update" IsIndeterminate="True" IsVisible="{Binding IsWaiting}" />
+
+      <Grid ColumnDefinitions="*,10,*" IsVisible="{Binding IsAsking}">
+        <Button HorizontalAlignment="Stretch" Command="{Binding Decline}" MinHeight="38" Content="{x:Static l:S.PairRequestDecline}" />
+        <Button Grid.Column="2" Classes="accent" HorizontalAlignment="Stretch" Command="{Binding Accept}" MinHeight="38">
+          <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+            <c:IconView Kind="UserPlus" Width="16" Height="16" Foreground="White" />
+            <TextBlock Text="{x:Static l:S.PairRequestAccept}" />
+          </StackPanel>
+        </Button>
+      </Grid>
+      <Button Classes="accent" HorizontalAlignment="Right" Command="{Binding OpenChat}" IsVisible="{Binding IsDone}" MinHeight="38">
+        <StackPanel Orientation="Horizontal" Spacing="8">
+          <c:IconView Kind="Message" Width="16" Height="16" Foreground="White" />
+          <TextBlock Text="{x:Static l:S.PairRequestOpenChat}" />
+        </StackPanel>
+      </Button>
+    </StackPanel>
+  </Border>
+</Window>

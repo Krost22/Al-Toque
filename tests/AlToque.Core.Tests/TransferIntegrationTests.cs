@@ -581,12 +581,14 @@ internal sealed class TestAgent : IAsyncDisposable
     private readonly TempDir _dir;
 
     private readonly bool _publicNetwork;
+    private readonly bool _pairRequests;
 
-    private TestAgent(TempDir dir, AgentHost host, bool publicNetwork)
+    private TestAgent(TempDir dir, AgentHost host, bool publicNetwork, bool pairRequests)
     {
         _dir = dir;
         Host = host;
         _publicNetwork = publicNetwork;
+        _pairRequests = pairRequests;
     }
 
     public AgentHost Host { get; private set; }
@@ -594,22 +596,23 @@ internal sealed class TestAgent : IAsyncDisposable
     public string Inbox => Path.Combine(_dir.Path, "inbox");
     public IPEndPoint EndPoint => new(IPAddress.Loopback, Host.Server.Port);
 
-    public static TestAgent Create(string alias, bool publicNetwork = false)
+    /// <param name="pairRequests">Muestra solicitudes de conexión sin abrir «Emparejar» (como la app de escritorio).</param>
+    public static TestAgent Create(string alias, bool publicNetwork = false, bool pairRequests = false)
     {
         LocalNetwork.IncludeLoopback = true;
         var dir = new TempDir();
         Directory.CreateDirectory(Path.Combine(dir.Path, "src"));
         Directory.CreateDirectory(Path.Combine(dir.Path, "inbox"));
-        var host = Open(dir, publicNetwork, s =>
+        var host = Open(dir, publicNetwork, pairRequests, s =>
         {
             s.Alias = alias;
             s.TcpPort = Random.Shared.Next(46000, 60000);
             s.ReceiveFolder = Path.Combine(dir.Path, "inbox");
         });
-        return new TestAgent(dir, host, publicNetwork);
+        return new TestAgent(dir, host, publicNetwork, pairRequests);
     }
 
-    private static AgentHost Open(TempDir dir, bool publicNetwork, Action<AppSettings>? configure = null)
+    private static AgentHost Open(TempDir dir, bool publicNetwork, bool pairRequests, Action<AppSettings>? configure = null)
     {
         var host = AgentHost.Create(new AgentOptions
         {
@@ -618,6 +621,7 @@ internal sealed class TestAgent : IAsyncDisposable
             EnableIpc = false,
             EnableDiscovery = false,
             IsPublicNetwork = () => publicNetwork,
+            AllowPairRequests = pairRequests,
         });
         if (configure is not null)
             host.Settings.Update(configure);
@@ -630,7 +634,7 @@ internal sealed class TestAgent : IAsyncDisposable
     {
         await StopAsync();
         _stopped = false;
-        Host = Open(_dir, _publicNetwork, port is { } p ? s => s.TcpPort = p : null);
+        Host = Open(_dir, _publicNetwork, _pairRequests, port is { } p ? s => s.TcpPort = p : null);
     }
 
     /// <summary>Solo cierra el agente (equipo apagado); <see cref="RestartAsync"/> lo vuelve a abrir.</summary>

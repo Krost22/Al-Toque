@@ -103,6 +103,15 @@ public sealed class PeerViewModel : ViewModelBase
     public string RemoveTip => IsTrusted ? S.RemovePeerTip(Name) : S.HidePeerTip(Name);
     public bool IsPairing { get => _isPairing; private set => Set(ref _isPairing, value); }
 
+    /// <summary>Equipo cercano que acepta solicitudes de conexión (no hace falta que abra «Emparejar»).</summary>
+    public bool AcceptsRequests { get; private set; }
+
+    /// <summary>Equipo cercano al que se le puede pedir conectarse ahora mismo.</summary>
+    public bool CanConnect => !IsTrusted && IsOnline && (AcceptsRequests || IsPairing);
+
+    /// <summary>En «Cerca de ti»: qué pasa al tocarlo.</summary>
+    public string NearbyHint => IsPairing ? S.WantsToPair : AcceptsRequests ? S.NearbyTapToConnect : S.NearbyNeedsPairing;
+
     public bool IsDropTarget
     {
         get => _isDropTarget;
@@ -169,6 +178,7 @@ public sealed class PeerViewModel : ViewModelBase
         IsTrusted = info.IsTrusted;
         IsFavorite = info.IsTrusted && info.IsFavorite;
         IsPairing = info.Pairing && !info.IsTrusted;
+        AcceptsRequests = info.AcceptsRequests && !info.IsTrusted;
         _isBusy = info.Busy;
         _isChecking = info.Presence == PeerPresence.Checking;
         AvatarId = AvatarCatalog.Resolve(info.Avatar, info.DeviceId);
@@ -193,6 +203,9 @@ public sealed class PeerViewModel : ViewModelBase
         Raise(nameof(RemoveTip));
         Raise(nameof(Dimmed));
         Raise(nameof(Mood));
+        Raise(nameof(AcceptsRequests));
+        Raise(nameof(CanConnect));
+        Raise(nameof(NearbyHint));
         RaiseVisuals();
     }
 }

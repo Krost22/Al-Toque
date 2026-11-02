@@ -47,6 +47,9 @@ public static class Capabilities
     /// <summary>Habla el enlace permanente y sincroniza chats.</summary>
     public const string Chat = "chat";
 
+    /// <summary>Acepta solicitudes de conexión sin que su usuario abra «Emparejar» (las ve como un aviso).</summary>
+    public const string PairRequest = "pairreq";
+
     public static readonly List<string> Local = [Burst, Metadata, Message, Chat];
 
     /// <summary>Prefijo con el que el avatar viaja dentro de las capacidades del HELLO.</summary>

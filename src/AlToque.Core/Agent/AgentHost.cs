@@ -23,6 +23,12 @@ public sealed class AgentOptions
     public bool EnableIpc { get; init; } = true;
     public bool EnableDiscovery { get; init; } = true;
     public int DiscoveryPort { get; init; } = AppInfo.DiscoveryPort;
+
+    /// <summary>
+    /// La interfaz sabe mostrar solicitudes de conexión que llegan sin abrir «Emparejar» (un aviso con «Conectar»).
+    /// Mientras no, solo se empareja con la ventana abierta.
+    /// </summary>
+    public bool AllowPairRequests { get; init; }
 }
 
 /// <summary>
@@ -68,7 +74,10 @@ public sealed class AgentHost : IAsyncDisposable
         History = HistoryStore.Load(paths);
         PeerCache = PeerCacheStore.Load(paths);
         Peers = new PeerDirectory(Trust, PeerCache);
-        Pairing = new PairingService(identity, Trust, () => Settings.Current.Alias, () => Settings.Current.Avatar);
+        Pairing = new PairingService(identity, Trust, () => Settings.Current.Alias, () => Settings.Current.Avatar)
+        {
+            AcceptsRequestFrom = deviceId => AcceptsPairRequests && !IsBlocked(deviceId),
+        };
         Chats = ChatStore.Load(paths, protector, identity.DeviceId);
         Links = new LinkService(identity, Trust, Peers, Chats, () => LocalHello(Purposes.Link), AgentLog.Write);
         Client = new TransferClient(identity, Trust, () => Settings.Current.Alias, () => Settings.Current.Avatar);
@@ -338,6 +347,15 @@ public sealed class AgentHost : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Visible para los equipos cercanos: en una red privada y recibiendo de confianza, los demás ven el nombre y el
+    /// avatar (para pedir conectarse), salvo que se apague en Ajustes. En «Nadie» y en redes públicas, nadie lo ve.
+    /// </summary>
+    public bool IsVisibleNearby => Settings.Current.VisibleNearby && EffectiveMode != ReceiveMode.Nobody && !IsReceivingPausedByNetwork && !IsPublicNetwork;
+
+    /// <summary>Se le pueden mostrar solicitudes de conexión de equipos cercanos sin abrir «Emparejar».</summary>
+    public bool AcceptsPairRequests => _options.AllowPairRequests && IsVisibleNearby;
+
     private DiscoveryAdvert? CurrentAdvert()
     {
         if (!Server.IsListening || IsReceivingPausedByNetwork)
@@ -346,9 +364,9 @@ public sealed class AgentHost : IAsyncDisposable
         var pairing = Pairing.IsWindowOpen;
         if (mode == ReceiveMode.Nobody && !pairing)
             return null;
-        var showAlias = mode == ReceiveMode.Everyone || pairing;
+        var showAlias = mode == ReceiveMode.Everyone || pairing || IsVisibleNearby;
         return new DiscoveryAdvert(Server.Port, showAlias ? Settings.Current.Alias : null, showAlias ? AppInfo.OsName : null,
-            Server.HasActiveSessions, pairing, showAlias ? Settings.Current.Avatar : null);
+            Server.HasActiveSessions, pairing, showAlias ? Settings.Current.Avatar : null, AcceptsPairRequests);
     }
 
     private void OnPeerVerified(string deviceId, System.Net.IPEndPoint? endPoint, string? alias, string? os, string? avatar)

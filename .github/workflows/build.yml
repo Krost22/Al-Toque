@@ -416,14 +416,13 @@ jobs:
           export PATH="$PATH:$HOME/.dotnet/tools"
           common=(--repoUrl "https://github.com/${{ github.repository }}" --token "$GH_TOKEN" --publish
                   --releaseName "Al Toque $v" --tag "v$v" --targetCommitish "${{ github.sha }}")
-          merge=()
+          # La versión se crea primero con gh (si falla, su error dice el motivo; el de vpk no) y cada canal se suma a ella.
+          if ! gh release view "v$v" --repo "${{ github.repository }}" > /dev/null 2>&1; then
+            gh release create "v$v" --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "Al Toque $v" --notes ""
+          fi
           for channel in win-x64 win-arm64 linux-x64 linux-arm64 osx-arm64 osx-x64; do
             dir="releases/AlToque-$channel-instalador"
             if [ ! -d "$dir" ]; then echo "::warning::Sin instalador para $channel"; continue; fi
-            vpk upload github -o "$dir" -c "$channel" "${merge[@]}" "${common[@]}"
-            merge=(--merge)
+            vpk upload github -o "$dir" -c "$channel" --merge "${common[@]}"
           done
-          if [ ${#merge[@]} -eq 0 ]; then
-            gh release create "v$v" --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "Al Toque $v" --notes ""
-          fi
           gh release upload "v$v" portable/* android/*.apk --repo "${{ github.repository }}" --clobber

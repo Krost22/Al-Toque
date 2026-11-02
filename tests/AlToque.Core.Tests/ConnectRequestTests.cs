@@ -128,6 +128,8 @@ public class ConnectRequestTests
 
         await using var cafe = TestAgent.Create("En el café", publicNetwork: true, pairRequests: true);
         cafe.Host.Settings.Update(s => s.AllowPublicNetworks = true);
+        // La red se revisa en segundo plano al arrancar.
+        await WaitUntil(() => cafe.Host.IsPublicNetwork);
         Assert.False(cafe.Host.IsVisibleNearby);
 
         // Antes de elegir el nombre en la bienvenida no se anuncia (sería el nombre de la máquina).

@@ -66,10 +66,13 @@ Descarga lo que corresponda desde *Releases* (o desde **Actions → Compilar y p
 
 | Sistema | Archivo | Se actualiza sola |
 |---|---|---|
-| Windows | `AlToque-win-x64-Setup.exe` (o `win-arm64`) · portable: `AlToque-…-win-x64-portable.zip` | Sí (la instalada) |
-| Linux | `AlToque-linux-x64.AppImage` (o `linux-arm64`) · portable: `AlToque-…-linux-x64-portable.tar.gz` | Sí (el AppImage) |
-| macOS | `AlToque-osx-arm64-Setup.pkg` (Apple Silicon) u `osx-x64` (Intel) · app suelta: `AlToque-…-osx-arm64.zip` | Sí (la del `.pkg`) |
+| Windows | `AlToque-win-x64-Setup.exe` (o `win-arm64`) · portable: `AlToque-…-win-x64-portable.zip` | Sí (instalada y portable) |
+| Linux | `AlToque-linux-x64.AppImage` (o `linux-arm64`) · portable: `AlToque-…-linux-x64-portable.tar.gz` | Sí (el AppImage y la portable) |
+| macOS | `AlToque-osx-arm64-Setup.pkg` (Apple Silicon) u `osx-x64` (Intel) · app suelta: `AlToque-…-osx-arm64.zip` | Sí (la del `.pkg` y la app suelta) |
 | Android | `AlToque-…-android.apk` (Android 11 o posterior) | Avisa y descarga el APK nuevo |
+
+Las copias portables también se actualizan desde la app: bajan el paquete nuevo, cambian sus propios archivos
+(los datos de `AlToque.data` se quedan) y se reinician.
 
 Las instrucciones paso a paso para cada sistema están en [`docs/INSTALAR.md`](docs/INSTALAR.md).
 

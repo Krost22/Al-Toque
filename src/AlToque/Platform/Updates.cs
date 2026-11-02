@@ -21,7 +21,8 @@ public enum UpdateStatus
 /// <summary>
 /// Actualizaciones desde las versiones publicadas en GitHub (Velopack). La app instalada busca cada 6 horas, descarga
 /// en segundo plano si "Actualizar automáticamente" está activo y se instala al reiniciar desde el aviso o al cerrar;
-/// nunca durante una transferencia sin preguntar. Una copia portable solo avisa y abre la página de descarga.
+/// nunca durante una transferencia sin preguntar. Una copia portable (o la .app de macOS sin instalador) se
+/// actualiza igual desde la app: baja el paquete nuevo y cambia sus propios archivos (<see cref="PortableUpdate"/>).
 /// </summary>
 public sealed class Updates : IDisposable
 {
@@ -31,6 +32,9 @@ public sealed class Updates : IDisposable
 
     private readonly Func<bool> _autoDownload;
     private readonly UpdateManager? _manager;
+    private readonly PortableUpdate? _portable;
+    private string? _portableUrl;
+    private bool _portableReady;
     private readonly Timer _timer;
     private UpdateInfo? _update;
     private VelopackAsset? _ready;
@@ -49,6 +53,8 @@ public sealed class Updates : IDisposable
         {
             AgentLog.Write("Actualizaciones no disponibles: " + ex.Message);
         }
+        if (_manager is null)
+            _portable = PortableUpdate.Detect();
         CurrentVersion = _manager?.CurrentVersion?.ToString() ?? AppInfo.Version;
 
         // Una versión ya descargada en una sesión anterior (la app se cerró de golpe): queda lista para instalar.
@@ -73,7 +79,7 @@ public sealed class Updates : IDisposable
     public int Progress { get; private set; }
 
     /// <summary>Instalada con el instalador: se actualiza desde la app. Si no (portable), se descarga a mano.</summary>
-    public bool CanInstall => _manager is not null;
+    public bool CanInstall => _manager is not null || (_portable is not null && (_portableUrl is not null || _portableReady));
 
     /// <summary>Cambió algo; puede llegar desde cualquier hilo.</summary>
     public event Action? Changed;
@@ -111,7 +117,10 @@ public sealed class Updates : IDisposable
                 if (latest is not null && IsNewer(latest.Version, CurrentVersion))
                 {
                     AvailableVersion = latest.Version;
+                    _portableUrl = _portable?.AssetFor(latest);
                     Set(UpdateStatus.Available);
+                    if (_portableUrl is not null && _autoDownload())
+                        await DownloadCoreAsync().ConfigureAwait(false);
                 }
                 else
                 {
@@ -133,7 +142,7 @@ public sealed class Updates : IDisposable
     /// <summary>Descarga la versión nueva (o, en una copia portable, abre la página de descarga).</summary>
     public async Task DownloadAsync()
     {
-        if (_manager is null || _update is null)
+        if (!CanInstall || (_manager is not null && _update is null))
         {
             Opener.OpenUrl(ReleasesUrl);
             return;
@@ -159,11 +168,28 @@ public sealed class Updates : IDisposable
     {
         Progress = 0;
         Set(UpdateStatus.Downloading);
-        await _manager!.DownloadUpdatesAsync(_update!, p =>
+        void Report(int p)
         {
             Progress = p;
             Changed?.Invoke();
-        }, CancellationToken.None).ConfigureAwait(false);
+        }
+        if (_manager is null)
+        {
+            try
+            {
+                await _portable!.DownloadAsync(_portableUrl!, AvailableVersion ?? "", Report, CancellationToken.None).ConfigureAwait(false);
+            }
+            catch
+            {
+                Status = UpdateStatus.Available;
+                throw;
+            }
+            _portableReady = true;
+            AgentLog.Write("Actualización descargada (copia portable): " + AvailableVersion);
+            Set(UpdateStatus.Ready);
+            return;
+        }
+        await _manager.DownloadUpdatesAsync(_update!, Report, CancellationToken.None).ConfigureAwait(false);
         _ready = _update!.TargetFullRelease;
         AgentLog.Write("Actualización descargada: " + AvailableVersion);
         Set(UpdateStatus.Ready);
@@ -173,12 +199,26 @@ public sealed class Updates : IDisposable
     public void ApplyAndRestart(string[] args)
     {
         if (_manager is not null && _ready is not null)
+        {
             _manager.ApplyUpdatesAndRestart(_ready, args);
+            return;
+        }
+        // Copia portable: se cambian los archivos y se abre la nueva. Si el cambio falló, se reabre la misma versión.
+        if (_portable is not null && _portableReady)
+        {
+            _portableReady = !_portable.Apply();
+            _portable.Restart(args);
+        }
     }
 
     /// <summary>Al salir con una versión descargada, se instala sin volver a abrir la app.</summary>
     public void ApplyOnExit()
     {
+        if (_portable is not null && _portableReady)
+        {
+            _portableReady = !_portable.Apply();
+            return;
+        }
         if (_manager is null || _ready is null)
             return;
         try

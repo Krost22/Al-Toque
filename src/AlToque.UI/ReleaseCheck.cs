@@ -13,7 +13,8 @@ public static class ReleaseCheck
 
     /// <param name="Version">"0.2.0", sin la "v" de la etiqueta.</param>
     /// <param name="ApkUrl">Descarga directa del APK de Android, si la versión lo trae.</param>
-    public sealed record Release(string Version, string? ApkUrl);
+    /// <param name="Assets">Cada archivo de la versión (nombre → descarga directa), para actualizar las copias portables.</param>
+    public sealed record Release(string Version, string? ApkUrl, IReadOnlyDictionary<string, string>? Assets = null);
 
     /// <summary>La versión publicada más reciente; null si aún no hay ninguna. Lanza si GitHub no responde.</summary>
     public static async Task<Release?> LatestAsync(CancellationToken ct = default)
@@ -31,19 +32,21 @@ public static class ReleaseCheck
         if (!root.TryGetProperty("tag_name", out var tag) || tag.GetString() is not { Length: > 0 } name)
             return null;
         string? apk = null;
+        var files = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         if (root.TryGetProperty("assets", out var assets) && assets.ValueKind == JsonValueKind.Array)
         {
             foreach (var asset in assets.EnumerateArray())
             {
-                if (asset.TryGetProperty("name", out var n) && n.GetString() is { } file && file.EndsWith(".apk", StringComparison.OrdinalIgnoreCase)
-                    && asset.TryGetProperty("browser_download_url", out var url))
+                if (asset.TryGetProperty("name", out var n) && n.GetString() is { } file
+                    && asset.TryGetProperty("browser_download_url", out var url) && url.GetString() is { } link)
                 {
-                    apk = url.GetString();
-                    break;
+                    files[file] = link;
+                    if (apk is null && file.EndsWith(".apk", StringComparison.OrdinalIgnoreCase))
+                        apk = link;
                 }
             }
         }
-        return new Release(name.TrimStart('v', 'V'), apk);
+        return new Release(name.TrimStart('v', 'V'), apk, files);
     }
 
     /// <summary>¿<paramref name="candidate"/> es posterior a <paramref name="current"/>? Ignora sufijos como "-beta".</summary>

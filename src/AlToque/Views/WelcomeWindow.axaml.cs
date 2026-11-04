@@ -15,6 +15,7 @@ public partial class WelcomeWindow : Window
     public WelcomeWindow()
     {
         AvaloniaXamlLoader.Load(this);
+        ScreenFit.Attach(this);
         Opened += (_, _) =>
         {
             this.FindControl<ChasquiView>("Chasqui")!.State = ChasquiState.Incoming;

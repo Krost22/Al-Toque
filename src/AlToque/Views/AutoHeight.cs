@@ -16,7 +16,20 @@ public static class AutoHeight
     private sealed class State
     {
         public bool Pending;
+        public bool Manual;
     }
+
+    /// <summary>
+    /// El usuario le eligió un tamaño (arrastrando un borde): deja de ajustarse sola. Con false vuelve a ajustarse.
+    /// </summary>
+    public static void SetManual(Window window, bool manual)
+    {
+        States.GetOrCreateValue(window).Manual = manual;
+        if (!manual)
+            Refit(window);
+    }
+
+    public static bool IsManual(Window window) => States.GetOrCreateValue(window).Manual;
 
     private static readonly ConditionalWeakTable<Window, State> States = new();
 
@@ -40,16 +53,17 @@ public static class AutoHeight
     public static void Refit(Window window)
     {
         var state = States.GetOrCreateValue(window);
-        if (state.Pending)
+        if (state.Pending || state.Manual)
             return;
         state.Pending = true;
         Dispatcher.UIThread.Post(() =>
         {
             state.Pending = false;
-            if (!window.IsVisible || window.Content is not Control content || window.ClientSize.Width <= 0)
+            if (state.Manual || !window.IsVisible || window.Content is not Control content || window.ClientSize.Width <= 0)
                 return;
             content.Measure(new Size(window.ClientSize.Width, double.PositiveInfinity));
-            var desired = Math.Ceiling(content.DesiredSize.Height);
+            // Nunca más alta que la pantalla: lo que no entra se desplaza dentro de la ventana.
+            var desired = Math.Min(Math.Ceiling(content.DesiredSize.Height), ScreenFit.Available(window).Height);
             if (desired > 0 && Math.Abs(desired - window.ClientSize.Height) > 1)
             {
                 window.SizeToContent = SizeToContent.Manual;

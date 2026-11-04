@@ -322,8 +322,38 @@ public sealed partial class AppController
             _panelWindow.ChatFilesDropped += (peerId, paths) => _ = SendToPeerAsync(peerId, NameOf(peerId), paths, null);
             _panelWindow.ChatImagePasted += (peerId, bitmap) => _ = SendPastedImageAsync(peerId, bitmap);
             _panelWindow.Deactivated += (_, _) => UpdateChatVisibility();
+            // El tamaño elegido arrastrando los bordes se recuerda (doble clic en el encabezado lo olvida).
+            if (Agent.Settings.Current is { PanelWidth: { } pw, PanelHeight: { } ph })
+                _panelWindow.ApplySavedSize(pw, ph);
+            _panelWindow.SizeChosen += (w, h) => SavePanelSizeSoon(double.IsNaN(w) ? null : w, double.IsNaN(h) ? null : h);
         }
         return _panelWindow;
+    }
+
+    private DispatcherTimer? _panelSizeTimer;
+    private (double? W, double? H) _panelSize;
+
+    /// <summary>Mientras se arrastra el borde llegan muchos tamaños: se guarda el último, medio segundo después.</summary>
+    private void SavePanelSizeSoon(double? width, double? height)
+    {
+        _panelSize = (width, height);
+        if (_panelSizeTimer is null)
+        {
+            _panelSizeTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
+            _panelSizeTimer.Tick += (_, _) =>
+            {
+                _panelSizeTimer.Stop();
+                var (w, h) = _panelSize;
+                Agent.Settings.Update(s =>
+                {
+                    s.PanelWidth = w is null ? null : Math.Round(w.Value);
+                    s.PanelHeight = h is null ? null : Math.Round(h.Value);
+                });
+                LayoutToasts();
+            };
+        }
+        _panelSizeTimer.Stop();
+        _panelSizeTimer.Start();
     }
 
     /// <summary>Al iniciar con la sesión: la ventana espera minimizada en la barra de tareas, a un clic.</summary>

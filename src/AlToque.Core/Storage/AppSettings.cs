@@ -103,6 +103,11 @@ public sealed class AppSettings
     /// <summary>A quién va lo copiado; vacío = preguntar cada vez.</summary>
     public string? CopySendTarget { get; set; }
 
+    /// <summary>Tamaño del panel elegido arrastrando sus bordes (en DIP); vacío = se ajusta solo a su contenido.</summary>
+    public double? PanelWidth { get; set; }
+
+    public double? PanelHeight { get; set; }
+
     /// <summary>Descargar las versiones nuevas en segundo plano e instalarlas al cerrar o reiniciar.</summary>
     public bool AutoUpdate { get; set; } = true;
 
@@ -145,6 +150,8 @@ public sealed class AppSettings
             .Take(PinnedChat.Max)
             .ToList();
         ContactGroups = Storage.ContactGroups.Normalize(ContactGroups);
+        if (PanelWidth is not (>= 300 and <= 8000) || PanelHeight is not (>= 300 and <= 8000))
+            PanelWidth = PanelHeight = null;
         if (CopySendTarget is not null && !Security.PeerKeys.IsValidDeviceId(CopySendTarget))
             CopySendTarget = null;
     }

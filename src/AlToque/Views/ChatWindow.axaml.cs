@@ -18,6 +18,7 @@ public partial class ChatWindow : Window
     public ChatWindow()
     {
         AvaloniaXamlLoader.Load(this);
+        ScreenFit.Attach(this);
         FloatingWindow.ApplyChrome(this, this.FindControl<Border>("Root")!);
         _chat = this.FindControl<ChatView>("Chat")!;
         _chat.HeaderPressed += e =>

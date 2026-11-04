@@ -16,6 +16,7 @@ public partial class PairingWindow : Window
     public PairingWindow()
     {
         AvaloniaXamlLoader.Load(this);
+        ScreenFit.Attach(this);
         AutoHeight.Attach(this);
         DataContextChanged += (_, _) =>
         {

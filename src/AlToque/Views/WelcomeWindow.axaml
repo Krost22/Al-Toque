@@ -10,6 +10,7 @@
         Icon="avares://AlToque/Assets/altoque.ico"
         Width="560" SizeToContent="Height"
         WindowStartupLocation="CenterScreen">
+  <ScrollViewer HorizontalScrollBarVisibility="Disabled">
   <StackPanel x:Name="Sections" Margin="32,24,32,28" Spacing="16">
     <ch:ChasquiView x:Name="Chasqui" Width="120" Height="120" HorizontalAlignment="Center" ShowRadar="False" />
     <StackPanel Spacing="6">
@@ -46,4 +47,5 @@
     <Button x:Name="StartButton" Classes="accent big" Content="{x:Static l:S.WelcomeStart}" HorizontalAlignment="Center"
             MinWidth="180" IsDefault="True" Click="OnStart" />
   </StackPanel>
+  </ScrollViewer>
 </Window>

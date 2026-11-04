@@ -16,6 +16,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         AvaloniaXamlLoader.Load(this);
+        ScreenFit.Attach(this);
         DataContextChanged += (_, _) =>
         {
             if (_vm is not null)

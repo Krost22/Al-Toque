@@ -9,8 +9,8 @@
         x:Class="AlToque.Views.QuickPanelWindow"
         x:DataType="vm:QuickPanelViewModel"
         Title="Al Toque"
-        Width="440" SizeToContent="Height"
-        WindowDecorations="None"
+        Width="440" SizeToContent="Height" MinWidth="380" MinHeight="300" MaxWidth="760"
+        WindowDecorations="None" CanResize="True"
         ShowInTaskbar="True"
         CanMinimize="True"
         Topmost="{Binding KeepOnTop}"
@@ -18,9 +18,9 @@
         Background="Transparent">
   <Border x:Name="Root" Classes="panel" DragDrop.AllowDrop="True" ClipToBounds="True">
     <Panel>
-    <StackPanel x:Name="Sections" Spacing="18" Margin="20,16,20,20">
-      <!-- Encabezado: se arrastra para mover la ventana -->
-      <Grid x:Name="Header" ColumnDefinitions="Auto,*,Auto,Auto,Auto" Background="Transparent">
+    <DockPanel Margin="20,16,20,20">
+      <!-- Encabezado: se arrastra para mover la ventana; doble clic vuelve al tamaño automático -->
+      <Grid x:Name="Header" DockPanel.Dock="Top" Margin="0,0,0,18" ColumnDefinitions="Auto,*,Auto,Auto,Auto" Background="Transparent">
         <c:BrandMark Width="30" Height="30" />
         <TextBlock Grid.Column="1" Text="Al Toque" Classes="subtitle" Margin="12,0" VerticalAlignment="Center" />
         <Button Grid.Column="2" Classes="icon" Classes.on="{Binding KeepOnTop}" Command="{Binding ToggleKeepOnTop}"
@@ -36,6 +36,8 @@
           <c:IconView Kind="Minus" />
         </Button>
       </Grid>
+      <ScrollViewer x:Name="Scroller" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+    <StackPanel x:Name="Sections" Spacing="18">
 
       <!-- Inicio: compañeros, recientes y quién puede enviarte. Con un chat abierto, el chat ocupa su lugar. -->
       <StackPanel x:Name="Home" Spacing="18" IsVisible="{Binding IsHome}">
@@ -412,6 +414,8 @@
         <cv:ChatView x:Name="ChatPane" DataContext="{Binding Chat}" Height="600" />
       </Panel>
     </StackPanel>
+      </ScrollViewer>
+    </DockPanel>
     <c:TourOverlay x:Name="TourLayer" />
     </Panel>
   </Border>

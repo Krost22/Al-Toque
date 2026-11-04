@@ -22,6 +22,20 @@ public partial class QuickPanelWindow : Window
         var root = this.FindControl<Border>("Root")!;
         FloatingWindow.ApplyChrome(this, root);
         AutoHeight.Attach(this);
+        ScreenFit.Attach(this);
+        // Bordes y esquinas para agrandarla o achicarla; desde ese momento se queda del tamaño elegido.
+        ResizeGrips.Attach(this, root, () =>
+        {
+            _sizing = true;
+            AutoHeight.SetManual(this, true);
+            SizeToContent = SizeToContent.Manual;
+        });
+        SizeChanged += (_, _) =>
+        {
+            FitChatPane();
+            if (_sizing)
+                SizeChosen?.Invoke(Width, Height);
+        };
         root.AddHandler(DragDrop.DragEnterEvent, OnDragEnter);
         root.AddHandler(DragDrop.DragOverEvent, OnDragOver);
         root.AddHandler(DragDrop.DragLeaveEvent, OnDragLeave);
@@ -44,10 +58,34 @@ public partial class QuickPanelWindow : Window
         {
             if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed || (e.Source as Visual)?.FindAncestorOfType<Button>(includeSelf: true) is not null)
                 return;
-            _moving = true;
-            BeginMoveDrag(e);
+            // Doble clic: vuelve al tamaño automático (el segundo clic no llega si ya empezó a moverse).
+            if (e.ClickCount == 2)
+            {
+                ResetSize();
+                SizeChosen?.Invoke(double.NaN, double.NaN);
+                e.Handled = true;
+                return;
+            }
+            // El arrastre empieza al mover el ratón, no al presionar: así el doble clic sigue llegando.
+            _press = e;
+            _pressAt = e.GetPosition(this);
         };
-        header.PointerReleased += (_, _) => _moving = false;
+        header.PointerMoved += (_, e) =>
+        {
+            if (_press is not { } press || !e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+                return;
+            var d = e.GetPosition(this) - _pressAt;
+            if (Math.Abs(d.X) + Math.Abs(d.Y) < 4)
+                return;
+            _press = null;
+            _moving = true;
+            BeginMoveDrag(press);
+        };
+        header.PointerReleased += (_, _) =>
+        {
+            _moving = false;
+            _press = null;
+        };
         PositionChanged += (_, _) =>
         {
             if (_moving)
@@ -80,7 +118,47 @@ public partial class QuickPanelWindow : Window
     }
 
     private bool _moving;
+    private bool _sizing;
+    private PointerPressedEventArgs? _press;
+    private Point _pressAt;
 
+    /// <summary>El usuario le cambió el tamaño (NaN, NaN: volvió al automático con doble clic en el encabezado).</summary>
+    public event Action<double, double>? SizeChosen;
+
+    /// <summary>Tamaño elegido en otra sesión; si no cabe en esta pantalla, se achica.</summary>
+    public void ApplySavedSize(double width, double height)
+    {
+        var max = ScreenFit.Available(this);
+        _sizing = false;
+        AutoHeight.SetManual(this, true);
+        SizeToContent = SizeToContent.Manual;
+        Width = Math.Clamp(width, MinWidth, Math.Min(MaxWidth, max.Width));
+        Height = Math.Clamp(height, MinHeight, max.Height);
+        _sizing = true;
+    }
+
+    /// <summary>Vuelve al ancho de siempre y al alto de su contenido.</summary>
+    public void ResetSize()
+    {
+        _sizing = false;
+        Width = 440;
+        AutoHeight.SetManual(this, false);
+        FitChatPane();
+    }
+
+    /// <summary>
+    /// El chat abierto ocupa lo que queda bajo el encabezado si la ventana tiene un tamaño elegido; si no, un alto
+    /// cómodo que quepa en la pantalla (portátil de 768 px incluido).
+    /// </summary>
+    private void FitChatPane()
+    {
+        if (Vm?.IsChatOpen != true || this.FindControl<ChatView>("ChatPane") is not { } pane)
+            return;
+        if (AutoHeight.IsManual(this) && this.FindControl<ScrollViewer>("Scroller") is { Bounds.Height: > 0 } scroller)
+            pane.Height = Math.Max(260, scroller.Bounds.Height - 2);
+        else if ((Screens.ScreenFromWindow(this) ?? Screens.Primary) is { } screen)
+            pane.Height = Math.Clamp(screen.WorkingArea.Height / screen.Scaling - 190, 300, 600);
+    }
     /// <summary>Soltaron archivos sobre el chat abierto con ese compañero.</summary>
     public event Action<string, IReadOnlyList<string>>? ChatFilesDropped;
 
@@ -105,9 +183,7 @@ public partial class QuickPanelWindow : Window
             {
                 if (this.FindControl<ChatView>("ChatPane") is not { } pane)
                     return;
-                // En una pantalla baja (portátil de 768 px) el chat se acorta para que la ventana quepa entera.
-                if ((Screens.ScreenFromWindow(this) ?? Screens.Primary) is { } screen)
-                    pane.Height = Math.Clamp(screen.WorkingArea.Height / screen.Scaling - 190, 360, 600);
+                FitChatPane();
                 pane.FocusComposer();
             });
     }

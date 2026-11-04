@@ -13,6 +13,7 @@ public partial class ConnectWindow : Window
     public ConnectWindow()
     {
         AvaloniaXamlLoader.Load(this);
+        ScreenFit.Attach(this);
         AutoHeight.Attach(this);
         Opened += (_, _) => this.FindControl<TextBox>("InputBox")?.Focus();
         DataContextChanged += (_, _) =>
